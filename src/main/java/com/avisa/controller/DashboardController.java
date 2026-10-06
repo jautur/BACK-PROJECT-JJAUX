@@ -1,26 +1,25 @@
 package com.avisa.controller;
 
-import com.avisa.model.Avis;
+import com.avisa.dto.DashboardResponse;
 import com.avisa.service.InMemoryCatalog;
-import java.util.List;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/avisos")
+@RequestMapping("/api/dashboard")
 @CrossOrigin(origins = "http://localhost:4200")
-public class AvísController {
+public class DashboardController {
 
 	private final InMemoryCatalog catalog;
 
-	public AvísController(InMemoryCatalog catalog) {
+	public DashboardController(InMemoryCatalog catalog) {
 		this.catalog = catalog;
 	}
 
 	@GetMapping
-	public List<Avis> list() {
-		return catalog.avisos();
+	public DashboardResponse getDashboard() {
+		return catalog.dashboard();
 	}
 }
