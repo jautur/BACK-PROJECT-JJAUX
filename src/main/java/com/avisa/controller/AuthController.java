@@ -36,4 +36,26 @@ public class AuthController {
 	public Usuari register(@RequestBody RegisterRequest request) {
 		return catalog.addUser(request);
 	}
+
+	// ==========================================
+	// ACCIONS D'AUTENTICACIÓ I SESSIÓ
+	// ==========================================
+
+	/**
+	 * Tancar la sessió de l'usuari.
+	 * Acció: Invalidar el token o la sessió activa al backend.
+	 */
+	@PostMapping("/logout")
+	public void logout() {
+		// TODO: Invalidar sessió o token de l'usuari actual
+	}
+
+	/**
+	 * Canviar la contrasenya de l'usuari autenticat.
+	 */
+	@PostMapping("/canviar-contrasenya")
+	public void changePassword(@RequestBody String novaContrasenya) {
+		// TODO: Validar contrasenya actual i actualitzar-la de forma segura (hash bcrypt)
+	}
 }
+
