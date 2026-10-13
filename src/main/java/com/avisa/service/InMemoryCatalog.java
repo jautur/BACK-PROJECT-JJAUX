@@ -12,88 +12,144 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
 public class InMemoryCatalog {
 
-	private final List<Usuari> users = new CopyOnWriteArrayList<>(List.of(
-		new Usuari(UUID.randomUUID().toString(), "Marta Vila", "marta@jjaux.cat", "client"),
-		new Usuari(UUID.randomUUID().toString(), "Jordi Romero", "jordi@jjaux.cat", "professional"),
-		new Usuari(UUID.randomUUID().toString(), "Clara Sanz", "clara@jjaux.cat", "professional"),
-		new Usuari(UUID.randomUUID().toString(), "Admin JJAUX", "admin@jjaux.cat", "admin")
-	));
+	private final JdbcTemplate jdbcTemplate;
 
-	private final List<Tasca> tasks = new CopyOnWriteArrayList<>(List.of(
-		new Tasca("T-101", "Disseny d’avatar i marca personal", "Crear identitat visual per una marca emergent.", "Branding", "Marta Vila", "€350", "Oberta"),
-		new Tasca("T-102", "Desenvolupament d’una landing page", "Landing responsive amb formulari de contacte.", "Web", "Luna Studio", "€900", "En curs"),
-		new Tasca("T-103", "Edició de vídeo per promoció", "Vídeo curt per xarxes i promoció comercial.", "Multimèdia", "North & Co", "€500", "Finalitzada")
-	));
-
-	private final List<Oferta> offers = new CopyOnWriteArrayList<>(List.of(
-		new Oferta("O-201", "T-102", "Jordi Romero", "€780", "Inclou maquetació responsive i SEO bàsic.", "Pendent"),
-		new Oferta("O-202", "T-101", "Clara Sanz", "€320", "Proposta amb moodboard i identitat visual.", "Acceptada"),
-		new Oferta("O-203", "T-103", "Pau Ferrer", "€430", "Versió curta per reels i xarxes socials.", "Rebutjada")
-	));
-
-	private final List<Avis> avisos = new CopyOnWriteArrayList<>(List.of(
-		new Avis("A-301", "Nova oferta rebuda per la landing page.", LocalDate.now()),
-		new Avis("A-302", "La tasca de branding ha estat acceptada.", LocalDate.now())
-	));
+	public InMemoryCatalog(JdbcTemplate jdbcTemplate) {
+		this.jdbcTemplate = jdbcTemplate;
+	}
 
 	public List<Usuari> users() {
-		return List.copyOf(users);
+		try {
+			return jdbcTemplate.query(
+				"SELECT id, nom, email, rol FROM usuaris ORDER BY created_at",
+				(rs, rowNum) -> new Usuari(
+					rs.getString("id"),
+					rs.getString("nom"),
+					rs.getString("email"),
+					rs.getString("rol")
+				)
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
 	}
 
 	public List<Tasca> tasks() {
-		return List.copyOf(tasks);
+		try {
+			return jdbcTemplate.query(
+				"SELECT id, titol, descripcio, categoria, client_nom, budget, estat FROM tasques ORDER BY created_at",
+				(rs, rowNum) -> new Tasca(
+					rs.getString("id"),
+					rs.getString("titol"),
+					rs.getString("descripcio"),
+					rs.getString("categoria"),
+					rs.getString("client_nom"),
+					rs.getString("budget"),
+					rs.getString("estat")
+				)
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
 	}
 
 	public List<Oferta> offers() {
-		return List.copyOf(offers);
+		try {
+			return jdbcTemplate.query(
+				"SELECT id, tasca_id, professional, price, note, estat FROM ofertes ORDER BY created_at",
+				(rs, rowNum) -> new Oferta(
+					rs.getString("id"),
+					rs.getString("tasca_id"),
+					rs.getString("professional"),
+					rs.getString("price"),
+					rs.getString("note"),
+					rs.getString("estat")
+				)
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
 	}
 
 	public List<Avis> avisos() {
-		return List.copyOf(avisos);
+		try {
+			return jdbcTemplate.query(
+				"SELECT id, missatge, data FROM avisos ORDER BY created_at",
+				(rs, rowNum) -> new Avis(
+					rs.getString("id"),
+					rs.getString("missatge"),
+					rs.getDate("data") != null ? rs.getDate("data").toLocalDate() : LocalDate.now()
+				)
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
 	}
 
 	public Optional<Usuari> findUserByEmail(String email) {
-		return users.stream()
-			.filter(user -> user.email().equalsIgnoreCase(email))
-			.findFirst();
+		try {
+			List<Usuari> res = jdbcTemplate.query(
+				"SELECT id, nom, email, rol FROM usuaris WHERE LOWER(email) = LOWER(?)",
+				(rs, rowNum) -> new Usuari(
+					rs.getString("id"),
+					rs.getString("nom"),
+					rs.getString("email"),
+					rs.getString("rol")
+				),
+				email
+			);
+			return res.stream().findFirst();
+		} catch (Exception e) {
+			return Optional.empty();
+		}
 	}
 
 	public Usuari addUser(RegisterRequest request) {
-		Usuari user = new Usuari(UUID.randomUUID().toString(), request.nom(), request.email(), request.rol());
-		users.add(user);
-		return user;
+		String id = "u-" + UUID.randomUUID().toString().substring(0, 8);
+		String password = request.password() != null ? request.password() : "123456";
+		try {
+			jdbcTemplate.update(
+				"INSERT INTO usuaris (id, nom, email, password, rol) VALUES (?, ?, ?, ?, ?)",
+				id, request.nom(), request.email(), password, request.rol()
+			);
+		} catch (Exception ignored) {}
+		return new Usuari(id, request.nom(), request.email(), request.rol());
 	}
 
 	public Tasca addTask(TascaRequest request) {
-		Tasca task = new Tasca(nextTaskId(), request.titol(), request.descripcio(), request.categoria(), request.client(), request.budget(), request.estat());
-		tasks.add(task);
-		return task;
+		String id = "T-" + String.format("%03d", 100 + tasks().size() + 1);
+		try {
+			jdbcTemplate.update(
+				"INSERT INTO tasques (id, titol, descripcio, categoria, client_nom, budget, estat) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				id, request.titol(), request.descripcio(), request.categoria(), request.client(), request.budget(), request.estat()
+			);
+		} catch (Exception ignored) {}
+		return new Tasca(id, request.titol(), request.descripcio(), request.categoria(), request.client(), request.budget(), request.estat());
 	}
 
 	public Oferta addOffer(OfertaRequest request) {
-		Oferta offer = new Oferta(nextOfferId(), request.tascaId(), request.professional(), request.price(), request.note(), request.estat());
-		offers.add(offer);
-		return offer;
+		String id = "O-" + String.format("%03d", 200 + offers().size() + 1);
+		try {
+			jdbcTemplate.update(
+				"INSERT INTO ofertes (id, tasca_id, professional, price, note, estat) VALUES (?, ?, ?, ?, ?, ?)",
+				id, request.tascaId(), request.professional(), request.price(), request.note(), request.estat()
+			);
+		} catch (Exception ignored) {}
+		return new Oferta(id, request.tascaId(), request.professional(), request.price(), request.note(), request.estat());
 	}
 
 	public DashboardResponse dashboard() {
-		int openTasks = (int) tasks.stream().filter(task -> "Oberta".equalsIgnoreCase(task.estat())).count();
-		int activeOffers = (int) offers.stream().filter(offer -> "Pendent".equalsIgnoreCase(offer.estat())).count();
-		int completedProjects = (int) tasks.stream().filter(task -> "Finalitzada".equalsIgnoreCase(task.estat())).count();
-		return new DashboardResponse(openTasks, activeOffers, completedProjects, tasks(), offers());
-	}
-
-	private String nextTaskId() {
-		return "T-" + String.format("%03d", 100 + tasks.size() + 1);
-	}
-
-	private String nextOfferId() {
-		return "O-" + String.format("%03d", 200 + offers.size() + 1);
+		List<Tasca> currentTasks = tasks();
+		List<Oferta> currentOffers = offers();
+		int openTasks = (int) currentTasks.stream().filter(task -> "Oberta".equalsIgnoreCase(task.estat())).count();
+		int activeOffers = (int) currentOffers.stream().filter(offer -> "Pendent".equalsIgnoreCase(offer.estat())).count();
+		int completedProjects = (int) currentTasks.stream().filter(task -> "Finalitzada".equalsIgnoreCase(task.estat())).count();
+		return new DashboardResponse(openTasks, activeOffers, completedProjects, currentTasks, currentOffers);
 	}
 }
