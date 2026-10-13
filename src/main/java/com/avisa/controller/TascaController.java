@@ -4,13 +4,20 @@ import com.avisa.dto.TascaRequest;
 import com.avisa.model.Tasca;
 import com.avisa.service.InMemoryCatalog;
 import java.util.List;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Controlador REST per a la gestió de tasques (/api/tasks).
+ * Permet publicar tasques, consultar-les, filtrar per client o estat i marcar-les com a completades.
+ */
 @RestController
 @RequestMapping("/api/tasks")
 @CrossOrigin(origins = "http://localhost:4200")
@@ -22,102 +29,101 @@ public class TascaController {
 		this.catalog = catalog;
 	}
 
+	/**
+	 * Llistar totes les tasques de la plataforma.
+	 * Endpoint: GET /api/tasks
+	 * @return Llista de tasques
+	 */
 	@GetMapping
 	public List<Tasca> list() {
 		return catalog.tasks();
 	}
 
+	/**
+	 * Crear i publicar una nova tasca.
+	 * Endpoint: POST /api/tasks
+	 * Acció realitzada per usuaris amb rol de Client.
+	 * @param request Dades de la tasca (títol, descripció, categoria, client, pressupost)
+	 * @return La tasca creada
+	 */
 	@PostMapping
 	public Tasca create(@RequestBody TascaRequest request) {
 		return catalog.addTask(request);
 	}
 
-	// ==========================================
-	// ACCIONS DEL CLIENT
-	// ==========================================
-
 	/**
-	 * Obtenir el detall d'una tasca per ID.
-	 * Acció: Consultar estat, descripció i ofertes rebudes.
+	 * Obtenir el detall d'una tasca concreta pel seu ID.
+	 * Endpoint: GET /api/tasks/{id}
+	 * @param id Identificador de la tasca (ex: 'T-101')
+	 * @return La tasca o 404 Not Found si no existeix
 	 */
 	@GetMapping("/{id}")
-	public Tasca getById(@org.springframework.web.bind.annotation.PathVariable String id) {
-		// TODO: Implementar cerca de tasca per id
-		return null;
+	public ResponseEntity<Tasca> getById(@PathVariable String id) {
+		return catalog.findTaskById(id)
+			.map(ResponseEntity::ok)
+			.orElse(ResponseEntity.notFound().build());
 	}
 
 	/**
-	 * Llistar les tasques creades per un client concret.
-	 * Acció: Panell del client amb les seves pròpies tasques.
+	 * Llistar les tasques creades per un client concret pel seu nom.
+	 * Endpoint: GET /api/tasks/client/{clientNom}
+	 * @param clientNom Nom de l'usuari client
+	 * @return Llista de tasques publicades per aquell client
 	 */
-	@GetMapping("/client/{clientId}")
-	public List<Tasca> listByClient(@org.springframework.web.bind.annotation.PathVariable String clientId) {
-		// TODO: Implementar filtre per client
-		return List.of();
+	@GetMapping("/client/{clientNom}")
+	public List<Tasca> listByClient(@PathVariable String clientNom) {
+		return catalog.findTasksByClient(clientNom);
 	}
 
 	/**
-	 * Actualitzar les dades d'una tasca existent (títol, descripció, pressupost...).
-	 * Acció: El client edita la tasca mentre estigui 'Oberta'.
-	 */
-	@org.springframework.web.bind.annotation.PutMapping("/{id}")
-	public Tasca update(@org.springframework.web.bind.annotation.PathVariable String id, @RequestBody TascaRequest request) {
-		// TODO: Implementar actualització de tasca
-		return null;
-	}
-
-	/**
-	 * Cancel·lar / eliminar una tasca.
-	 * Acció: El client cancel·la la demanda si ja no la necessita.
-	 */
-	@org.springframework.web.bind.annotation.DeleteMapping("/{id}")
-	public void delete(@org.springframework.web.bind.annotation.PathVariable String id) {
-		// TODO: Implementar eliminació o marcatge com a cancel·lada
-	}
-
-	/**
-	 * Finalitzar tasca.
-	 * Acció: El client confirma que la feina s'ha completat satisfactòriament.
+	 * Finalitzar una tasca.
+	 * Endpoint: POST /api/tasks/{id}/finalitzar
+	 * Acció: El client confirma la conclusió del projecte (passa l'estat a 'Finalitzada').
+	 * @param id Identificador de la tasca
+	 * @return La tasca actualitzada
 	 */
 	@PostMapping("/{id}/finalitzar")
-	public Tasca markAsCompleted(@org.springframework.web.bind.annotation.PathVariable String id) {
-		// TODO: Canviar estat a 'Finalitzada'
-		return null;
+	public ResponseEntity<Tasca> markAsCompleted(@PathVariable String id) {
+		return catalog.completeTask(id)
+			.map(ResponseEntity::ok)
+			.orElse(ResponseEntity.notFound().build());
 	}
 
-	// ==========================================
-	// ACCIONS DEL PROFESSIONAL
-	// ==========================================
-
 	/**
-	 * Llistar tasques disponibles (estat 'Oberta').
-	 * Acció: Explorar oportunitats de feina obertes per fer ofertes.
+	 * Llistar tasques que estan obertes a rebre ofertes.
+	 * Endpoint: GET /api/tasks/disponibles
+	 * Acció: Permet als professionals trobar oportunitats actives.
+	 * @return Llista de tasques amb estat 'Oberta'
 	 */
 	@GetMapping("/disponibles")
 	public List<Tasca> listAvailable() {
-		// TODO: Filtrar per estat 'Oberta'
-		return List.of();
+		return catalog.tasks().stream()
+			.filter(t -> "Oberta".equalsIgnoreCase(t.estat()))
+			.toList();
 	}
 
 	/**
-	 * Filtrar tasques per categoria (e.g. 'Web', 'Disseny', 'Multimèdia').
+	 * Filtrar tasques per una categoria específica (ex: 'Web', 'Branding', 'Multimèdia').
+	 * Endpoint: GET /api/tasks/categoria/{categoria}
+	 * @param categoria Nom de la categoria
+	 * @return Llista de tasques d'aquella categoria
 	 */
 	@GetMapping("/categoria/{categoria}")
-	public List<Tasca> listByCategory(@org.springframework.web.bind.annotation.PathVariable String categoria) {
-		// TODO: Filtrar per categoria
-		return List.of();
+	public List<Tasca> listByCategory(@PathVariable String categoria) {
+		return catalog.tasks().stream()
+			.filter(t -> t.categoria() != null && t.categoria().equalsIgnoreCase(categoria))
+			.toList();
 	}
 
-	// ==========================================
-	// ACCIONS DE L'ADMINISTRADOR
-	// ==========================================
-
 	/**
-	 * Modificació d'estat administrativa (supervisió / moderació).
+	 * Eliminar una tasca de la plataforma.
+	 * Endpoint: DELETE /api/tasks/{id}
+	 * @param id Identificador de la tasca
+	 * @return 204 No Content
 	 */
-	@org.springframework.web.bind.annotation.PatchMapping("/{id}/estat")
-	public Tasca changeStatusByAdmin(@org.springframework.web.bind.annotation.PathVariable String id, @RequestBody String nouEstat) {
-		// TODO: Validar permís admin i canviar estat
-		return null;
+	@DeleteMapping("/{id}")
+	public ResponseEntity<Void> delete(@PathVariable String id) {
+		catalog.deleteTask(id);
+		return ResponseEntity.noContent().build();
 	}
 }

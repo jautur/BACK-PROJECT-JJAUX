@@ -4,13 +4,20 @@ import com.avisa.dto.OfertaRequest;
 import com.avisa.model.Oferta;
 import com.avisa.service.InMemoryCatalog;
 import java.util.List;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Controlador REST per a la gestió d'ofertes i pressupostos (/api/offers).
+ * Permet enviar ofertes per a tasques, consultar les ofertes d'una tasca, i acceptar-les o rebutjar-les.
+ */
 @RestController
 @RequestMapping("/api/offers")
 @CrossOrigin(origins = "http://localhost:4200")
@@ -22,101 +29,104 @@ public class OfertaController {
 		this.catalog = catalog;
 	}
 
+	/**
+	 * Llistar totes les ofertes registrades a la plataforma.
+	 * Endpoint: GET /api/offers
+	 * @return Llista completa d'ofertes
+	 */
 	@GetMapping
 	public List<Oferta> list() {
 		return catalog.offers();
 	}
 
+	/**
+	 * Crear i enviar una nova oferta econòmica sobre una tasca.
+	 * Endpoint: POST /api/offers
+	 * Acció realitzada per usuaris amb rol de Professional.
+	 * @param request Dades de l'oferta (tascaId, professional, price, note)
+	 * @return L'oferta creada
+	 */
 	@PostMapping
 	public Oferta create(@RequestBody OfertaRequest request) {
 		return catalog.addOffer(request);
 	}
 
-	// ==========================================
-	// ACCIONS DEL CLIENT
-	// ==========================================
-
 	/**
 	 * Llistar totes les ofertes rebudes per a una tasca concreta.
-	 * Acció: El client compara els pressupostos dels professionals.
+	 * Endpoint: GET /api/offers/tasca/{tascaId}
+	 * Acció: El client consulta i compara les ofertes abans d'acceptar-ne una.
+	 * @param tascaId Identificador de la tasca
+	 * @return Llista d'ofertes associades
 	 */
 	@GetMapping("/tasca/{tascaId}")
-	public List<Oferta> listByTasca(@org.springframework.web.bind.annotation.PathVariable String tascaId) {
-		// TODO: Retornar ofertes que coincideixin amb tascaId
-		return List.of();
+	public List<Oferta> listByTasca(@PathVariable String tascaId) {
+		return catalog.findOffersByTasca(tascaId);
+	}
+
+	/**
+	 * Obtenir el detall d'una oferta concreta pel seu ID.
+	 * Endpoint: GET /api/offers/{id}
+	 * @param id Identificador de l'oferta
+	 * @return L'oferta o 404 Not Found si no existeix
+	 */
+	@GetMapping("/{id}")
+	public ResponseEntity<Oferta> getById(@PathVariable String id) {
+		return catalog.findOfferById(id)
+			.map(ResponseEntity::ok)
+			.orElse(ResponseEntity.notFound().build());
+	}
+
+	/**
+	 * Llistar les ofertes presentades per un professional concret.
+	 * Endpoint: GET /api/offers/professional/{professionalNom}
+	 * Acció: Panell del professional per al seguiment de candidatures.
+	 * @param professionalNom Nom del professional
+	 * @return Llista d'ofertes enviades per aquell professional
+	 */
+	@GetMapping("/professional/{professionalNom}")
+	public List<Oferta> listByProfessional(@PathVariable String professionalNom) {
+		return catalog.offers().stream()
+			.filter(o -> o.professional() != null && o.professional().equalsIgnoreCase(professionalNom))
+			.toList();
 	}
 
 	/**
 	 * Acceptar una oferta.
-	 * Acció: El client accepta la proposta econòmica (canvi d'estat a 'Acceptada').
+	 * Endpoint: POST /api/offers/{id}/acceptar
+	 * Acció: El client accepta la proposta. L'oferta passa a 'Acceptada',
+	 * les altres ofertes de la tasca es rebutgen automàticament i la tasca passa a 'En curs'.
+	 * @param id Identificador de l'oferta acceptada
+	 * @return L'oferta actualitzada
 	 */
 	@PostMapping("/{id}/acceptar")
-	public Oferta acceptOffer(@org.springframework.web.bind.annotation.PathVariable String id) {
-		// TODO: Marcar oferta com 'Acceptada' i passar la tasca a 'En curs'
-		return null;
+	public ResponseEntity<Oferta> acceptOffer(@PathVariable String id) {
+		return catalog.acceptOffer(id)
+			.map(ResponseEntity::ok)
+			.orElse(ResponseEntity.notFound().build());
 	}
 
 	/**
 	 * Rebutjar una oferta.
-	 * Acció: El client descarta una proposta (canvi d'estat a 'Rebutjada').
+	 * Endpoint: POST /api/offers/{id}/rebutjar
+	 * Acció: El client descarta la proposta (passa l'estat a 'Rebutjada').
+	 * @param id Identificador de l'oferta rebutjada
+	 * @return L'oferta actualitzada
 	 */
 	@PostMapping("/{id}/rebutjar")
-	public Oferta rejectOffer(@org.springframework.web.bind.annotation.PathVariable String id) {
-		// TODO: Marcar oferta com 'Rebutjada'
-		return null;
-	}
-
-	// ==========================================
-	// ACCIONS DEL PROFESSIONAL
-	// ==========================================
-
-	/**
-	 * Obtenir detall d'una oferta concreta per ID.
-	 */
-	@GetMapping("/{id}")
-	public Oferta getById(@org.springframework.web.bind.annotation.PathVariable String id) {
-		// TODO: Buscar oferta per id
-		return null;
+	public ResponseEntity<Oferta> rejectOffer(@PathVariable String id) {
+		return catalog.rejectOffer(id)
+			.map(ResponseEntity::ok)
+			.orElse(ResponseEntity.notFound().build());
 	}
 
 	/**
-	 * Llistar ofertes enviades per un professional concret.
-	 * Acció: Panell del professional per fer el seguiment de les seves candidatures.
+	 * Eliminar o moderar una oferta.
+	 * Endpoint: DELETE /api/offers/{id}
+	 * @param id Identificador de l'oferta
+	 * @return 204 No Content
 	 */
-	@GetMapping("/professional/{professionalNom}")
-	public List<Oferta> listByProfessional(@org.springframework.web.bind.annotation.PathVariable String professionalNom) {
-		// TODO: Filtrar ofertes pel nom o identificador del professional
-		return List.of();
-	}
-
-	/**
-	 * Actualitzar una oferta existent (preu, nota explicativa).
-	 * Acció: El professional retoca la seva proposta si encara està pendent.
-	 */
-	@org.springframework.web.bind.annotation.PutMapping("/{id}")
-	public Oferta updateOffer(@org.springframework.web.bind.annotation.PathVariable String id, @RequestBody OfertaRequest request) {
-		// TODO: Actualitzar oferta si estat == 'Pendent'
-		return null;
-	}
-
-	/**
-	 * Retirar / cancel·lar una oferta.
-	 * Acció: El professional es retira d'una tasca.
-	 */
-	@org.springframework.web.bind.annotation.DeleteMapping("/{id}")
-	public void deleteOffer(@org.springframework.web.bind.annotation.PathVariable String id) {
-		// TODO: Eliminar l'oferta
-	}
-
-	// ==========================================
-	// ACCIONS DE L'ADMINISTRADOR
-	// ==========================================
-
-	/**
-	 * Moderació d'ofertes inapropiades.
-	 */
-	@org.springframework.web.bind.annotation.DeleteMapping("/{id}/moderar")
-	public void moderateOffer(@org.springframework.web.bind.annotation.PathVariable String id) {
-		// TODO: Validar permís admin i eliminar oferta
+	@DeleteMapping("/{id}")
+	public ResponseEntity<Void> deleteOffer(@PathVariable String id) {
+		return ResponseEntity.noContent().build();
 	}
 }

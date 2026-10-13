@@ -15,6 +15,10 @@ import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+/**
+ * Catàleg central i capa d'accés a dades per a l'aplicació JJAUX.
+ * Executa operacions de consulta, inserció i actualització contra la base de dades PostgreSQL (jjaux_db).
+ */
 @Component
 public class InMemoryCatalog {
 
@@ -24,15 +28,25 @@ public class InMemoryCatalog {
 		this.jdbcTemplate = jdbcTemplate;
 	}
 
+	// ==========================================
+	// GESTIÓ D'USUARIS
+	// ==========================================
+
+	/**
+	 * Recupera tots els usuaris registrats de la base de dades.
+	 * @return Llista completa d'usuaris
+	 */
 	public List<Usuari> users() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, nom, email, rol FROM usuaris ORDER BY created_at",
+				"SELECT id, nom, email, rol, telefon, bio FROM usuaris ORDER BY created_at",
 				(rs, rowNum) -> new Usuari(
 					rs.getString("id"),
 					rs.getString("nom"),
 					rs.getString("email"),
-					rs.getString("rol")
+					rs.getString("rol"),
+					rs.getString("telefon"),
+					rs.getString("bio")
 				)
 			);
 		} catch (Exception e) {
@@ -40,10 +54,124 @@ public class InMemoryCatalog {
 		}
 	}
 
+	/**
+	 * Cerca un usuari concret pel seu identificador únic (ID).
+	 * @param id Identificador de l'usuari
+	 * @return Optional amb l'usuari trobat
+	 */
+	public Optional<Usuari> findUserById(String id) {
+		try {
+			List<Usuari> res = jdbcTemplate.query(
+				"SELECT id, nom, email, rol, telefon, bio FROM usuaris WHERE id = ?",
+				(rs, rowNum) -> new Usuari(
+					rs.getString("id"),
+					rs.getString("nom"),
+					rs.getString("email"),
+					rs.getString("rol"),
+					rs.getString("telefon"),
+					rs.getString("bio")
+				),
+				id
+			);
+			return res.stream().findFirst();
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	/**
+	 * Cerca un usuari per la seva adreça de correu electrònic.
+	 * @param email Correu de l'usuari
+	 * @return Optional amb l'usuari si existeix
+	 */
+	public Optional<Usuari> findUserByEmail(String email) {
+		try {
+			List<Usuari> res = jdbcTemplate.query(
+				"SELECT id, nom, email, rol, telefon, bio FROM usuaris WHERE LOWER(email) = LOWER(?)",
+				(rs, rowNum) -> new Usuari(
+					rs.getString("id"),
+					rs.getString("nom"),
+					rs.getString("email"),
+					rs.getString("rol"),
+					rs.getString("telefon"),
+					rs.getString("bio")
+				),
+				email
+			);
+			return res.stream().findFirst();
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	/**
+	 * Actualitza la informació del perfil d'un usuari.
+	 * @param id Identificador de l'usuari
+	 * @param nou Dades actualitzades
+	 * @return L'usuari amb els canvis aplicats
+	 */
+	public Usuari updateUser(String id, Usuari nou) {
+		try {
+			jdbcTemplate.update(
+				"UPDATE usuaris SET nom = ?, telefon = ?, bio = ? WHERE id = ?",
+				nou.nom(), nou.telefon(), nou.bio(), id
+			);
+			return findUserById(id).orElse(nou);
+		} catch (Exception e) {
+			return nou;
+		}
+	}
+
+	/**
+	 * Actualitza la contrasenya d'un usuari.
+	 * @param id Identificador de l'usuari
+	 * @param newPassword Nova contrasenya
+	 */
+	public void changePassword(String id, String newPassword) {
+		try {
+			jdbcTemplate.update("UPDATE usuaris SET password = ? WHERE id = ?", newPassword, id);
+		} catch (Exception ignored) {}
+	}
+
+	/**
+	 * Elimina un usuari de la plataforma.
+	 * @param id Identificador de l'usuari
+	 */
+	public void deleteUser(String id) {
+		try {
+			jdbcTemplate.update("DELETE FROM usuaris WHERE id = ?", id);
+		} catch (Exception ignored) {}
+	}
+
+	/**
+	 * Registra un nou usuari a la plataforma i el desa a PostgreSQL.
+	 * @param request Dades de registre
+	 * @return L'usuari creat
+	 */
+	public Usuari addUser(RegisterRequest request) {
+		String id = "u-" + UUID.randomUUID().toString().substring(0, 8);
+		String password = request.password() != null ? request.password() : "123456";
+		try {
+			jdbcTemplate.update(
+				"INSERT INTO usuaris (id, nom, email, password, rol) VALUES (?, ?, ?, ?, ?)",
+				id, request.nom(), request.email(), password, request.rol()
+			);
+		} catch (Exception ignored) {}
+		return new Usuari(id, request.nom(), request.email(), request.rol(), null, null);
+	}
+
+	// ==========================================
+	// GESTIÓ DE TASQUES
+	// ==========================================
+
+	/**
+	 * Obté totes les tasques registrades a PostgreSQL.
+	 * @return Llista de tasques
+	 */
 	public List<Tasca> tasks() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, titol, descripcio, categoria, client_nom, budget, estat FROM tasques ORDER BY created_at",
+				"SELECT id, titol, descripcio, categoria, client_nom, budget, estat FROM tasques ORDER BY created_at DESC",
 				(rs, rowNum) -> new Tasca(
 					rs.getString("id"),
 					rs.getString("titol"),
@@ -59,10 +187,125 @@ public class InMemoryCatalog {
 		}
 	}
 
+	/**
+	 * Cerca una tasca pel seu identificador únic (ex: 'T-101').
+	 * @param id Identificador de la tasca
+	 * @return Optional amb la tasca
+	 */
+	public Optional<Tasca> findTaskById(String id) {
+		try {
+			List<Tasca> res = jdbcTemplate.query(
+				"SELECT id, titol, descripcio, categoria, client_nom, budget, estat FROM tasques WHERE id = ?",
+				(rs, rowNum) -> new Tasca(
+					rs.getString("id"),
+					rs.getString("titol"),
+					rs.getString("descripcio"),
+					rs.getString("categoria"),
+					rs.getString("client_nom"),
+					rs.getString("budget"),
+					rs.getString("estat")
+				),
+				id
+			);
+			return res.stream().findFirst();
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	/**
+	 * Llista les tasques publicades per un client concret.
+	 * @param clientNom Nom del client
+	 * @return Llista de tasques d'aquell client
+	 */
+	public List<Tasca> findTasksByClient(String clientNom) {
+		try {
+			return jdbcTemplate.query(
+				"SELECT id, titol, descripcio, categoria, client_nom, budget, estat FROM tasques WHERE LOWER(client_nom) = LOWER(?) ORDER BY created_at DESC",
+				(rs, rowNum) -> new Tasca(
+					rs.getString("id"),
+					rs.getString("titol"),
+					rs.getString("descripcio"),
+					rs.getString("categoria"),
+					rs.getString("client_nom"),
+					rs.getString("budget"),
+					rs.getString("estat")
+				),
+				clientNom
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	/**
+	 * Afegeix una nova tasca creada per un client a la base de dades.
+	 * @param request Dades de la tasca a publicar
+	 * @return La tasca creada
+	 */
+	public Tasca addTask(TascaRequest request) {
+		String id = "T-" + String.format("%03d", 100 + tasks().size() + 1);
+		String estat = request.estat() != null ? request.estat() : "Oberta";
+		try {
+			jdbcTemplate.update(
+				"INSERT INTO tasques (id, titol, descripcio, categoria, client_nom, budget, estat) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				id, request.titol(), request.descripcio(), request.categoria(), request.client(), request.budget(), estat
+			);
+		} catch (Exception ignored) {}
+		return new Tasca(id, request.titol(), request.descripcio(), request.categoria(), request.client(), request.budget(), estat);
+	}
+
+	/**
+	 * Finalitza una tasca canviant el seu estat a 'Finalitzada' i enviant avisos pertinents.
+	 * @param id Identificador de la tasca
+	 * @return Optional amb la tasca actualitzada
+	 */
+	public Optional<Tasca> completeTask(String id) {
+		try {
+			jdbcTemplate.update("UPDATE tasques SET estat = 'Finalitzada' WHERE id = ?", id);
+			Optional<Tasca> tascaOpt = findTaskById(id);
+			tascaOpt.ifPresent(task -> {
+				// Notifica al client
+				users().stream()
+					.filter(u -> u.nom().equalsIgnoreCase(task.client()))
+					.findFirst()
+					.ifPresent(clientUser -> addAvis(clientUser.id(), "Has finalitzat amb èxit la tasca '" + task.titol() + "'."));
+
+				// Notifica al professional que tenia l'oferta acceptada
+				findOffersByTasca(id).stream()
+					.filter(o -> "Acceptada".equalsIgnoreCase(o.estat()))
+					.findFirst()
+					.flatMap(accOffer -> users().stream().filter(u -> u.nom().equalsIgnoreCase(accOffer.professional())).findFirst())
+					.ifPresent(proUser -> addAvis(proUser.id(), "La tasca '" + task.titol() + "' ha estat marcada com a finalitzada pel client!"));
+			});
+			return tascaOpt;
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	/**
+	 * Elimina una tasca de la base de dades.
+	 * @param id Identificador de la tasca
+	 */
+	public void deleteTask(String id) {
+		try {
+			jdbcTemplate.update("DELETE FROM tasques WHERE id = ?", id);
+		} catch (Exception ignored) {}
+	}
+
+	// ==========================================
+	// GESTIÓ D'OFERTES I PRESSUPOSTOS
+	// ==========================================
+
+	/**
+	 * Obté totes les ofertes econòmiques registrades.
+	 * @return Llista completa d'ofertes
+	 */
 	public List<Oferta> offers() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, tasca_id, professional, price, note, estat FROM ofertes ORDER BY created_at",
+				"SELECT id, tasca_id, professional, price, note, estat FROM ofertes ORDER BY created_at DESC",
 				(rs, rowNum) -> new Oferta(
 					rs.getString("id"),
 					rs.getString("tasca_id"),
@@ -77,13 +320,153 @@ public class InMemoryCatalog {
 		}
 	}
 
+	/**
+	 * Cerca una oferta pel seu ID únic.
+	 * @param id Identificador de l'oferta
+	 * @return Optional amb l'oferta
+	 */
+	public Optional<Oferta> findOfferById(String id) {
+		try {
+			List<Oferta> res = jdbcTemplate.query(
+				"SELECT id, tasca_id, professional, price, note, estat FROM ofertes WHERE id = ?",
+				(rs, rowNum) -> new Oferta(
+					rs.getString("id"),
+					rs.getString("tasca_id"),
+					rs.getString("professional"),
+					rs.getString("price"),
+					rs.getString("note"),
+					rs.getString("estat")
+				),
+				id
+			);
+			return res.stream().findFirst();
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	/**
+	 * Llista totes les ofertes presentades per a una tasca específica.
+	 * @param tascaId Identificador de la tasca
+	 * @return Llista d'ofertes rebudes per a la tasca
+	 */
+	public List<Oferta> findOffersByTasca(String tascaId) {
+		try {
+			return jdbcTemplate.query(
+				"SELECT id, tasca_id, professional, price, note, estat FROM ofertes WHERE tasca_id = ? ORDER BY created_at DESC",
+				(rs, rowNum) -> new Oferta(
+					rs.getString("id"),
+					rs.getString("tasca_id"),
+					rs.getString("professional"),
+					rs.getString("price"),
+					rs.getString("note"),
+					rs.getString("estat")
+				),
+				tascaId
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	/**
+	 * Guarda una nova oferta presentada per un professional i emet un avís al client.
+	 * @param request Dades de l'oferta
+	 * @return L'oferta creada
+	 */
+	public Oferta addOffer(OfertaRequest request) {
+		String id = "O-" + String.format("%03d", 200 + offers().size() + 1);
+		String estat = request.estat() != null ? request.estat() : "Pendent";
+		try {
+			jdbcTemplate.update(
+				"INSERT INTO ofertes (id, tasca_id, professional, price, note, estat) VALUES (?, ?, ?, ?, ?, ?)",
+				id, request.tascaId(), request.professional(), request.price(), request.note(), estat
+			);
+			// Notifica al client propietari de la tasca
+			findTaskById(request.tascaId()).ifPresent(task -> {
+				users().stream()
+					.filter(u -> u.nom().equalsIgnoreCase(task.client()))
+					.findFirst()
+					.ifPresent(clientUser -> addAvis(clientUser.id(), "Nova oferta rebuda de " + request.professional() + " per a '" + task.titol() + "' (" + request.price() + ")."));
+			});
+		} catch (Exception ignored) {}
+		return new Oferta(id, request.tascaId(), request.professional(), request.price(), request.note(), estat);
+	}
+
+	/**
+	 * Accepta una oferta:
+	 * - Marca l'oferta seleccionada com 'Acceptada'
+	 * - Rebutja automàticament les altres ofertes d'aquella mateixa tasca
+	 * - Passa l'estat de la tasca a 'En curs'
+	 * - Envia una notificació d'enhorabona al professional
+	 * @param offerId Identificador de l'oferta a acceptar
+	 * @return Optional amb l'oferta acceptada
+	 */
+	public Optional<Oferta> acceptOffer(String offerId) {
+		try {
+			Optional<Oferta> opt = findOfferById(offerId);
+			if (opt.isPresent()) {
+				Oferta of = opt.get();
+				jdbcTemplate.update("UPDATE ofertes SET estat = 'Acceptada' WHERE id = ?", offerId);
+				jdbcTemplate.update("UPDATE ofertes SET estat = 'Rebutjada' WHERE tasca_id = ? AND id != ?", of.tascaId(), offerId);
+				jdbcTemplate.update("UPDATE tasques SET estat = 'En curs' WHERE id = ?", of.tascaId());
+
+				// Notifica al professional guanyador
+				findTaskById(of.tascaId()).ifPresent(task -> {
+					users().stream()
+						.filter(u -> u.nom().equalsIgnoreCase(of.professional()))
+						.findFirst()
+						.ifPresent(proUser -> addAvis(proUser.id(), "Enhorabona! La teva oferta per a '" + task.titol() + "' ha estat ACCEPTADA per " + task.client() + "!"));
+				});
+
+				return findOfferById(offerId);
+			}
+			return Optional.empty();
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	/**
+	 * Rebutja una oferta concreta marcant el seu estat com 'Rebutjada' i notifica al professional.
+	 * @param offerId Identificador de l'oferta
+	 * @return Optional amb l'oferta rebutjada
+	 */
+	public Optional<Oferta> rejectOffer(String offerId) {
+		try {
+			Optional<Oferta> opt = findOfferById(offerId);
+			jdbcTemplate.update("UPDATE ofertes SET estat = 'Rebutjada' WHERE id = ?", offerId);
+			opt.ifPresent(of -> {
+				findTaskById(of.tascaId()).ifPresent(task -> {
+					users().stream()
+						.filter(u -> u.nom().equalsIgnoreCase(of.professional()))
+						.findFirst()
+						.ifPresent(proUser -> addAvis(proUser.id(), "La teva oferta per a '" + task.titol() + "' ha estat rebutjada pel client."));
+				});
+			});
+			return findOfferById(offerId);
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	// ==========================================
+	// GESTIÓ D'AVISOS I DASHBOARD
+	// ==========================================
+
+	/**
+	 * Obté tots els avisos des de PostgreSQL ordenats per data descendent.
+	 * @return Llista d'avisos
+	 */
 	public List<Avis> avisos() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, missatge, data FROM avisos ORDER BY created_at",
+				"SELECT id, usuari_id, missatge, llegit, data FROM avisos ORDER BY created_at DESC",
 				(rs, rowNum) -> new Avis(
 					rs.getString("id"),
+					rs.getString("usuari_id"),
 					rs.getString("missatge"),
+					rs.getBoolean("llegit"),
 					rs.getDate("data") != null ? rs.getDate("data").toLocalDate() : LocalDate.now()
 				)
 			);
@@ -92,58 +475,71 @@ public class InMemoryCatalog {
 		}
 	}
 
-	public Optional<Usuari> findUserByEmail(String email) {
+	/**
+	 * Obté els avisos dirigits a un usuari concret.
+	 * @param usuariId Identificador de l'usuari
+	 * @return Llista d'avisos de l'usuari
+	 */
+	public List<Avis> findAvisosByUsuari(String usuariId) {
 		try {
-			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol FROM usuaris WHERE LOWER(email) = LOWER(?)",
-				(rs, rowNum) -> new Usuari(
+			return jdbcTemplate.query(
+				"SELECT id, usuari_id, missatge, llegit, data FROM avisos WHERE usuari_id = ? ORDER BY created_at DESC",
+				(rs, rowNum) -> new Avis(
 					rs.getString("id"),
-					rs.getString("nom"),
-					rs.getString("email"),
-					rs.getString("rol")
+					rs.getString("usuari_id"),
+					rs.getString("missatge"),
+					rs.getBoolean("llegit"),
+					rs.getDate("data") != null ? rs.getDate("data").toLocalDate() : LocalDate.now()
 				),
-				email
+				usuariId
 			);
-			return res.stream().findFirst();
 		} catch (Exception e) {
-			return Optional.empty();
+			return List.of();
 		}
 	}
 
-	public Usuari addUser(RegisterRequest request) {
-		String id = "u-" + UUID.randomUUID().toString().substring(0, 8);
-		String password = request.password() != null ? request.password() : "123456";
+	/**
+	 * Crea un nou avís o notificació per a un usuari.
+	 * @param usuariId Identificador de l'usuari destinatari
+	 * @param missatge Missatge descriptiu de l'avís
+	 * @return L'avís creat
+	 */
+	public Avis addAvis(String usuariId, String missatge) {
+		String id = "A-" + UUID.randomUUID().toString().substring(0, 8);
+		LocalDate data = LocalDate.now();
 		try {
 			jdbcTemplate.update(
-				"INSERT INTO usuaris (id, nom, email, password, rol) VALUES (?, ?, ?, ?, ?)",
-				id, request.nom(), request.email(), password, request.rol()
+				"INSERT INTO avisos (id, usuari_id, missatge, llegit, data) VALUES (?, ?, ?, false, ?)",
+				id, usuariId, missatge, data
 			);
 		} catch (Exception ignored) {}
-		return new Usuari(id, request.nom(), request.email(), request.rol());
+		return new Avis(id, usuariId, missatge, false, data);
 	}
 
-	public Tasca addTask(TascaRequest request) {
-		String id = "T-" + String.format("%03d", 100 + tasks().size() + 1);
+	/**
+	 * Marca un avís com a llegit.
+	 * @param id Identificador de l'avís
+	 */
+	public void markAvisAsRead(String id) {
 		try {
-			jdbcTemplate.update(
-				"INSERT INTO tasques (id, titol, descripcio, categoria, client_nom, budget, estat) VALUES (?, ?, ?, ?, ?, ?, ?)",
-				id, request.titol(), request.descripcio(), request.categoria(), request.client(), request.budget(), request.estat()
-			);
+			jdbcTemplate.update("UPDATE avisos SET llegit = true WHERE id = ?", id);
 		} catch (Exception ignored) {}
-		return new Tasca(id, request.titol(), request.descripcio(), request.categoria(), request.client(), request.budget(), request.estat());
 	}
 
-	public Oferta addOffer(OfertaRequest request) {
-		String id = "O-" + String.format("%03d", 200 + offers().size() + 1);
+	/**
+	 * Elimina un avís de la base de dades.
+	 * @param id Identificador de l'avís
+	 */
+	public void deleteAvis(String id) {
 		try {
-			jdbcTemplate.update(
-				"INSERT INTO ofertes (id, tasca_id, professional, price, note, estat) VALUES (?, ?, ?, ?, ?, ?)",
-				id, request.tascaId(), request.professional(), request.price(), request.note(), request.estat()
-			);
+			jdbcTemplate.update("DELETE FROM avisos WHERE id = ?", id);
 		} catch (Exception ignored) {}
-		return new Oferta(id, request.tascaId(), request.professional(), request.price(), request.note(), request.estat());
 	}
 
+	/**
+	 * Genera les mètriques i el resum de dades per al Dashboard principal.
+	 * @return Resum de tasques obertes, ofertes actives i projectes finalitzats
+	 */
 	public DashboardResponse dashboard() {
 		List<Tasca> currentTasks = tasks();
 		List<Oferta> currentOffers = offers();
