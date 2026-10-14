@@ -59,7 +59,27 @@ public class TascaController {
 	 */
 	@GetMapping("/{id}")
 	public ResponseEntity<Tasca> getById(@PathVariable String id) {
-		return catalog.findTaskById(id)
+		java.util.Optional<Tasca> task = catalog.findTaskById(id);
+		if (task.isPresent()) {
+			return ResponseEntity.ok(task.get());
+		}
+		return catalog.findIncidenciaById(id)
+			.map(inc -> new Tasca(
+				inc.id(),
+				inc.titol(),
+				inc.descripcio(),
+				inc.categoria(),
+				inc.clientId(),
+				inc.clientNom(),
+				null,
+				null,
+				null,
+				inc.budget(),
+				inc.estat(),
+				"incidencia",
+				null,
+				null
+			))
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}

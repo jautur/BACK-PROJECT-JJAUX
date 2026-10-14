@@ -1,8 +1,19 @@
 package com.avisa.dto;
 
+import com.avisa.model.Incidencia;
 import com.avisa.model.Oferta;
 import com.avisa.model.Tasca;
 import java.util.List;
 
-public record DashboardResponse(int openTasks, int activeOffers, int completedProjects, List<Tasca> tasks, List<Oferta> offers) {
+public record DashboardResponse(
+    int openTasks,
+    int activeOffers,
+    int completedProjects,
+    List<Tasca> tasks,
+    List<Oferta> offers,
+    List<Incidencia> incidencies
+) {
+    public DashboardResponse(int openTasks, int activeOffers, int completedProjects, List<Tasca> tasks, List<Oferta> offers) {
+        this(openTasks, activeOffers, completedProjects, tasks, offers, List.of());
+    }
 }

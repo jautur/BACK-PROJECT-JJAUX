@@ -7,3 +7,4 @@ public record FinalitzarTascaRequest(
     Integer valoracio,
     String opinio
 ) {}
+
