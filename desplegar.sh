@@ -151,6 +151,18 @@ else
     sleep 1
 fi
 
+# ------------------------------------------------------------------------------
+# 4. Obrir al navegador
+# ------------------------------------------------------------------------------
+echo -e "\n  -> Obrint aplicació al navegador..."
+if command -v xdg-open >/dev/null 2>&1; then
+    xdg-open http://localhost:4300 >/dev/null 2>&1 || true
+elif command -v sensible-browser >/dev/null 2>&1; then
+    sensible-browser http://localhost:4300 >/dev/null 2>&1 || true
+elif command -v cmd.exe >/dev/null 2>&1; then
+    cmd.exe /c start http://localhost:4300 2>/dev/null || true
+fi
+
 echo "=========================================================="
 echo "           DESPLEGAMENT COMPLETAT AMB ÈXIT!"
 echo "=========================================================="
