@@ -30,7 +30,7 @@ public class DemoDataSeeder implements ApplicationRunner {
 
 	private void seedUsers() {
 		// Assegurar usuari administrador
-		upsertUser("u-admin", "Administrador General", "admin@admin", "adminadmin", "admin", null, "Administrador de la plataforma AVISA");
+		upsertUser("u-admin", "Administrador General", "admin@admin.es", "adminadmin", "admin", null, "Administrador de la plataforma AVISA");
 
 		// Clients
 		upsertUser("u-1", "Marta Vila", "marta@jjaux.cat", "martamarta", "client", "600111222", "Clienta habitual. Propietària particular interessada en reformes de qualitat i manteniment de la llar.");

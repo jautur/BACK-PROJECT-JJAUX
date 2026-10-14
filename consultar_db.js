@@ -9,24 +9,51 @@
 **   node consultar_db.js "SELECT * FROM ... "  -> Executa qualsevol consulta SQL personalitzada
 **/
 
-const { Client } = require('/home/jautursis/.gemini/antigravity/brain/ac12e9c2-506a-4129-bb08-8c851cfd0667/scratch/pg/node_modules/pg');
+let pg;
+try {
+  pg = require('pg');
+} catch (e) {
+  try {
+    const path = require('path');
+    pg = require(path.join(__dirname, '..', 'FRONT-PROJECT-JJAUX', 'node_modules', 'pg'));
+  } catch (e2) {
+    try {
+      pg = require('/home/jautursis/.gemini/antigravity/brain/ac12e9c2-506a-4129-bb08-8c851cfd0667/scratch/pg/node_modules/pg');
+    } catch (e3) {
+      console.error('❌ No s\'ha trobat el mòdul "pg".');
+      process.exit(1);
+    }
+  }
+}
+const { Client } = pg;
 
 const config = {
-  host: 'localhost',
-  port: 5432,
-  user: 'postgres',
-  password: '',
-  database: 'jjaux_db'
+  host: process.env.PGHOST || 'localhost',
+  port: parseInt(process.env.PGPORT || '5432', 10),
+  user: process.env.PGUSER || 'postgres',
+  password: process.env.PGPASSWORD !== undefined ? process.env.PGPASSWORD : (process.env.DB_PASSWORD || ''),
+  database: process.env.PGDATABASE || 'jjaux_db'
 };
 
 async function run() {
-  const client = new Client(config);
+  let client = new Client(config);
   try {
     await client.connect();
   } catch (err) {
-    console.error('❌ Error connectant amb PostgreSQL:', err.message);
-    console.error('Assegura\'t que el servei PostgreSQL està en marxa al port 5432.');
-    process.exit(1);
+    if (config.password === '' && (err.code === '28P01' || (err.message && err.message.toLowerCase().includes('password')))) {
+      client = new Client({ ...config, password: 'postgres' });
+      try {
+        await client.connect();
+      } catch (retryErr) {
+        console.error('❌ Error connectant amb PostgreSQL:', retryErr.message);
+        console.error('Assegura\'t que el servei PostgreSQL està en marxa al port 5432.');
+        process.exit(1);
+      }
+    } else {
+      console.error('❌ Error connectant amb PostgreSQL:', err.message);
+      console.error('Assegura\'t que el servei PostgreSQL està en marxa al port 5432.');
+      process.exit(1);
+    }
   }
 
   const arg = process.argv.slice(2).join(' ').trim();

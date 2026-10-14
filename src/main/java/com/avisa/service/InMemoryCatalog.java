@@ -170,7 +170,7 @@ public class InMemoryCatalog {
 	 * @return true si s'ha eliminat correctament, false si està protegit o hi ha hagut error
 	 */
 	public boolean deleteUser(String id) {
-		if ("u-admin".equals(id) || "admin@admin".equalsIgnoreCase(id)) {
+		if ("u-admin".equals(id) || "admin@admin".equalsIgnoreCase(id) || "admin@admin.es".equalsIgnoreCase(id)) {
 			return false;
 		}
 		try {
