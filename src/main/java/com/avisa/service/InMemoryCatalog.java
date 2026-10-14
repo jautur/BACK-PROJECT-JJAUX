@@ -105,6 +105,32 @@ public class InMemoryCatalog {
 	}
 
 	/**
+	 * Autentica un usuari validant el seu correu i contrasenya a PostgreSQL.
+	 * @param email Correu electrònic d'accés
+	 * @param password Contrasenya
+	 * @return Optional amb l'usuari autenticat
+	 */
+	public Optional<Usuari> authenticate(String email, String password) {
+		try {
+			List<Usuari> res = jdbcTemplate.query(
+				"SELECT id, nom, email, rol, telefon, bio FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
+				(rs, rowNum) -> new Usuari(
+					rs.getString("id"),
+					rs.getString("nom"),
+					rs.getString("email"),
+					rs.getString("rol"),
+					rs.getString("telefon"),
+					rs.getString("bio")
+				),
+				email, password, password
+			);
+			return res.stream().findFirst();
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	/**
 	 * Actualitza la informació del perfil d'un usuari.
 	 * @param id Identificador de l'usuari
 	 * @param nou Dades actualitzades
@@ -145,6 +171,7 @@ public class InMemoryCatalog {
 
 	/**
 	 * Registra un nou usuari a la plataforma i el desa a PostgreSQL.
+	 * Desa el telèfon si s'ha especificat (com és el cas dels professionals).
 	 * @param request Dades de registre
 	 * @return L'usuari creat
 	 */
@@ -153,11 +180,11 @@ public class InMemoryCatalog {
 		String password = request.password() != null ? request.password() : "123456";
 		try {
 			jdbcTemplate.update(
-				"INSERT INTO usuaris (id, nom, email, password, rol) VALUES (?, ?, ?, ?, ?)",
-				id, request.nom(), request.email(), password, request.rol()
+				"INSERT INTO usuaris (id, nom, email, password, rol, telefon) VALUES (?, ?, ?, ?, ?, ?)",
+				id, request.nom(), request.email(), password, request.rol(), request.telefon()
 			);
 		} catch (Exception ignored) {}
-		return new Usuari(id, request.nom(), request.email(), request.rol(), null, null);
+		return new Usuari(id, request.nom(), request.email(), request.rol(), request.telefon(), null);
 	}
 
 	// ==========================================

@@ -41,14 +41,14 @@ public class AuthController {
 	}
 
 	/**
-	 * Inicia la sessió d'un usuari comprovant el seu correu electrònic.
+	 * Inicia la sessió d'un usuari comprovant el seu correu electrònic i contrasenya.
 	 * Endpoint: POST /api/auth/login
 	 * @param request Credencials d'accés (email i password)
 	 * @return Dades de l'usuari autenticat
 	 */
 	@PostMapping("/login")
 	public ResponseEntity<Usuari> login(@RequestBody LoginRequest request) {
-		return catalog.findUserByEmail(request.email())
+		return catalog.authenticate(request.email(), request.password())
 			.map(ResponseEntity::ok)
 			.orElseGet(() -> ResponseEntity.status(401).build());
 	}

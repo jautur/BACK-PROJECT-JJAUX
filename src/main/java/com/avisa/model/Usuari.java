@@ -1,28 +1,22 @@
 package com.avisa.model;
 
 /**
- * Model de dades de l'Usuari del sistema JJAUX.
- * Representa un perfil d'usuari registrat a la plataforma (Client, Professional o Administrador).
+ * Model de dades de l'Usuari en el Backend JJAUX.
+ * Representa les dades públiques i de perfil d'un usuari registrat a la base de dades PostgreSQL (usuaris).
  *
- * @param id Identificador únic de l'usuari
- * @param nom Nom complet o nom d'empresa
- * @param email Adreça de correu electrònic (utilitzada per a login)
- * @param rol Rol assignat dins l'aplicació ('client', 'professional', 'admin')
- * @param telefon Telèfon de contacte opcional del perfil
- * @param bio Descripció o presentació professional/personal
+ * @param id Identificador únic de l'usuari (ex: 'u-1', 'u-admin')
+ * @param nom Nom visible o corporatiu de l'usuari
+ * @param email Adreça de correu electrònic única utilitzada per a l'accés
+ * @param rol Rol del compte ('client', 'professional', 'ambdos', 'admin')
+ * @param telefon Telèfon de contacte opcional
+ * @param bio Biografia o descripció d'habilitats
  */
 public record Usuari(
-    String id,
-    String nom,
-    String email,
-    String rol,
-    String telefon,
-    String bio
+	String id,
+	String nom,
+	String email,
+	String rol,
+	String telefon,
+	String bio
 ) {
-    /**
-     * Constructor sobrecarregat per a compatibilitat quan no s'especifiquen telèfon ni bio.
-     */
-    public Usuari(String id, String nom, String email, String rol) {
-        this(id, nom, email, rol, null, null);
-    }
 }
