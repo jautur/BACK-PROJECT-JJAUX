@@ -76,6 +76,17 @@ public class TascaController {
 	}
 
 	/**
+	 * Llistar les tasques assignades a un professional concret (on ja convergeixen client i professional).
+	 * Endpoint: GET /api/tasks/professional/{professionalNom}
+	 * @param professionalNom Nom del professional
+	 * @return Llista de tasques on el professional ha estat assignat
+	 */
+	@GetMapping("/professional/{professionalNom}")
+	public List<Tasca> listByProfessional(@PathVariable String professionalNom) {
+		return catalog.findTasksByProfessional(professionalNom);
+	}
+
+	/**
 	 * Finalitzar una tasca.
 	 * Endpoint: POST /api/tasks/{id}/finalitzar
 	 * Acció: El client confirma la conclusió del projecte (passa l'estat a 'Finalitzada').

@@ -20,8 +20,10 @@ CREATE TABLE IF NOT EXISTS tasques (
     descripcio TEXT,
     categoria VARCHAR(100),
     client_nom VARCHAR(150),
+    professional_nom VARCHAR(150),
     budget VARCHAR(50),
     estat VARCHAR(50) DEFAULT 'Oberta',
+    tipus VARCHAR(50) DEFAULT 'incidencia',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
