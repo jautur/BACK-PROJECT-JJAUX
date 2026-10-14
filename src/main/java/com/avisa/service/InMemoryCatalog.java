@@ -421,21 +421,46 @@ public class InMemoryCatalog {
 	public Oferta addOffer(OfertaRequest request) {
 		String id = "O-" + String.format("%03d", 200 + offers().size() + 1);
 		String estat = request.estat() != null ? request.estat() : "Pendent";
-		String categoria = findTaskById(request.tascaId()).map(Tasca::categoria).orElse(null);
+		String tascaId = request.tascaId();
+		String categoria = request.categoria();
+
+		// Si és una oferta de servei públic (no vinculada prèviament a una incidència existent)
+		if (tascaId == null || tascaId.isBlank() || "standalone".equalsIgnoreCase(tascaId)) {
+			String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
+			String titol = (request.note() != null && request.note().length() > 60)
+				? request.note().substring(0, 57) + "..."
+				: ((request.note() != null && !request.note().isBlank()) ? request.note() : "Servei professional");
+			categoria = (request.categoria() != null && !request.categoria().isBlank()) ? request.categoria() : "Altres Serveis";
+			try {
+				jdbcTemplate.update(
+					"INSERT INTO tasques (id, titol, descripcio, categoria, client_nom, budget, estat) VALUES (?, ?, ?, ?, ?, ?, ?)",
+					newTaskId, titol, request.note(), categoria, "AVISA", request.price(), "Oferta"
+				);
+				tascaId = newTaskId;
+			} catch (Exception ignored) {}
+		} else {
+			if (categoria == null || categoria.isBlank()) {
+				categoria = findTaskById(tascaId).map(Tasca::categoria).orElse("Altres Serveis");
+			}
+		}
+
 		try {
 			jdbcTemplate.update(
 				"INSERT INTO ofertes (id, tasca_id, professional, price, note, estat) VALUES (?, ?, ?, ?, ?, ?)",
-				id, request.tascaId(), request.professional(), request.price(), request.note(), estat
+				id, tascaId, request.professional(), request.price(), request.note(), estat
 			);
-			// Notifica al client propietari de la tasca
-			findTaskById(request.tascaId()).ifPresent(task -> {
-				users().stream()
-					.filter(u -> u.nom().equalsIgnoreCase(task.client()))
-					.findFirst()
-					.ifPresent(clientUser -> addAvis(clientUser.id(), "Nova oferta rebuda de " + request.professional() + " per a '" + task.titol() + "' (" + request.price() + ")."));
+			// Notifica al client propietari si és una incidència real d'un particular
+			final String finalTascaId = tascaId;
+			findTaskById(finalTascaId).ifPresent(task -> {
+				if (!"AVISA".equalsIgnoreCase(task.client())) {
+					users().stream()
+						.filter(u -> u.nom().equalsIgnoreCase(task.client()))
+						.findFirst()
+						.ifPresent(clientUser -> addAvis(clientUser.id(), "Nova oferta rebuda de " + request.professional() + " per a '" + task.titol() + "' (" + request.price() + ")."));
+				}
 			});
 		} catch (Exception ignored) {}
-		return new Oferta(id, request.tascaId(), request.professional(), categoria, request.price(), request.note(), estat);
+		return new Oferta(id, tascaId, request.professional(), categoria, request.price(), request.note(), estat);
 	}
 
 	/**
@@ -467,6 +492,70 @@ public class InMemoryCatalog {
 				return findOfferById(offerId);
 			}
 			return Optional.empty();
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	/**
+	 * Converteix una oferta d'un professional en una TASCA directa per a un client ('OFERTA to TAREA').
+	 * Si l'oferta correspon a una incidència pròpia del client, s'accepta directament.
+	 * Si és una oferta pública de servei, es crea una nova TASCA 'En curs' assignada a aquest professional.
+	 *
+	 * @param offerId Identificador de l'oferta
+	 * @param clientNom Nom de l'usuari client que contracta
+	 * @return Optional amb la Tasca creada o actualitzada
+	 */
+	public Optional<Tasca> convertOfferToTask(String offerId, String clientNom) {
+		try {
+			Optional<Oferta> opt = findOfferById(offerId);
+			if (opt.isEmpty()) return Optional.empty();
+			Oferta of = opt.get();
+
+			Optional<Tasca> existingTaskOpt = findTaskById(of.tascaId());
+			if (existingTaskOpt.isPresent() && clientNom.equalsIgnoreCase(existingTaskOpt.get().client())) {
+				acceptOffer(offerId);
+				return findTaskById(of.tascaId());
+			}
+
+			// Creació d'una nova TAREA per a aquest client
+			String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
+			String categoria = (of.categoria() != null && !of.categoria().isBlank())
+				? of.categoria()
+				: (existingTaskOpt.map(Tasca::categoria).orElse("Altres Serveis"));
+			String titol = "Servei de " + categoria + " (" + of.professional() + ")";
+			if (existingTaskOpt.isPresent() && !"AVISA".equalsIgnoreCase(existingTaskOpt.get().client())) {
+				titol = existingTaskOpt.get().titol();
+			}
+			String descripcio = (of.note() != null && !of.note().isBlank())
+				? of.note()
+				: "Servei contractat a través de l'oferta directa de " + of.professional() + ".";
+
+			jdbcTemplate.update(
+				"INSERT INTO tasques (id, titol, descripcio, categoria, client_nom, budget, estat) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				newTaskId, titol, descripcio, categoria, clientNom, of.price(), "En curs"
+			);
+
+			// Creem l'oferta acceptada vinculada a la tasca
+			String newOfferId = "O-" + String.format("%03d", 200 + offers().size() + 1);
+			jdbcTemplate.update(
+				"INSERT INTO ofertes (id, tasca_id, professional, price, note, estat) VALUES (?, ?, ?, ?, ?, ?)",
+				newOfferId, newTaskId, of.professional(), of.price(), of.note(), "Acceptada"
+			);
+
+			// Avisos en temps real
+			final String finalTitol = titol;
+			users().stream()
+				.filter(u -> u.nom().equalsIgnoreCase(of.professional()))
+				.findFirst()
+				.ifPresent(proUser -> addAvis(proUser.id(), "El client " + clientNom + " ha contractat la teva oferta per a '" + finalTitol + "' (" + of.price() + "). S'ha generat una nova TASCA en curs!"));
+
+			users().stream()
+				.filter(u -> u.nom().equalsIgnoreCase(clientNom))
+				.findFirst()
+				.ifPresent(clientUser -> addAvis(clientUser.id(), "Has contractat amb èxit el servei de " + of.professional() + " (" + of.price() + "). La tasca '" + finalTitol + "' ja està en curs!"));
+
+			return findTaskById(newTaskId);
 		} catch (Exception e) {
 			return Optional.empty();
 		}
@@ -605,10 +694,10 @@ public class InMemoryCatalog {
 	public List<Resenya> resenyes() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT r.id, r.client_id, cu.nom AS client_nom, r.treballador_id, tu.nom AS treballador_nom, r.tasca_id, r.puntuacio, r.descripcio, r.created_at " +
+				"SELECT r.id, r.client_id, COALESCE(cu.nom, r.client_id) AS client_nom, r.treballador_id, COALESCE(tu.nom, r.treballador_id) AS treballador_nom, r.tasca_id, r.puntuacio, r.descripcio, r.created_at " +
 				"FROM resenyes r " +
-				"LEFT JOIN usuaris cu ON cu.id = r.client_id " +
-				"LEFT JOIN usuaris tu ON tu.id = r.treballador_id " +
+				"LEFT JOIN usuaris cu ON (cu.id = r.client_id OR LOWER(cu.nom) = LOWER(r.client_id)) " +
+				"LEFT JOIN usuaris tu ON (tu.id = r.treballador_id OR LOWER(tu.nom) = LOWER(r.treballador_id)) " +
 				"ORDER BY r.created_at DESC",
 				(rs, rowNum) -> new Resenya(
 					rs.getString("id"),
@@ -635,11 +724,11 @@ public class InMemoryCatalog {
 	public List<Resenya> findResenyesByTreballador(String treballadorIdOIdNom) {
 		try {
 			return jdbcTemplate.query(
-				"SELECT r.id, r.client_id, cu.nom AS client_nom, r.treballador_id, tu.nom AS treballador_nom, r.tasca_id, r.puntuacio, r.descripcio, r.created_at " +
+				"SELECT r.id, r.client_id, COALESCE(cu.nom, r.client_id) AS client_nom, r.treballador_id, COALESCE(tu.nom, r.treballador_id) AS treballador_nom, r.tasca_id, r.puntuacio, r.descripcio, r.created_at " +
 				"FROM resenyes r " +
-				"LEFT JOIN usuaris cu ON cu.id = r.client_id " +
-				"LEFT JOIN usuaris tu ON tu.id = r.treballador_id " +
-				"WHERE r.treballador_id = ? OR LOWER(tu.nom) = LOWER(?) " +
+				"LEFT JOIN usuaris cu ON (cu.id = r.client_id OR LOWER(cu.nom) = LOWER(r.client_id)) " +
+				"LEFT JOIN usuaris tu ON (tu.id = r.treballador_id OR LOWER(tu.nom) = LOWER(r.treballador_id)) " +
+				"WHERE r.treballador_id = ? OR LOWER(r.treballador_id) = LOWER(?) OR LOWER(tu.nom) = LOWER(?) " +
 				"ORDER BY r.created_at DESC",
 				(rs, rowNum) -> new Resenya(
 					rs.getString("id"),
@@ -652,7 +741,7 @@ public class InMemoryCatalog {
 					rs.getString("descripcio"),
 					rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()
 				),
-				treballadorIdOIdNom, treballadorIdOIdNom
+				treballadorIdOIdNom, treballadorIdOIdNom, treballadorIdOIdNom
 			);
 		} catch (Exception e) {
 			return List.of();
@@ -667,11 +756,11 @@ public class InMemoryCatalog {
 	public List<Resenya> findResenyesByClient(String clientId) {
 		try {
 			return jdbcTemplate.query(
-				"SELECT r.id, r.client_id, cu.nom AS client_nom, r.treballador_id, tu.nom AS treballador_nom, r.tasca_id, r.puntuacio, r.descripcio, r.created_at " +
+				"SELECT r.id, r.client_id, COALESCE(cu.nom, r.client_id) AS client_nom, r.treballador_id, COALESCE(tu.nom, r.treballador_id) AS treballador_nom, r.tasca_id, r.puntuacio, r.descripcio, r.created_at " +
 				"FROM resenyes r " +
-				"LEFT JOIN usuaris cu ON cu.id = r.client_id " +
-				"LEFT JOIN usuaris tu ON tu.id = r.treballador_id " +
-				"WHERE r.client_id = ? OR LOWER(cu.nom) = LOWER(?) " +
+				"LEFT JOIN usuaris cu ON (cu.id = r.client_id OR LOWER(cu.nom) = LOWER(r.client_id)) " +
+				"LEFT JOIN usuaris tu ON (tu.id = r.treballador_id OR LOWER(tu.nom) = LOWER(r.treballador_id)) " +
+				"WHERE r.client_id = ? OR LOWER(r.client_id) = LOWER(?) OR LOWER(cu.nom) = LOWER(?) " +
 				"ORDER BY r.created_at DESC",
 				(rs, rowNum) -> new Resenya(
 					rs.getString("id"),
@@ -684,7 +773,7 @@ public class InMemoryCatalog {
 					rs.getString("descripcio"),
 					rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()
 				),
-				clientId, clientId
+				clientId, clientId, clientId
 			);
 		} catch (Exception e) {
 			return List.of();
@@ -692,19 +781,49 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Crea i desa una nova ressenya a la base de dades.
+	 * Crea i desa una nova ressenya a la base de dades i envia avís en temps real al professional.
 	 * @param resenya Dades de la ressenya
 	 * @return Ressenya creada
 	 */
 	public Resenya addResenya(Resenya resenya) {
 		String id = (resenya.id() != null && !resenya.id().isBlank()) ? resenya.id() : ("R-" + String.format("%03d", 1 + resenyes().size()));
 		LocalDateTime createdAt = resenya.createdAt() != null ? resenya.createdAt() : LocalDateTime.now();
+
+		// Resolució robusta d'IDs
+		String resolvedClientId = resenya.clientId();
+		String resolvedTreballadorId = resenya.treballadorId();
+		String clientNom = resenya.clientNom();
+		String treballadorNom = resenya.treballadorNom();
+
+		for (Usuari u : users()) {
+			if (u.nom().equalsIgnoreCase(resenya.clientId()) || u.id().equalsIgnoreCase(resenya.clientId())) {
+				resolvedClientId = u.id();
+				if (clientNom == null || clientNom.isBlank()) clientNom = u.nom();
+			}
+			if (u.nom().equalsIgnoreCase(resenya.treballadorId()) || u.id().equalsIgnoreCase(resenya.treballadorId())) {
+				resolvedTreballadorId = u.id();
+				if (treballadorNom == null || treballadorNom.isBlank()) treballadorNom = u.nom();
+			}
+		}
+
 		try {
 			jdbcTemplate.update(
 				"INSERT INTO resenyes (id, client_id, treballador_id, tasca_id, puntuacio, descripcio, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-				id, resenya.clientId(), resenya.treballadorId(), resenya.tascaId(), resenya.puntuacio(), resenya.descripcio(), createdAt
+				id, resolvedClientId, resolvedTreballadorId, resenya.tascaId(), resenya.puntuacio(), resenya.descripcio(), createdAt
 			);
+
+			// Avís en temps real al professional
+			final String finalTreballadorId = resolvedTreballadorId;
+			final String finalClientNom = (clientNom != null && !clientNom.isBlank()) ? clientNom : "Un client";
+			users().stream()
+				.filter(u -> u.id().equalsIgnoreCase(finalTreballadorId))
+				.findFirst()
+				.ifPresent(proUser -> {
+					String msg = finalClientNom + " t'ha puntuat amb " + resenya.puntuacio() + " estrelles: \"" + (resenya.descripcio() != null ? resenya.descripcio() : "") + "\"";
+					addAvis(proUser.id(), msg);
+				});
 		} catch (Exception ignored) {}
-		return new Resenya(id, resenya.clientId(), resenya.clientNom(), resenya.treballadorId(), resenya.treballadorNom(), resenya.tascaId(), resenya.puntuacio(), resenya.descripcio(), createdAt);
+
+		return new Resenya(id, resolvedClientId, clientNom, resolvedTreballadorId, treballadorNom, resenya.tascaId(), resenya.puntuacio(), resenya.descripcio(), createdAt);
 	}
 }

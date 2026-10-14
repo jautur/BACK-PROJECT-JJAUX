@@ -2,8 +2,10 @@ package com.avisa.controller;
 
 import com.avisa.dto.OfertaRequest;
 import com.avisa.model.Oferta;
+import com.avisa.model.Tasca;
 import com.avisa.service.InMemoryCatalog;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -101,6 +103,23 @@ public class OfertaController {
 	@PostMapping("/{id}/acceptar")
 	public ResponseEntity<Oferta> acceptOffer(@PathVariable String id) {
 		return catalog.acceptOffer(id)
+			.map(ResponseEntity::ok)
+			.orElse(ResponseEntity.notFound().build());
+	}
+
+	/**
+	 * Contractar directament una oferta d'un professional i convertir-la en Tasca ('OFERTA to TAREA').
+	 * Endpoint: POST /api/offers/{id}/contractar
+	 * @param id Identificador de l'oferta
+	 * @param body Cos opcional amb { "clientNom": "Nom del client" }
+	 * @return La Tasca creada o actualitzada en estat 'En curs'
+	 */
+	@PostMapping("/{id}/contractar")
+	public ResponseEntity<Tasca> hireOffer(@PathVariable String id, @RequestBody(required = false) Map<String, String> body) {
+		String clientNom = (body != null && body.get("clientNom") != null && !body.get("clientNom").isBlank())
+			? body.get("clientNom")
+			: "Client AVISA";
+		return catalog.convertOfferToTask(id, clientNom)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
