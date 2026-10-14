@@ -84,11 +84,14 @@ public class UsuariController {
 	 * Donar de baixa o eliminar un usuari de la plataforma.
 	 * Endpoint: DELETE /api/users/{id}
 	 * @param id Identificador de l'usuari
-	 * @return 204 No Content
+	 * @return 204 No Content si s'elimina correctament, o 400 Bad Request si no es pot eliminar
 	 */
 	@DeleteMapping("/{id}")
 	public ResponseEntity<Void> deleteUser(@PathVariable String id) {
-		catalog.deleteUser(id);
+		boolean deleted = catalog.deleteUser(id);
+		if (!deleted) {
+			return ResponseEntity.badRequest().build();
+		}
 		return ResponseEntity.noContent().build();
 	}
 }

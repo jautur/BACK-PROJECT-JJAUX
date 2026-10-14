@@ -162,13 +162,23 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Elimina un usuari de la plataforma.
+	 * Elimina un usuari de la plataforma i neteja els seus registres associats.
+	 * Protegeix el compte d'administrador principal contra eliminació accidental.
 	 * @param id Identificador de l'usuari
+	 * @return true si s'ha eliminat correctament, false si està protegit o hi ha hagut error
 	 */
-	public void deleteUser(String id) {
+	public boolean deleteUser(String id) {
+		if ("u-admin".equals(id) || "admin@admin".equalsIgnoreCase(id)) {
+			return false;
+		}
 		try {
-			jdbcTemplate.update("DELETE FROM usuaris WHERE id = ?", id);
-		} catch (Exception ignored) {}
+			jdbcTemplate.update("DELETE FROM avisos WHERE usuari_id = ?", id);
+			jdbcTemplate.update("DELETE FROM resenyes WHERE client_id = ? OR treballador_id = ?", id, id);
+			int rows = jdbcTemplate.update("DELETE FROM usuaris WHERE id = ? AND id != 'u-admin'", id);
+			return rows > 0;
+		} catch (Exception ignored) {
+			return false;
+		}
 	}
 
 	/**
