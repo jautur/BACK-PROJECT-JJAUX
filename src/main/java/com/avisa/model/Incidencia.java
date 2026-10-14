@@ -29,3 +29,4 @@ public record Incidencia(
         this(id, null, clientNom, titol, descripcio, categoria, budget, estat, LocalDateTime.now());
     }
 }
+

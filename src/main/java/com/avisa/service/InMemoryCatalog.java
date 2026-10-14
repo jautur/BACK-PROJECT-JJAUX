@@ -907,7 +907,7 @@ public class InMemoryCatalog {
 	public List<Avis> findAvisosByUsuari(String usuariId) {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, usuari_id, missatge, llegit, data FROM avisos WHERE usuari_id = ? ORDER BY created_at DESC",
+				"SELECT id, usuari_id, missatge, llegit, data FROM avisos WHERE usuari_id = ? OR usuari_id IN (SELECT id FROM usuaris WHERE LOWER(nom) = LOWER(?)) ORDER BY created_at DESC",
 				(rs, rowNum) -> new Avis(
 					rs.getString("id"),
 					rs.getString("usuari_id"),
@@ -915,7 +915,7 @@ public class InMemoryCatalog {
 					rs.getBoolean("llegit"),
 					rs.getDate("data") != null ? rs.getDate("data").toLocalDate() : LocalDate.now()
 				),
-				usuariId
+				usuariId, usuariId
 			);
 		} catch (Exception e) {
 			return List.of();

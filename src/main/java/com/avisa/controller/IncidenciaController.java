@@ -86,3 +86,4 @@ public class IncidenciaController {
 		return ResponseEntity.noContent().build();
 	}
 }
+
