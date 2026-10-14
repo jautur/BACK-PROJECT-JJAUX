@@ -344,11 +344,12 @@ public class InMemoryCatalog {
 	public List<Oferta> offers() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, tasca_id, professional, price, note, estat FROM ofertes ORDER BY created_at DESC",
+				"SELECT o.id, o.tasca_id, o.professional, COALESCE(t.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id ORDER BY o.created_at DESC",
 				(rs, rowNum) -> new Oferta(
 					rs.getString("id"),
 					rs.getString("tasca_id"),
 					rs.getString("professional"),
+					rs.getString("categoria"),
 					rs.getString("price"),
 					rs.getString("note"),
 					rs.getString("estat")
@@ -367,11 +368,12 @@ public class InMemoryCatalog {
 	public Optional<Oferta> findOfferById(String id) {
 		try {
 			List<Oferta> res = jdbcTemplate.query(
-				"SELECT id, tasca_id, professional, price, note, estat FROM ofertes WHERE id = ?",
+				"SELECT o.id, o.tasca_id, o.professional, COALESCE(t.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id WHERE o.id = ?",
 				(rs, rowNum) -> new Oferta(
 					rs.getString("id"),
 					rs.getString("tasca_id"),
 					rs.getString("professional"),
+					rs.getString("categoria"),
 					rs.getString("price"),
 					rs.getString("note"),
 					rs.getString("estat")
@@ -392,11 +394,12 @@ public class InMemoryCatalog {
 	public List<Oferta> findOffersByTasca(String tascaId) {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, tasca_id, professional, price, note, estat FROM ofertes WHERE tasca_id = ? ORDER BY created_at DESC",
+				"SELECT o.id, o.tasca_id, o.professional, COALESCE(t.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id WHERE o.tasca_id = ? ORDER BY o.created_at DESC",
 				(rs, rowNum) -> new Oferta(
 					rs.getString("id"),
 					rs.getString("tasca_id"),
 					rs.getString("professional"),
+					rs.getString("categoria"),
 					rs.getString("price"),
 					rs.getString("note"),
 					rs.getString("estat")
@@ -416,6 +419,7 @@ public class InMemoryCatalog {
 	public Oferta addOffer(OfertaRequest request) {
 		String id = "O-" + String.format("%03d", 200 + offers().size() + 1);
 		String estat = request.estat() != null ? request.estat() : "Pendent";
+		String categoria = findTaskById(request.tascaId()).map(Tasca::categoria).orElse(null);
 		try {
 			jdbcTemplate.update(
 				"INSERT INTO ofertes (id, tasca_id, professional, price, note, estat) VALUES (?, ?, ?, ?, ?, ?)",
@@ -429,7 +433,7 @@ public class InMemoryCatalog {
 					.ifPresent(clientUser -> addAvis(clientUser.id(), "Nova oferta rebuda de " + request.professional() + " per a '" + task.titol() + "' (" + request.price() + ")."));
 			});
 		} catch (Exception ignored) {}
-		return new Oferta(id, request.tascaId(), request.professional(), request.price(), request.note(), estat);
+		return new Oferta(id, request.tascaId(), request.professional(), categoria, request.price(), request.note(), estat);
 	}
 
 	/**
