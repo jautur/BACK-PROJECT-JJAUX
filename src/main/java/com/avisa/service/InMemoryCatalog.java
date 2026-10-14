@@ -64,7 +64,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserById(String id) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio FROM usuaris WHERE id = ?",
+				"SELECT id, nom, email, rol, telefon, bio FROM usuaris WHERE id = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
 				(rs, rowNum) -> new Usuari(
 					rs.getString("id"),
 					rs.getString("nom"),
@@ -73,7 +73,7 @@ public class InMemoryCatalog {
 					rs.getString("telefon"),
 					rs.getString("bio")
 				),
-				id
+				id, id, id
 			);
 			return res.stream().findFirst();
 		} catch (Exception e) {
@@ -671,7 +671,7 @@ public class InMemoryCatalog {
 				"FROM resenyes r " +
 				"LEFT JOIN usuaris cu ON cu.id = r.client_id " +
 				"LEFT JOIN usuaris tu ON tu.id = r.treballador_id " +
-				"WHERE r.client_id = ? " +
+				"WHERE r.client_id = ? OR LOWER(cu.nom) = LOWER(?) " +
 				"ORDER BY r.created_at DESC",
 				(rs, rowNum) -> new Resenya(
 					rs.getString("id"),
@@ -684,7 +684,7 @@ public class InMemoryCatalog {
 					rs.getString("descripcio"),
 					rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()
 				),
-				clientId
+				clientId, clientId
 			);
 		} catch (Exception e) {
 			return List.of();
