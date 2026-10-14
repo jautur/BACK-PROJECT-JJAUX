@@ -19,11 +19,16 @@ CREATE TABLE IF NOT EXISTS tasques (
     titol VARCHAR(255) NOT NULL,
     descripcio TEXT,
     categoria VARCHAR(100),
+    client_id VARCHAR(100),
     client_nom VARCHAR(150),
+    professional_id VARCHAR(100),
     professional_nom VARCHAR(150),
+    origen_id VARCHAR(100),
     budget VARCHAR(50),
     estat VARCHAR(50) DEFAULT 'Oberta',
     tipus VARCHAR(50) DEFAULT 'incidencia',
+    valoracio INTEGER,
+    opinio TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -43,16 +48,6 @@ CREATE TABLE IF NOT EXISTS avisos (
     missatge TEXT NOT NULL,
     llegit BOOLEAN DEFAULT FALSE,
     data DATE DEFAULT CURRENT_DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS resenyes (
-    id VARCHAR(100) PRIMARY KEY,
-    client_id VARCHAR(100),
-    treballador_id VARCHAR(100),
-    tasca_id VARCHAR(100),
-    puntuacio INTEGER NOT NULL,
-    descripcio TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -89,13 +89,19 @@ public class TascaController {
 	/**
 	 * Finalitzar una tasca.
 	 * Endpoint: POST /api/tasks/{id}/finalitzar
-	 * Acció: El client confirma la conclusió del projecte (passa l'estat a 'Finalitzada').
+	 * Acció: El client confirma la conclusió del projecte (passa l'estat a 'Finalitzada') i enregistra la valoració i opinió.
 	 * @param id Identificador de la tasca
+	 * @param body Dades opcionals de valoració i opinió del client
 	 * @return La tasca actualitzada
 	 */
 	@PostMapping("/{id}/finalitzar")
-	public ResponseEntity<Tasca> markAsCompleted(@PathVariable String id) {
-		return catalog.completeTask(id)
+	public ResponseEntity<Tasca> markAsCompleted(
+		@PathVariable String id,
+		@RequestBody(required = false) com.avisa.dto.FinalitzarTascaRequest body
+	) {
+		Integer valoracio = body != null ? body.valoracio() : null;
+		String opinio = body != null ? body.opinio() : null;
+		return catalog.completeTask(id, valoracio, opinio)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
