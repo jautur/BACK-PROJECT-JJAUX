@@ -149,13 +149,15 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Actualitza la contrasenya d'un usuari.
+	 * Actualitza la contrasenya d'un usuari directament a la base de dades.
+	 * Permet a l'administrador o al propi usuari assignar una nova contrasenya sense conèixer l'antiga.
 	 * @param id Identificador de l'usuari
 	 * @param newPassword Nova contrasenya
 	 */
 	public void changePassword(String id, String newPassword) {
 		try {
 			jdbcTemplate.update("UPDATE usuaris SET password = ? WHERE id = ?", newPassword, id);
+			addAvis(id, "La teva contrasenya d'accés ha estat actualitzada correctament.");
 		} catch (Exception ignored) {}
 	}
 

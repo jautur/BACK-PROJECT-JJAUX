@@ -24,3 +24,4 @@ public record Resenya(
 	LocalDateTime createdAt
 ) {
 }
+

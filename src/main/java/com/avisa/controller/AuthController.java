@@ -75,13 +75,21 @@ public class AuthController {
 	}
 
 	/**
-	 * Permet a l'usuari canviar la seva contrasenya des del formulari de perfil.
+	 * Permet canviar la contrasenya d'un usuari.
+	 * L'administrador pot canviar la contrasenya de qualsevol usuari sense conèixer l'antiga.
 	 * Endpoint: POST /api/auth/canviar-contrasenya
-	 * @param request Objecte amb userId i la nova contrasenya
+	 * @param request Objecte amb userId i la nova contrasenya (mínim 6 caràcters)
+	 * @return Missatge de confirmació o error si les dades són invàlides
 	 */
 	@PostMapping("/canviar-contrasenya")
 	public ResponseEntity<String> changePassword(@RequestBody PasswordChangeRequest request) {
-		catalog.changePassword(request.userId(), request.newPassword());
+		if (request.userId() == null || request.userId().isBlank()) {
+			return ResponseEntity.badRequest().body("L'identificador d'usuari és obligatori.");
+		}
+		if (request.newPassword() == null || request.newPassword().trim().length() < 6) {
+			return ResponseEntity.badRequest().body("La nova contrasenya ha de tenir com a mínim 6 caràcters.");
+		}
+		catalog.changePassword(request.userId(), request.newPassword().trim());
 		return ResponseEntity.ok("Contrasenya actualitzada correctament.");
 	}
 }
