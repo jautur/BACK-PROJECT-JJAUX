@@ -125,27 +125,26 @@ public class OfertaController {
 	}
 
 	/**
-	 * Rebutjar una oferta.
+	 * Rebutjar/descartar una oferta: les ofertes no es rebutgen, es borren o s'accepten.
 	 * Endpoint: POST /api/offers/{id}/rebutjar
-	 * Acció: El client descarta la proposta (passa l'estat a 'Rebutjada').
-	 * @param id Identificador de l'oferta rebutjada
-	 * @return L'oferta actualitzada
+	 * @param id Identificador de l'oferta
+	 * @return 204 No Content
 	 */
 	@PostMapping("/{id}/rebutjar")
-	public ResponseEntity<Oferta> rejectOffer(@PathVariable String id) {
-		return catalog.rejectOffer(id)
-			.map(ResponseEntity::ok)
-			.orElse(ResponseEntity.notFound().build());
+	public ResponseEntity<Void> rejectOffer(@PathVariable String id) {
+		catalog.deleteOffer(id);
+		return ResponseEntity.noContent().build();
 	}
 
 	/**
-	 * Eliminar o moderar una oferta.
+	 * Eliminar o borrar una oferta.
 	 * Endpoint: DELETE /api/offers/{id}
 	 * @param id Identificador de l'oferta
 	 * @return 204 No Content
 	 */
 	@DeleteMapping("/{id}")
 	public ResponseEntity<Void> deleteOffer(@PathVariable String id) {
+		catalog.deleteOffer(id);
 		return ResponseEntity.noContent().build();
 	}
 }

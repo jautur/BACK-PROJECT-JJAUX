@@ -487,13 +487,17 @@ public class InMemoryCatalog {
 			Optional<Tasca> tascaOpt = findTaskById(id);
 			tascaOpt.ifPresent(task -> {
 				// Notifica al client
+				String clientAvis = (valoracio != null)
+					? "Has finalitzat i valorat amb èxit la tasca '" + task.titol() + "'."
+					: "La tasca '" + task.titol() + "' ha estat marcada com a finalitzada. Pots entrar a valorar la feina del professional.";
+
 				if (task.clientId() != null) {
-					addAvis(task.clientId(), "Has finalitzat amb èxit la tasca '" + task.titol() + "'.");
+					addAvis(task.clientId(), clientAvis);
 				} else if (task.clientNom() != null) {
 					users().stream()
 						.filter(u -> u.nom().equalsIgnoreCase(task.clientNom()))
 						.findFirst()
-						.ifPresent(clientUser -> addAvis(clientUser.id(), "Has finalitzat amb èxit la tasca '" + task.titol() + "'."));
+						.ifPresent(clientUser -> addAvis(clientUser.id(), clientAvis));
 				}
 
 				// Notifica al professional
@@ -510,7 +514,7 @@ public class InMemoryCatalog {
 						String opDesc = (opinio != null && !opinio.isBlank()) ? " amb l'opinió: \"" + opinio + "\"" : "";
 						addAvis(proId, "La tasca '" + task.titol() + "' ha estat finalitzada per " + (task.clientNom() != null ? task.clientNom() : "el client") + " i has rebut una valoració de " + valoracio + "/5 estrelles" + opDesc + "!");
 					} else {
-						addAvis(proId, "La tasca '" + task.titol() + "' ha estat marcada com a finalitzada pel client!");
+						addAvis(proId, "La tasca '" + task.titol() + "' s'ha marcat com a finalitzada correctament.");
 					}
 				}
 			});
@@ -706,7 +710,7 @@ public class InMemoryCatalog {
 				Oferta of = opt.get();
 				String targetId = of.tascaId() != null ? of.tascaId() : of.incidenciaId();
 				jdbcTemplate.update("UPDATE ofertes SET estat = 'Acceptada' WHERE id = ?", offerId);
-				jdbcTemplate.update("UPDATE ofertes SET estat = 'Rebutjada' WHERE (tasca_id = ? OR incidencia_id = ?) AND id != ?", targetId, targetId, offerId);
+				jdbcTemplate.update("DELETE FROM ofertes WHERE (tasca_id = ? OR incidencia_id = ?) AND id != ?", targetId, targetId, offerId);
 
 				String proId = null;
 				for (Usuari u : users()) {
@@ -852,23 +856,31 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Rebutja una oferta concreta marcant el seu estat com 'Rebutjada' i notifica al professional.
+	 * Elimina/borra una oferta de la base de dades.
+	 * Les ofertes sols s'accepten o es borren.
+	 * @param id Identificador de l'oferta
+	 * @return true si s'ha eliminat, false en cas contrari
+	 */
+	public boolean deleteOffer(String id) {
+		try {
+			int rows = jdbcTemplate.update("DELETE FROM ofertes WHERE id = ?", id);
+			return rows > 0;
+		} catch (Exception e) {
+			return false;
+		}
+	}
+
+	/**
+	 * Descarta una oferta esborrant-la de la base de dades.
+	 * Les ofertes no es rebutgen, es borren o s'accepten.
 	 * @param offerId Identificador de l'oferta
-	 * @return Optional amb l'oferta rebutjada
+	 * @return Optional amb l'oferta abans de ser eliminada
 	 */
 	public Optional<Oferta> rejectOffer(String offerId) {
 		try {
 			Optional<Oferta> opt = findOfferById(offerId);
-			jdbcTemplate.update("UPDATE ofertes SET estat = 'Rebutjada' WHERE id = ?", offerId);
-			opt.ifPresent(of -> {
-				findTaskById(of.tascaId()).ifPresent(task -> {
-					users().stream()
-						.filter(u -> u.nom().equalsIgnoreCase(of.professional()))
-						.findFirst()
-						.ifPresent(proUser -> addAvis(proUser.id(), "La teva oferta per a '" + task.titol() + "' ha estat rebutjada pel client."));
-				});
-			});
-			return findOfferById(offerId);
+			deleteOffer(offerId);
+			return opt;
 		} catch (Exception e) {
 			return Optional.empty();
 		}
