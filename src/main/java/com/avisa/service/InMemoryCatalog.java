@@ -6,9 +6,11 @@ import com.avisa.dto.RegisterRequest;
 import com.avisa.dto.TascaRequest;
 import com.avisa.model.Avis;
 import com.avisa.model.Oferta;
+import com.avisa.model.Resenya;
 import com.avisa.model.Tasca;
 import com.avisa.model.Usuari;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -590,5 +592,119 @@ public class InMemoryCatalog {
 		int activeOffers = (int) currentOffers.stream().filter(offer -> "Pendent".equalsIgnoreCase(offer.estat())).count();
 		int completedProjects = (int) currentTasks.stream().filter(task -> "Finalitzada".equalsIgnoreCase(task.estat())).count();
 		return new DashboardResponse(openTasks, activeOffers, completedProjects, currentTasks, currentOffers);
+	}
+
+	// ==========================================
+	// GESTIÓ DE RESSENYES I VALORACIONS
+	// ==========================================
+
+	/**
+	 * Obté totes les ressenyes registrades amb els noms del client i professional.
+	 * @return Llista completa de ressenyes
+	 */
+	public List<Resenya> resenyes() {
+		try {
+			return jdbcTemplate.query(
+				"SELECT r.id, r.client_id, cu.nom AS client_nom, r.treballador_id, tu.nom AS treballador_nom, r.tasca_id, r.puntuacio, r.descripcio, r.created_at " +
+				"FROM resenyes r " +
+				"LEFT JOIN usuaris cu ON cu.id = r.client_id " +
+				"LEFT JOIN usuaris tu ON tu.id = r.treballador_id " +
+				"ORDER BY r.created_at DESC",
+				(rs, rowNum) -> new Resenya(
+					rs.getString("id"),
+					rs.getString("client_id"),
+					rs.getString("client_nom"),
+					rs.getString("treballador_id"),
+					rs.getString("treballador_nom"),
+					rs.getString("tasca_id"),
+					rs.getInt("puntuacio"),
+					rs.getString("descripcio"),
+					rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()
+				)
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	/**
+	 * Obté les ressenyes rebudes per un professional concret (per ID o per nom).
+	 * @param treballadorIdOIdNom ID o Nom del professional
+	 * @return Llista de ressenyes dirigides a aquest professional
+	 */
+	public List<Resenya> findResenyesByTreballador(String treballadorIdOIdNom) {
+		try {
+			return jdbcTemplate.query(
+				"SELECT r.id, r.client_id, cu.nom AS client_nom, r.treballador_id, tu.nom AS treballador_nom, r.tasca_id, r.puntuacio, r.descripcio, r.created_at " +
+				"FROM resenyes r " +
+				"LEFT JOIN usuaris cu ON cu.id = r.client_id " +
+				"LEFT JOIN usuaris tu ON tu.id = r.treballador_id " +
+				"WHERE r.treballador_id = ? OR LOWER(tu.nom) = LOWER(?) " +
+				"ORDER BY r.created_at DESC",
+				(rs, rowNum) -> new Resenya(
+					rs.getString("id"),
+					rs.getString("client_id"),
+					rs.getString("client_nom"),
+					rs.getString("treballador_id"),
+					rs.getString("treballador_nom"),
+					rs.getString("tasca_id"),
+					rs.getInt("puntuacio"),
+					rs.getString("descripcio"),
+					rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()
+				),
+				treballadorIdOIdNom, treballadorIdOIdNom
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	/**
+	 * Obté les ressenyes emeses per un client concret.
+	 * @param clientId Identificador de l'usuari client
+	 * @return Llista de ressenyes emeses pel client
+	 */
+	public List<Resenya> findResenyesByClient(String clientId) {
+		try {
+			return jdbcTemplate.query(
+				"SELECT r.id, r.client_id, cu.nom AS client_nom, r.treballador_id, tu.nom AS treballador_nom, r.tasca_id, r.puntuacio, r.descripcio, r.created_at " +
+				"FROM resenyes r " +
+				"LEFT JOIN usuaris cu ON cu.id = r.client_id " +
+				"LEFT JOIN usuaris tu ON tu.id = r.treballador_id " +
+				"WHERE r.client_id = ? " +
+				"ORDER BY r.created_at DESC",
+				(rs, rowNum) -> new Resenya(
+					rs.getString("id"),
+					rs.getString("client_id"),
+					rs.getString("client_nom"),
+					rs.getString("treballador_id"),
+					rs.getString("treballador_nom"),
+					rs.getString("tasca_id"),
+					rs.getInt("puntuacio"),
+					rs.getString("descripcio"),
+					rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()
+				),
+				clientId
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	/**
+	 * Crea i desa una nova ressenya a la base de dades.
+	 * @param resenya Dades de la ressenya
+	 * @return Ressenya creada
+	 */
+	public Resenya addResenya(Resenya resenya) {
+		String id = (resenya.id() != null && !resenya.id().isBlank()) ? resenya.id() : ("R-" + String.format("%03d", 1 + resenyes().size()));
+		LocalDateTime createdAt = resenya.createdAt() != null ? resenya.createdAt() : LocalDateTime.now();
+		try {
+			jdbcTemplate.update(
+				"INSERT INTO resenyes (id, client_id, treballador_id, tasca_id, puntuacio, descripcio, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				id, resenya.clientId(), resenya.treballadorId(), resenya.tascaId(), resenya.puntuacio(), resenya.descripcio(), createdAt
+			);
+		} catch (Exception ignored) {}
+		return new Resenya(id, resenya.clientId(), resenya.clientNom(), resenya.treballadorId(), resenya.treballadorNom(), resenya.tascaId(), resenya.puntuacio(), resenya.descripcio(), createdAt);
 	}
 }

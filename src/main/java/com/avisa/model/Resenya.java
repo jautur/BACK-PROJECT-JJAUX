@@ -17,11 +17,24 @@ import java.time.LocalDateTime;
 public record Resenya(
 	String id,
 	String clientId,
+	String clientNom,
 	String treballadorId,
+	String treballadorNom,
 	String tascaId,
 	int puntuacio,
 	String descripcio,
 	LocalDateTime createdAt
 ) {
+	public Resenya(
+		String id,
+		String clientId,
+		String treballadorId,
+		String tascaId,
+		int puntuacio,
+		String descripcio,
+		LocalDateTime createdAt
+	) {
+		this(id, clientId, null, treballadorId, null, tascaId, puntuacio, descripcio, createdAt);
+	}
 }
 
