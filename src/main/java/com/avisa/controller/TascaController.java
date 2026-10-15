@@ -146,16 +146,42 @@ public class TascaController {
 	}
 
 	/**
-	 * Llistar tasques que estan obertes a rebre ofertes.
+	 * Llistar tasques i incidències que estan obertes a rebre ofertes/pressupostos.
 	 * Endpoint: GET /api/tasks/disponibles
-	 * Acció: Permet als professionals trobar oportunitats actives.
-	 * @return Llista de tasques amb estat 'Oberta'
+	 * Acció: Permet als professionals trobar oportunitats actives per presentar pressupost.
+	 * @return Llista de tasques i incidències amb estat 'Oberta'
 	 */
 	@GetMapping("/disponibles")
 	public List<Tasca> listAvailable() {
-		return catalog.tasks().stream()
+		List<Tasca> result = new java.util.ArrayList<>();
+		// 1. Incidències obertes creades per clients (demandes pendents de pressupost)
+		catalog.incidencies().stream()
+			.filter(inc -> inc.estat() == null || "Oberta".equalsIgnoreCase(inc.estat()))
+			.map(inc -> new Tasca(
+				inc.id(),
+				inc.titol(),
+				inc.descripcio(),
+				inc.categoria(),
+				inc.clientId(),
+				inc.clientNom(),
+				null,
+				null,
+				null,
+				inc.budget(),
+				inc.estat() != null ? inc.estat() : "Oberta",
+				"incidencia",
+				null,
+				null
+			))
+			.forEach(result::add);
+
+		// 2. Tasques obertes de la taula tasques
+		catalog.tasks().stream()
 			.filter(t -> "Oberta".equalsIgnoreCase(t.estat()))
-			.toList();
+			.filter(t -> result.stream().noneMatch(existing -> existing.id().equals(t.id())))
+			.forEach(result::add);
+
+		return result;
 	}
 
 	/**
