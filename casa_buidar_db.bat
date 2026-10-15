@@ -9,3 +9,4 @@ set PGPASSWORD=postgres
 set SPRING_DATASOURCE_PASSWORD=postgres
 node "%~dp0buidar_db.js" casa
 pause
+

@@ -25,3 +25,4 @@ else
     echo "❌ Cal tenir Node.js o psql instal·lat per executar el script."
     exit 1
 fi
+
