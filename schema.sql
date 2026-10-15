@@ -1,8 +1,10 @@
 -- ==============================================================================
 -- Esquema DDL per a la Base de Dades jjaux_db (PostgreSQL)
 -- Plataforma AVISA / JJAUX
+-- Totalment sincronitzat amb els models i serveis del Backend i Frontend
 -- ==============================================================================
 
+-- 1. Taula d'Usuaris
 CREATE TABLE IF NOT EXISTS usuaris (
     id VARCHAR(100) PRIMARY KEY,
     nom VARCHAR(150) NOT NULL,
@@ -14,43 +16,70 @@ CREATE TABLE IF NOT EXISTS usuaris (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS tasques (
+-- 2. Taula d'Incidències (creades exclusivament per clients)
+CREATE TABLE IF NOT EXISTS incidencies (
     id VARCHAR(100) PRIMARY KEY,
+    client_id VARCHAR(100) REFERENCES usuaris(id) ON DELETE SET NULL,
+    client_nom VARCHAR(150) NOT NULL,
     titol VARCHAR(255) NOT NULL,
     descripcio TEXT,
     categoria VARCHAR(100),
-    client_nom VARCHAR(150),
     budget VARCHAR(50),
     estat VARCHAR(50) DEFAULT 'Oberta',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 3. Taula de Tasques (treballs en curs o finalitzats on convergeixen client i professional)
+CREATE TABLE IF NOT EXISTS tasques (
+    id VARCHAR(100) PRIMARY KEY,
+    titol VARCHAR(255) NOT NULL,
+    descripcio TEXT,
+    categoria VARCHAR(100),
+    client_id VARCHAR(100) REFERENCES usuaris(id) ON DELETE SET NULL,
+    client_nom VARCHAR(150),
+    professional_id VARCHAR(100) REFERENCES usuaris(id) ON DELETE SET NULL,
+    professional_nom VARCHAR(150),
+    origen_id VARCHAR(100),
+    budget VARCHAR(50),
+    estat VARCHAR(50) DEFAULT 'En curs',
+    tipus VARCHAR(50) DEFAULT 'tasca',
+    valoracio INTEGER CHECK (valoracio IS NULL OR (valoracio >= 1 AND valoracio <= 5)),
+    opinio TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Taula d'Ofertes (propostes i pressupostos presentats per professionals)
 CREATE TABLE IF NOT EXISTS ofertes (
     id VARCHAR(100) PRIMARY KEY,
     tasca_id VARCHAR(100) REFERENCES tasques(id) ON DELETE CASCADE,
+    incidencia_id VARCHAR(100) REFERENCES incidencies(id) ON DELETE CASCADE,
     professional VARCHAR(150) NOT NULL,
-    price VARCHAR(50),
+    price VARCHAR(50) NOT NULL,
     note TEXT,
+    categoria VARCHAR(100),
     estat VARCHAR(50) DEFAULT 'Pendent',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 5. Taula d'Avisos (notificacions del sistema als usuaris)
 CREATE TABLE IF NOT EXISTS avisos (
     id VARCHAR(100) PRIMARY KEY,
-    usuari_id VARCHAR(100),
+    usuari_id VARCHAR(100) REFERENCES usuaris(id) ON DELETE CASCADE,
     missatge TEXT NOT NULL,
     llegit BOOLEAN DEFAULT FALSE,
     data DATE DEFAULT CURRENT_DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 6. Taula de Ressenyes (valoracions de servei públiques de clients a professionals)
 CREATE TABLE IF NOT EXISTS resenyes (
     id VARCHAR(100) PRIMARY KEY,
-    client_id VARCHAR(100),
-    treballador_id VARCHAR(100),
-    tasca_id VARCHAR(100),
-    puntuacio INTEGER NOT NULL,
+    client_id VARCHAR(100) REFERENCES usuaris(id) ON DELETE CASCADE,
+    client_nom VARCHAR(150),
+    treballador_id VARCHAR(100) REFERENCES usuaris(id) ON DELETE CASCADE,
+    treballador_nom VARCHAR(150),
+    tasca_id VARCHAR(100) REFERENCES tasques(id) ON DELETE SET NULL,
+    puntuacio INTEGER NOT NULL CHECK (puntuacio >= 1 AND puntuacio <= 5),
     descripcio TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
