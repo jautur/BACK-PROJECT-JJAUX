@@ -105,5 +105,23 @@ public class PublicacioController {
 		catalog.deletePublicacio(id);
 		return ResponseEntity.noContent().build();
 	}
+
+	/**
+	 * Contractar directament una oferta d'un professional ('OFERTA to TAREA').
+	 * L'oferta roman persistent a publicacions i es crea directament la tasca en curs.
+	 * Endpoint: POST /api/publicacions/{id}/contractar
+	 */
+	@PostMapping("/{id}/contractar")
+	public ResponseEntity<com.avisa.model.Tasca> hireOffer(
+		@PathVariable String id,
+		@RequestBody(required = false) java.util.Map<String, String> body
+	) {
+		String clientNom = (body != null && body.get("clientNom") != null && !body.get("clientNom").isBlank())
+			? body.get("clientNom")
+			: "Client AVISA";
+		return catalog.convertOfferToTask(id, clientNom)
+			.map(ResponseEntity::ok)
+			.orElse(ResponseEntity.notFound().build());
+	}
 }
 

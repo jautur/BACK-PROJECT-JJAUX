@@ -852,21 +852,39 @@ public class InMemoryCatalog {
 	public Optional<Tasca> convertOfferToTask(String offerId, String clientNom) {
 		try {
 			Optional<Oferta> opt = findOfferById(offerId);
-			if (opt.isEmpty()) return Optional.empty();
-			Oferta of = opt.get();
+			String proNom = null;
+			String categoria = "Altres Serveis";
+			String titol = "Servei contractat";
+			String descripcio = "Servei contractat a través de l'oferta directa.";
+			String preu = "A convenir";
 
-			// Creació d'una nova TASCA on convergeixen client i professional obligatoris!
-			String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
-			String categoria = (of.categoria() != null && !of.categoria().isBlank())
-				? of.categoria()
-				: "Altres Serveis";
-			String titol = "Servei de " + categoria + " (" + of.professional() + ")";
-			if (of.note() != null && !of.note().isBlank()) {
-				titol = (of.note().length() > 60) ? of.note().substring(0, 57) + "..." : of.note();
+			if (opt.isPresent()) {
+				Oferta of = opt.get();
+				proNom = of.professional();
+				if (of.categoria() != null && !of.categoria().isBlank()) categoria = of.categoria();
+				if (of.price() != null && !of.price().isBlank()) preu = of.price();
+				if (of.note() != null && !of.note().isBlank()) {
+					titol = (of.note().length() > 60) ? of.note().substring(0, 57) + "..." : of.note();
+					descripcio = of.note();
+				} else {
+					titol = "Servei de " + categoria + " (" + proNom + ")";
+				}
+			} else {
+				Optional<Publicacio> pubOpt = findPublicacioById(offerId);
+				if (pubOpt.isPresent()) {
+					Publicacio pub = pubOpt.get();
+					proNom = pub.usuariNom();
+					if (pub.categoria() != null && !pub.categoria().isBlank()) categoria = pub.categoria();
+					if (pub.preuOPressupost() != null && !pub.preuOPressupost().isBlank()) preu = pub.preuOPressupost();
+					if (pub.titol() != null && !pub.titol().isBlank()) titol = pub.titol();
+					if (pub.descripcio() != null && !pub.descripcio().isBlank()) descripcio = pub.descripcio();
+				} else {
+					return Optional.empty();
+				}
 			}
-			String descripcio = (of.note() != null && !of.note().isBlank())
-				? of.note()
-				: "Servei contractat a través de l'oferta directa de " + of.professional() + ".";
+
+			// Creació d'una nova TASCA directa en curs on convergeixen client i professional!
+			String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
 
 			String clientId = null;
 			String resolvedClientNom = clientNom;
@@ -880,38 +898,40 @@ public class InMemoryCatalog {
 
 			String proId = null;
 			for (Usuari u : users()) {
-				if (u.nom().equalsIgnoreCase(of.professional()) || u.id().equalsIgnoreCase(of.professional())) {
+				if (u.nom().equalsIgnoreCase(proNom) || u.id().equalsIgnoreCase(proNom)) {
 					proId = u.id();
 					break;
 				}
 			}
 
 			jdbcTemplate.update(
-				"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En curs', 'tasca')",
-				newTaskId, titol, descripcio, categoria, clientId, resolvedClientNom, proId, of.professional(), offerId, of.price()
+				"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus, data_inici, preu_acordat, publicacio_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En curs', 'tasca', CURRENT_TIMESTAMP, ?, ?)",
+				newTaskId, titol, descripcio, categoria, clientId, resolvedClientNom, proId, proNom, offerId, preu, preu, offerId
 			);
 
-			// L'oferta original 'of' NO s'esborra ni es modifica, queda al catàleg per a altres clients
+			// L'oferta original roman persistent a publicacions/ofertes per a altres clients!
 
 			// Avisos en temps real
 			final String finalTitol = titol;
 			final String finalClientNom = resolvedClientNom;
+			final String finalProNom = proNom;
+			final String finalPreu = preu;
 			if (proId != null) {
-				addAvis(proId, "El client " + finalClientNom + " ha contractat la teva oferta per a '" + finalTitol + "' (" + of.price() + "). S'ha generat una nova TASCA en curs!");
+				addAvis(proId, "El client " + finalClientNom + " ha contractat la teva oferta per a '" + finalTitol + "' (" + finalPreu + "). S'ha generat una nova TASCA en curs!");
 			} else {
 				users().stream()
-					.filter(u -> u.nom().equalsIgnoreCase(of.professional()))
+					.filter(u -> u.nom().equalsIgnoreCase(finalProNom))
 					.findFirst()
-					.ifPresent(proUser -> addAvis(proUser.id(), "El client " + finalClientNom + " ha contractat la teva oferta per a '" + finalTitol + "' (" + of.price() + "). S'ha generat una nova TASCA en curs!"));
+					.ifPresent(proUser -> addAvis(proUser.id(), "El client " + finalClientNom + " ha contractat la teva oferta per a '" + finalTitol + "' (" + finalPreu + "). S'ha generat una nova TASCA en curs!"));
 			}
 
 			if (clientId != null) {
-				addAvis(clientId, "Has contractat amb èxit el servei de " + of.professional() + " (" + of.price() + "). La tasca '" + finalTitol + "' ja està en curs!");
+				addAvis(clientId, "Has contractat amb èxit el servei de " + finalProNom + " (" + finalPreu + "). La tasca '" + finalTitol + "' ja està en curs!");
 			} else {
 				users().stream()
 					.filter(u -> u.nom().equalsIgnoreCase(clientNom))
 					.findFirst()
-					.ifPresent(clientUser -> addAvis(clientUser.id(), "Has contractat amb èxit el servei de " + of.professional() + " (" + of.price() + "). La tasca '" + finalTitol + "' ja està en curs!"));
+					.ifPresent(clientUser -> addAvis(clientUser.id(), "Has contractat amb èxit el servei de " + finalProNom + " (" + finalPreu + "). La tasca '" + finalTitol + "' ja està en curs!"));
 			}
 
 			return findTaskById(newTaskId);
