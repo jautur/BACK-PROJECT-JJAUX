@@ -127,6 +127,25 @@ public class TascaController {
 	}
 
 	/**
+	 * Avaluar una tasca per part del client (encara que ja estiga finalitzada).
+	 * Endpoint: POST /api/tasks/{id}/avaluar
+	 * @param id Identificador de la tasca
+	 * @param body Dades de valoració (1-5) i opinió del client
+	 * @return La tasca actualitzada
+	 */
+	@PostMapping("/{id}/avaluar")
+	public ResponseEntity<Tasca> evaluateTask(
+		@PathVariable String id,
+		@RequestBody com.avisa.dto.FinalitzarTascaRequest body
+	) {
+		Integer valoracio = body != null ? body.valoracio() : null;
+		String opinio = body != null ? body.opinio() : null;
+		return catalog.completeTask(id, valoracio, opinio)
+			.map(ResponseEntity::ok)
+			.orElse(ResponseEntity.notFound().build());
+	}
+
+	/**
 	 * Llistar tasques que estan obertes a rebre ofertes.
 	 * Endpoint: GET /api/tasks/disponibles
 	 * Acció: Permet als professionals trobar oportunitats actives.

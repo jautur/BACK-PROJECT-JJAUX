@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS ofertes (
     professional VARCHAR(150) NOT NULL,
     price VARCHAR(50),
     note TEXT,
+    categoria VARCHAR(100),
     estat VARCHAR(50) DEFAULT 'Pendent',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

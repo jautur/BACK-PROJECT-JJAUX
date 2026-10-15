@@ -30,6 +30,9 @@ public class InMemoryCatalog {
 
 	public InMemoryCatalog(JdbcTemplate jdbcTemplate) {
 		this.jdbcTemplate = jdbcTemplate;
+		try {
+			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS categoria VARCHAR(100)");
+		} catch (Exception ignored) {}
 	}
 
 	// ==========================================
@@ -487,17 +490,13 @@ public class InMemoryCatalog {
 			Optional<Tasca> tascaOpt = findTaskById(id);
 			tascaOpt.ifPresent(task -> {
 				// Notifica al client
-				String clientAvis = (valoracio != null)
-					? "Has finalitzat i valorat amb èxit la tasca '" + task.titol() + "'."
-					: "La tasca '" + task.titol() + "' ha estat marcada com a finalitzada. Pots entrar a valorar la feina del professional.";
-
 				if (task.clientId() != null) {
-					addAvis(task.clientId(), clientAvis);
+					addAvis(task.clientId(), "Has finalitzat amb èxit la tasca '" + task.titol() + "'.");
 				} else if (task.clientNom() != null) {
 					users().stream()
 						.filter(u -> u.nom().equalsIgnoreCase(task.clientNom()))
 						.findFirst()
-						.ifPresent(clientUser -> addAvis(clientUser.id(), clientAvis));
+						.ifPresent(clientUser -> addAvis(clientUser.id(), "Has finalitzat amb èxit la tasca '" + task.titol() + "'."));
 				}
 
 				// Notifica al professional
@@ -514,7 +513,7 @@ public class InMemoryCatalog {
 						String opDesc = (opinio != null && !opinio.isBlank()) ? " amb l'opinió: \"" + opinio + "\"" : "";
 						addAvis(proId, "La tasca '" + task.titol() + "' ha estat finalitzada per " + (task.clientNom() != null ? task.clientNom() : "el client") + " i has rebut una valoració de " + valoracio + "/5 estrelles" + opDesc + "!");
 					} else {
-						addAvis(proId, "La tasca '" + task.titol() + "' s'ha marcat com a finalitzada correctament.");
+						addAvis(proId, "La tasca '" + task.titol() + "' ha estat marcada com a finalitzada pel client!");
 					}
 				}
 			});
@@ -545,7 +544,7 @@ public class InMemoryCatalog {
 	public List<Oferta> offers() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT o.id, COALESCE(o.tasca_id, o.incidencia_id) AS tasca_id, o.incidencia_id, o.professional, COALESCE(t.categoria, i.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id LEFT JOIN incidencies i ON i.id = COALESCE(o.incidencia_id, o.tasca_id) ORDER BY o.created_at DESC",
+				"SELECT o.id, COALESCE(o.tasca_id, o.incidencia_id) AS tasca_id, o.incidencia_id, o.professional, COALESCE(o.categoria, t.categoria, i.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id LEFT JOIN incidencies i ON i.id = COALESCE(o.incidencia_id, o.tasca_id) ORDER BY o.created_at DESC",
 				(rs, rowNum) -> new Oferta(
 					rs.getString("id"),
 					rs.getString("tasca_id"),
@@ -570,7 +569,7 @@ public class InMemoryCatalog {
 	public Optional<Oferta> findOfferById(String id) {
 		try {
 			List<Oferta> res = jdbcTemplate.query(
-				"SELECT o.id, COALESCE(o.tasca_id, o.incidencia_id) AS tasca_id, o.incidencia_id, o.professional, COALESCE(t.categoria, i.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id LEFT JOIN incidencies i ON i.id = COALESCE(o.incidencia_id, o.tasca_id) WHERE o.id = ?",
+				"SELECT o.id, COALESCE(o.tasca_id, o.incidencia_id) AS tasca_id, o.incidencia_id, o.professional, COALESCE(o.categoria, t.categoria, i.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id LEFT JOIN incidencies i ON i.id = COALESCE(o.incidencia_id, o.tasca_id) WHERE o.id = ?",
 				(rs, rowNum) -> new Oferta(
 					rs.getString("id"),
 					rs.getString("tasca_id"),
@@ -597,7 +596,7 @@ public class InMemoryCatalog {
 	public List<Oferta> findOffersByTasca(String tascaId) {
 		try {
 			return jdbcTemplate.query(
-				"SELECT o.id, COALESCE(o.tasca_id, o.incidencia_id) AS tasca_id, o.incidencia_id, o.professional, COALESCE(t.categoria, i.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id LEFT JOIN incidencies i ON i.id = COALESCE(o.incidencia_id, o.tasca_id) WHERE o.tasca_id = ? OR o.incidencia_id = ? ORDER BY o.created_at DESC",
+				"SELECT o.id, COALESCE(o.tasca_id, o.incidencia_id) AS tasca_id, o.incidencia_id, o.professional, COALESCE(o.categoria, t.categoria, i.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id LEFT JOIN incidencies i ON i.id = COALESCE(o.incidencia_id, o.tasca_id) WHERE o.tasca_id = ? OR o.incidencia_id = ? ORDER BY o.created_at DESC",
 				(rs, rowNum) -> new Oferta(
 					rs.getString("id"),
 					rs.getString("tasca_id"),
@@ -616,7 +615,7 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Guarda una nova oferta presentada per un professional i emet un avís al client.
+	 * Guarda una nova oferta presentada per un professional i emet un avís al client si escau.
 	 * @param request Dades de l'oferta
 	 * @return L'oferta creada
 	 */
@@ -628,32 +627,19 @@ public class InMemoryCatalog {
 		String incidenciaId = request.incidenciaId();
 		String categoria = request.categoria();
 
-		// Si és una oferta de servei públic (no vinculada prèviament a una incidència existent)
+		// Si és una oferta de servei lliure (no vinculada a una incidència prèvia)
 		if (targetId == null || targetId.isBlank() || "standalone".equalsIgnoreCase(targetId)) {
-			String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
-			String titol = (request.note() != null && request.note().length() > 60)
-				? request.note().substring(0, 57) + "..."
-				: ((request.note() != null && !request.note().isBlank()) ? request.note() : "Servei professional");
-			categoria = (request.categoria() != null && !request.categoria().isBlank()) ? request.categoria() : "Altres Serveis";
-			String proId = null;
-			for (Usuari u : users()) {
-				if (u.nom().equalsIgnoreCase(request.professional()) || u.id().equalsIgnoreCase(request.professional())) {
-					proId = u.id();
-					break;
-				}
+			tascaId = null;
+			incidenciaId = null;
+			if (categoria == null || categoria.isBlank()) {
+				categoria = "Altres Serveis";
 			}
-			try {
-				jdbcTemplate.update(
-					"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus) VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, 'Oferta', 'oferta')",
-					newTaskId, titol, request.note(), categoria, proId, request.professional(), id, request.price()
-				);
-				tascaId = newTaskId;
-			} catch (Exception ignored) {}
 		} else {
 			// Comprovem si el targetId és una incidència
 			Optional<Incidencia> incOpt = findIncidenciaById(targetId);
 			if (incOpt.isPresent()) {
 				incidenciaId = targetId;
+				tascaId = null;
 				if (categoria == null || categoria.isBlank()) {
 					categoria = incOpt.get().categoria();
 				}
@@ -664,10 +650,14 @@ public class InMemoryCatalog {
 			}
 		}
 
+		if (categoria == null || categoria.isBlank()) {
+			categoria = "Altres Serveis";
+		}
+
 		try {
 			jdbcTemplate.update(
-				"INSERT INTO ofertes (id, tasca_id, incidencia_id, professional, price, note, estat) VALUES (?, ?, ?, ?, ?, ?, ?)",
-				id, tascaId, incidenciaId, request.professional(), request.price(), request.note(), estat
+				"INSERT INTO ofertes (id, tasca_id, incidencia_id, professional, price, note, categoria, estat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+				id, tascaId, incidenciaId, request.professional(), request.price(), request.note(), categoria, estat
 			);
 			// Notifica al client propietari si és una incidència d'un particular
 			if (incidenciaId != null) {
@@ -709,8 +699,6 @@ public class InMemoryCatalog {
 			if (opt.isPresent()) {
 				Oferta of = opt.get();
 				String targetId = of.tascaId() != null ? of.tascaId() : of.incidenciaId();
-				jdbcTemplate.update("UPDATE ofertes SET estat = 'Acceptada' WHERE id = ?", offerId);
-				jdbcTemplate.update("DELETE FROM ofertes WHERE (tasca_id = ? OR incidencia_id = ?) AND id != ?", targetId, targetId, offerId);
 
 				String proId = null;
 				for (Usuari u : users()) {
@@ -732,7 +720,7 @@ public class InMemoryCatalog {
 						"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En curs', 'tasca')",
 						newTaskId, inc.titol(), inc.descripcio(), inc.categoria(), inc.clientId(), inc.clientNom(), proId, of.professional(), inc.id(), of.price()
 					);
-					jdbcTemplate.update("UPDATE ofertes SET tasca_id = ? WHERE id = ?", newTaskId, offerId);
+					// NOTA: L'oferta no s'esborra ni s'altera, ja que més d'un client es pot interessar pel mateix servei
 
 					final String finalProId = proId;
 					if (finalProId != null) {
@@ -742,18 +730,29 @@ public class InMemoryCatalog {
 				}
 
 				// Si ja era una tasca existent:
-				jdbcTemplate.update(
-					"UPDATE tasques SET estat = 'En curs', tipus = 'tasca', professional_id = ?, professional_nom = ?, origen_id = ?, budget = ? WHERE id = ?",
-					proId, of.professional(), offerId, of.price(), of.tascaId()
-				);
+				Optional<Tasca> taskOpt = findTaskById(targetId);
+				if (taskOpt.isPresent()) {
+					Tasca t = taskOpt.get();
+					if (t.client() != null && !"AVISA".equalsIgnoreCase(t.client())) {
+						jdbcTemplate.update(
+							"UPDATE tasques SET estat = 'En curs', tipus = 'tasca', professional_id = ?, professional_nom = ?, origen_id = ?, budget = ? WHERE id = ?",
+							proId, of.professional(), offerId, of.price(), targetId
+						);
+					} else {
+						String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
+						jdbcTemplate.update(
+							"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En curs', 'tasca')",
+							newTaskId, t.titol(), t.descripcio(), t.categoria(), t.clientId(), t.clientNom(), proId, of.professional(), offerId, of.price()
+						);
+					}
 
-				// Notifica al professional guanyador
-				findTaskById(of.tascaId()).ifPresent(task -> {
-					users().stream()
-						.filter(u -> u.nom().equalsIgnoreCase(of.professional()) || u.id().equalsIgnoreCase(of.professional()))
-						.findFirst()
-						.ifPresent(proUser -> addAvis(proUser.id(), "Enhorabona! La teva oferta per a '" + task.titol() + "' ha estat ACCEPTADA per " + task.client() + "! S'ha generat la TASCA en curs!"));
-				});
+					findTaskById(targetId).ifPresent(task -> {
+						users().stream()
+							.filter(u -> u.nom().equalsIgnoreCase(of.professional()) || u.id().equalsIgnoreCase(of.professional()))
+							.findFirst()
+							.ifPresent(proUser -> addAvis(proUser.id(), "Enhorabona! La teva oferta per a '" + task.titol() + "' ha estat ACCEPTADA per " + task.client() + "! S'ha generat la TASCA en curs!"));
+					});
+				}
 
 				return findOfferById(offerId);
 			}
@@ -765,13 +764,13 @@ public class InMemoryCatalog {
 
 	/**
 	 * Converteix una oferta d'un professional en una TASCA directa per a un client ('OFERTA to TAREA').
-	 * Si l'oferta correspon a una incidència pròpia del client, s'accepta directament.
-	 * Si és una oferta pública de servei, es crea una nova TASCA 'En curs' on convergeixen client i professional obligatoris,
-	 * heretant titol, descripcio, categoria, budget i guardant l'origen_id (offerId).
+	 * Es crea una nova TASCA 'En curs' on convergeixen client i professional obligatoris.
+	 * IMPORTANT: Les ofertes no desapareixen al crear-se una tasca, ja que més d'un client es pot
+	 * interessar pel mateix servei del professional. L'oferta original roman activa i disponible.
 	 *
 	 * @param offerId Identificador de l'oferta
 	 * @param clientNom Nom de l'usuari client que contracta
-	 * @return Optional amb la Tasca creada o actualitzada
+	 * @return Optional amb la Tasca creada
 	 */
 	public Optional<Tasca> convertOfferToTask(String offerId, String clientNom) {
 		try {
@@ -779,20 +778,14 @@ public class InMemoryCatalog {
 			if (opt.isEmpty()) return Optional.empty();
 			Oferta of = opt.get();
 
-			Optional<Tasca> existingTaskOpt = findTaskById(of.tascaId());
-			if (existingTaskOpt.isPresent() && clientNom.equalsIgnoreCase(existingTaskOpt.get().client())) {
-				acceptOffer(offerId);
-				return findTaskById(of.tascaId());
-			}
-
 			// Creació d'una nova TASCA on convergeixen client i professional obligatoris!
 			String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
 			String categoria = (of.categoria() != null && !of.categoria().isBlank())
 				? of.categoria()
-				: (existingTaskOpt.map(Tasca::categoria).orElse("Altres Serveis"));
+				: "Altres Serveis";
 			String titol = "Servei de " + categoria + " (" + of.professional() + ")";
-			if (existingTaskOpt.isPresent() && existingTaskOpt.get().client() != null && !"AVISA".equalsIgnoreCase(existingTaskOpt.get().client())) {
-				titol = existingTaskOpt.get().titol();
+			if (of.note() != null && !of.note().isBlank()) {
+				titol = (of.note().length() > 60) ? of.note().substring(0, 57) + "..." : of.note();
 			}
 			String descripcio = (of.note() != null && !of.note().isBlank())
 				? of.note()
@@ -821,12 +814,7 @@ public class InMemoryCatalog {
 				newTaskId, titol, descripcio, categoria, clientId, resolvedClientNom, proId, of.professional(), offerId, of.price()
 			);
 
-			// Creem l'oferta acceptada vinculada a la tasca
-			String newOfferId = "O-" + String.format("%03d", 200 + offers().size() + 1);
-			jdbcTemplate.update(
-				"INSERT INTO ofertes (id, tasca_id, professional, price, note, estat) VALUES (?, ?, ?, ?, ?, 'Acceptada')",
-				newOfferId, newTaskId, of.professional(), of.price(), of.note()
-			);
+			// L'oferta original 'of' NO s'esborra ni es modifica, queda al catàleg per a altres clients
 
 			// Avisos en temps real
 			final String finalTitol = titol;
