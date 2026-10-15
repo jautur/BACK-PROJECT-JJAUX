@@ -130,18 +130,34 @@ public class TascaController {
 	}
 
 	/**
-	 * Avaluar una tasca per part del client (encara que ja estiga finalitzada).
+	 * Avaluar una tasca per part del client (només un cop finalitzada i sense valoració prèvia).
 	 * Endpoint: POST /api/tasks/{id}/avaluar
 	 * @param id Identificador de la tasca
 	 * @param body Dades de valoració (1-5) i opinió del client
 	 * @return La tasca actualitzada
 	 */
 	@PostMapping("/{id}/avaluar")
-	public ResponseEntity<Tasca> evaluateTask(
+	public ResponseEntity<?> evaluateTask(
 		@PathVariable String id,
 		@RequestBody com.avisa.dto.FinalitzarTascaRequest body
 	) {
+		java.util.Optional<Tasca> taskOpt = catalog.findTaskById(id);
+		if (taskOpt.isEmpty()) {
+			return ResponseEntity.notFound().build();
+		}
+		Tasca t = taskOpt.get();
+		// Regla: Només quan la tasca estiga acabada (data_finalitzacio amb valor)
+		if (t.dataFinalitzacio() == null) {
+			return ResponseEntity.badRequest().body("Només es pot valorar una tasca quan ja està finalitzada.");
+		}
+		// Regla: No es pot valorar dues vegades la mateixa tasca
+		if (t.valoracio() != null) {
+			return ResponseEntity.badRequest().body("Aquesta tasca ja ha estat valorada anteriorment.");
+		}
 		Integer valoracio = body != null ? body.valoracio() : null;
+		if (valoracio == null || valoracio < 1 || valoracio > 5) {
+			return ResponseEntity.badRequest().body("La valoració ha de ser entre 1 i 5 estrelles.");
+		}
 		String opinio = body != null ? body.opinio() : null;
 		return catalog.completeTask(id, valoracio, opinio)
 			.map(ResponseEntity::ok)

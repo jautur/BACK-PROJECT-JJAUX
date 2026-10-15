@@ -1,5 +1,7 @@
 package com.avisa.service;
 
+import com.avisa.dto.CrearInteresRequest;
+import com.avisa.dto.CrearPressupostRequest;
 import com.avisa.dto.DashboardResponse;
 import com.avisa.dto.IncidenciaRequest;
 import com.avisa.dto.OfertaRequest;
@@ -7,7 +9,10 @@ import com.avisa.dto.RegisterRequest;
 import com.avisa.dto.TascaRequest;
 import com.avisa.model.Avis;
 import com.avisa.model.Incidencia;
+import com.avisa.model.Interes;
 import com.avisa.model.Oferta;
+import com.avisa.model.Pressupost;
+import com.avisa.model.Publicacio;
 import com.avisa.model.Resenya;
 import com.avisa.model.Tasca;
 import com.avisa.model.Usuari;
@@ -18,6 +23,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Catàleg central i capa d'accés a dades per a l'aplicació JJAUX.
@@ -32,6 +38,47 @@ public class InMemoryCatalog {
 		this.jdbcTemplate = jdbcTemplate;
 		try {
 			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS categoria VARCHAR(100)");
+			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS incidencia_id VARCHAR(100)");
+			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_inici TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_finalitzacio TIMESTAMP");
+			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_valoracio TIMESTAMP");
+			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS interes_id VARCHAR(100)");
+			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS pressupost_id VARCHAR(100)");
+			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS preu_acordat VARCHAR(50)");
+			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS publicacio_id VARCHAR(100)");
+			jdbcTemplate.execute(
+				"CREATE TABLE IF NOT EXISTS publicacions (" +
+				"id VARCHAR(100) PRIMARY KEY, " +
+				"usuari_id VARCHAR(100), " +
+				"usuari_nom VARCHAR(150) NOT NULL, " +
+				"tipus VARCHAR(50) NOT NULL, " +
+				"titol VARCHAR(255) NOT NULL, " +
+				"descripcio TEXT, " +
+				"categoria VARCHAR(100), " +
+				"preu_o_pressupost VARCHAR(50), " +
+				"created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+			);
+			jdbcTemplate.execute(
+				"CREATE TABLE IF NOT EXISTS interessos (" +
+				"id VARCHAR(100) PRIMARY KEY, " +
+				"publicacio_id VARCHAR(100), " +
+				"client_id VARCHAR(100), " +
+				"client_nom VARCHAR(150) NOT NULL, " +
+				"missatge TEXT, " +
+				"tasca_id VARCHAR(100), " +
+				"data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+			);
+			jdbcTemplate.execute(
+				"CREATE TABLE IF NOT EXISTS pressupostos (" +
+				"id VARCHAR(100) PRIMARY KEY, " +
+				"incidencia_id VARCHAR(100), " +
+				"professional_id VARCHAR(100), " +
+				"professional_nom VARCHAR(150) NOT NULL, " +
+				"preu VARCHAR(50) NOT NULL, " +
+				"descripcio TEXT, " +
+				"duracio_estimada VARCHAR(100), " +
+				"data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+			);
 		} catch (Exception ignored) {}
 	}
 
@@ -304,6 +351,10 @@ public class InMemoryCatalog {
 				"INSERT INTO incidencies (id, client_id, client_nom, titol, descripcio, categoria, budget, estat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 				id, clientId, clientNom, request.titol(), request.descripcio(), request.categoria(), request.budget(), estat
 			);
+			jdbcTemplate.update(
+				"INSERT INTO publicacions (id, usuari_id, usuari_nom, tipus, titol, descripcio, categoria, preu_o_pressupost) VALUES (?, ?, ?, 'INCIDENCIA', ?, ?, ?, ?)",
+				id, clientId, clientNom, request.titol(), request.descripcio(), request.categoria(), request.budget()
+			);
 		} catch (Exception ignored) {}
 
 		return new Incidencia(id, clientId, clientNom, request.titol(), request.descripcio(), request.categoria(), request.budget(), estat, LocalDateTime.now());
@@ -315,6 +366,8 @@ public class InMemoryCatalog {
 	 */
 	public void deleteIncidencia(String id) {
 		try {
+			jdbcTemplate.update("DELETE FROM publicacions WHERE id = ?", id);
+			jdbcTemplate.update("DELETE FROM pressupostos WHERE incidencia_id = ?", id);
 			jdbcTemplate.update("DELETE FROM incidencies WHERE id = ?", id);
 		} catch (Exception ignored) {}
 	}
@@ -332,12 +385,15 @@ public class InMemoryCatalog {
 		rs.getString("client_nom"),
 		rs.getString("professional_id"),
 		rs.getString("professional_nom"),
-		rs.getString("origen_id"),
-		rs.getString("budget"),
-		rs.getString("estat"),
-		rs.getString("tipus"),
+		rs.getString("publicacio_id"),
+		rs.getString("interes_id"),
+		rs.getString("pressupost_id"),
+		rs.getString("preu_acordat") != null ? rs.getString("preu_acordat") : rs.getString("budget"),
+		rs.getTimestamp("data_inici") != null ? rs.getTimestamp("data_inici").toLocalDateTime() : (rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()),
+		rs.getTimestamp("data_finalitzacio") != null ? rs.getTimestamp("data_finalitzacio").toLocalDateTime() : ("Finalitzada".equalsIgnoreCase(rs.getString("estat")) ? LocalDateTime.now() : null),
 		rs.getObject("valoracio") != null ? rs.getInt("valoracio") : null,
-		rs.getString("opinio")
+		rs.getString("opinio"),
+		rs.getTimestamp("data_valoracio") != null ? rs.getTimestamp("data_valoracio").toLocalDateTime() : null
 	);
 
 	/**
@@ -347,7 +403,7 @@ public class InMemoryCatalog {
 	public List<Tasca> tasks() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus, valoracio, opinio FROM tasques ORDER BY created_at DESC",
+				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, publicacio_id, interes_id, pressupost_id, preu_acordat, budget, estat, data_inici, data_finalitzacio, valoracio, opinio, data_valoracio, created_at FROM tasques ORDER BY created_at DESC",
 				tascaRowMapper
 			);
 		} catch (Exception e) {
@@ -363,7 +419,7 @@ public class InMemoryCatalog {
 	public Optional<Tasca> findTaskById(String id) {
 		try {
 			List<Tasca> res = jdbcTemplate.query(
-				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus, valoracio, opinio FROM tasques WHERE id = ?",
+				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, publicacio_id, interes_id, pressupost_id, preu_acordat, budget, estat, data_inici, data_finalitzacio, valoracio, opinio, data_valoracio, created_at FROM tasques WHERE id = ?",
 				tascaRowMapper,
 				id
 			);
@@ -381,7 +437,7 @@ public class InMemoryCatalog {
 	public List<Tasca> findTasksByClient(String clientNom) {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus, valoracio, opinio FROM tasques WHERE LOWER(client_nom) = LOWER(?) OR client_id = ? ORDER BY created_at DESC",
+				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, publicacio_id, interes_id, pressupost_id, preu_acordat, budget, estat, data_inici, data_finalitzacio, valoracio, opinio, data_valoracio, created_at FROM tasques WHERE LOWER(client_nom) = LOWER(?) OR client_id = ? ORDER BY created_at DESC",
 				tascaRowMapper,
 				clientNom, clientNom
 			);
@@ -398,7 +454,7 @@ public class InMemoryCatalog {
 	public List<Tasca> findTasksByProfessional(String professionalNom) {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus, valoracio, opinio FROM tasques WHERE LOWER(professional_nom) = LOWER(?) OR professional_id = ? ORDER BY created_at DESC",
+				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, publicacio_id, interes_id, pressupost_id, preu_acordat, budget, estat, data_inici, data_finalitzacio, valoracio, opinio, data_valoracio, created_at FROM tasques WHERE LOWER(professional_nom) = LOWER(?) OR professional_id = ? ORDER BY created_at DESC",
 				tascaRowMapper,
 				professionalNom, professionalNom
 			);
@@ -659,6 +715,27 @@ public class InMemoryCatalog {
 				"INSERT INTO ofertes (id, tasca_id, incidencia_id, professional, price, note, categoria, estat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 				id, tascaId, incidenciaId, request.professional(), request.price(), request.note(), categoria, estat
 			);
+
+			String proId = null;
+			for (Usuari u : users()) {
+				if (u.nom().equalsIgnoreCase(request.professional()) || u.id().equalsIgnoreCase(request.professional())) {
+					proId = u.id();
+					break;
+				}
+			}
+
+			if (incidenciaId == null) {
+				String titol = (request.note() != null && !request.note().isBlank()) ? request.note() : ("Servei de " + categoria);
+				jdbcTemplate.update(
+					"INSERT INTO publicacions (id, usuari_id, usuari_nom, tipus, titol, descripcio, categoria, preu_o_pressupost) VALUES (?, ?, ?, 'OFERTA', ?, ?, ?, ?)",
+					id, proId, request.professional(), titol, request.note(), categoria, request.price()
+				);
+			} else {
+				jdbcTemplate.update(
+					"INSERT INTO pressupostos (id, incidencia_id, professional_id, professional_nom, preu, descripcio) VALUES (?, ?, ?, ?, ?, ?)",
+					id, incidenciaId, proId, request.professional(), request.price(), request.note()
+				);
+			}
 			// Notifica al client propietari si és una incidència d'un particular
 			if (incidenciaId != null) {
 				findIncidenciaById(incidenciaId).ifPresent(inc -> {
@@ -851,6 +928,9 @@ public class InMemoryCatalog {
 	 */
 	public boolean deleteOffer(String id) {
 		try {
+			jdbcTemplate.update("DELETE FROM publicacions WHERE id = ?", id);
+			jdbcTemplate.update("DELETE FROM pressupostos WHERE id = ?", id);
+			jdbcTemplate.update("DELETE FROM interessos WHERE publicacio_id = ?", id);
 			int rows = jdbcTemplate.update("DELETE FROM ofertes WHERE id = ?", id);
 			return rows > 0;
 		} catch (Exception e) {
@@ -1074,5 +1154,381 @@ public class InMemoryCatalog {
 			} catch (Exception ignored) {}
 		}
 		return resenya;
+	}
+
+	// ==========================================
+	// GESTIÓ DE PUBLICACIONS (OFERTES / INCIDÈNCIES)
+	// ==========================================
+
+	private final org.springframework.jdbc.core.RowMapper<Publicacio> publicacioRowMapper = (rs, rowNum) -> new Publicacio(
+		rs.getString("id"),
+		rs.getString("usuari_id"),
+		rs.getString("usuari_nom"),
+		rs.getString("tipus"),
+		rs.getString("titol"),
+		rs.getString("descripcio"),
+		rs.getString("categoria"),
+		rs.getString("preu_o_pressupost"),
+		rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()
+	);
+
+	public List<Publicacio> publicacions() {
+		try {
+			return jdbcTemplate.query(
+				"SELECT id, usuari_id, usuari_nom, tipus, titol, descripcio, categoria, preu_o_pressupost, created_at FROM publicacions ORDER BY created_at DESC",
+				publicacioRowMapper
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	public List<Publicacio> publicacionsByTipus(String tipus) {
+		try {
+			return jdbcTemplate.query(
+				"SELECT id, usuari_id, usuari_nom, tipus, titol, descripcio, categoria, preu_o_pressupost, created_at FROM publicacions WHERE UPPER(tipus) = UPPER(?) ORDER BY created_at DESC",
+				publicacioRowMapper,
+				tipus
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	public Optional<Publicacio> findPublicacioById(String id) {
+		try {
+			List<Publicacio> res = jdbcTemplate.query(
+				"SELECT id, usuari_id, usuari_nom, tipus, titol, descripcio, categoria, preu_o_pressupost, created_at FROM publicacions WHERE id = ?",
+				publicacioRowMapper,
+				id
+			);
+			return res.stream().findFirst();
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	public Publicacio addPublicacio(Publicacio pub) {
+		try {
+			jdbcTemplate.update(
+				"INSERT INTO publicacions (id, usuari_id, usuari_nom, tipus, titol, descripcio, categoria, preu_o_pressupost) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+				pub.id(), pub.usuariId(), pub.usuariNom(), pub.tipus().toUpperCase(), pub.titol(), pub.descripcio(), pub.categoria(), pub.preuOPressupost()
+			);
+		} catch (Exception ignored) {}
+		return pub;
+	}
+
+	public void deletePublicacio(String id) {
+		try {
+			jdbcTemplate.update("DELETE FROM publicacions WHERE id = ?", id);
+		} catch (Exception ignored) {}
+	}
+
+	// ==========================================
+	// GESTIÓ D'INTERESSOS EN OFERTES
+	// ==========================================
+
+	private final org.springframework.jdbc.core.RowMapper<Interes> interesRowMapper = (rs, rowNum) -> new Interes(
+		rs.getString("id"),
+		rs.getString("publicacio_id"),
+		rs.getString("publicacio_titol"),
+		rs.getString("client_id"),
+		rs.getString("client_nom"),
+		rs.getString("professional_id"),
+		rs.getString("professional_nom"),
+		rs.getString("missatge"),
+		rs.getString("tasca_id"),
+		rs.getTimestamp("data_creacio") != null ? rs.getTimestamp("data_creacio").toLocalDateTime() : LocalDateTime.now()
+	);
+
+	public List<Interes> findInteressosByProfessional(String proNomOrId) {
+		try {
+			return jdbcTemplate.query(
+				"SELECT i.id, i.publicacio_id, COALESCE(p.titol, o.categoria, 'Servei Professional') AS publicacio_titol, i.client_id, i.client_nom, COALESCE(p.usuari_id, u.id) AS professional_id, COALESCE(p.usuari_nom, o.professional) AS professional_nom, i.missatge, i.tasca_id, i.data_creacio " +
+				"FROM interessos i " +
+				"LEFT JOIN publicacions p ON p.id = i.publicacio_id " +
+				"LEFT JOIN ofertes o ON o.id = i.publicacio_id " +
+				"LEFT JOIN usuaris u ON LOWER(u.nom) = LOWER(COALESCE(p.usuari_nom, o.professional)) " +
+				"WHERE LOWER(COALESCE(p.usuari_nom, o.professional)) = LOWER(?) OR COALESCE(p.usuari_id, u.id) = ? " +
+				"ORDER BY i.data_creacio DESC",
+				interesRowMapper,
+				proNomOrId, proNomOrId
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	public List<Interes> findInteressosByClient(String clientNomOrId) {
+		try {
+			return jdbcTemplate.query(
+				"SELECT i.id, i.publicacio_id, COALESCE(p.titol, o.categoria, 'Servei Professional') AS publicacio_titol, i.client_id, i.client_nom, COALESCE(p.usuari_id, u.id) AS professional_id, COALESCE(p.usuari_nom, o.professional) AS professional_nom, i.missatge, i.tasca_id, i.data_creacio " +
+				"FROM interessos i " +
+				"LEFT JOIN publicacions p ON p.id = i.publicacio_id " +
+				"LEFT JOIN ofertes o ON o.id = i.publicacio_id " +
+				"LEFT JOIN usuaris u ON LOWER(u.nom) = LOWER(COALESCE(p.usuari_nom, o.professional)) " +
+				"WHERE LOWER(i.client_nom) = LOWER(?) OR i.client_id = ? " +
+				"ORDER BY i.data_creacio DESC",
+				interesRowMapper,
+				clientNomOrId, clientNomOrId
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	public Optional<Interes> findInteresById(String id) {
+		try {
+			List<Interes> res = jdbcTemplate.query(
+				"SELECT i.id, i.publicacio_id, COALESCE(p.titol, o.categoria, 'Servei Professional') AS publicacio_titol, i.client_id, i.client_nom, COALESCE(p.usuari_id, u.id) AS professional_id, COALESCE(p.usuari_nom, o.professional) AS professional_nom, i.missatge, i.tasca_id, i.data_creacio " +
+				"FROM interessos i " +
+				"LEFT JOIN publicacions p ON p.id = i.publicacio_id " +
+				"LEFT JOIN ofertes o ON o.id = i.publicacio_id " +
+				"LEFT JOIN usuaris u ON LOWER(u.nom) = LOWER(COALESCE(p.usuari_nom, o.professional)) " +
+				"WHERE i.id = ?",
+				interesRowMapper,
+				id
+			);
+			return res.stream().findFirst();
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	public Interes addInteres(CrearInteresRequest req) {
+		String id = "INT-" + UUID.randomUUID().toString().substring(0, 8);
+		String clientId = req.clientId();
+		String clientNom = req.clientNom();
+		if (clientNom != null) {
+			for (Usuari u : users()) {
+				if (u.nom().equalsIgnoreCase(clientNom) || u.id().equalsIgnoreCase(clientNom)) {
+					clientId = u.id();
+					clientNom = u.nom();
+					break;
+				}
+			}
+		}
+
+		final String finalClientNom = clientNom;
+		try {
+			jdbcTemplate.update(
+				"INSERT INTO interessos (id, publicacio_id, client_id, client_nom, missatge) VALUES (?, ?, ?, ?, ?)",
+				id, req.publicacioId(), clientId, finalClientNom, req.missatge()
+			);
+
+			// Avís al professional propietari de l'oferta
+			findPublicacioById(req.publicacioId()).ifPresent(pub -> {
+				if (pub.usuariId() != null) {
+					addAvis(pub.usuariId(), "El client " + finalClientNom + " ha mostrat interés en la teva oferta '" + pub.titol() + "'!");
+				} else if (pub.usuariNom() != null) {
+					users().stream()
+						.filter(u -> u.nom().equalsIgnoreCase(pub.usuariNom()))
+						.findFirst()
+						.ifPresent(pro -> addAvis(pro.id(), "El client " + finalClientNom + " ha mostrat interés en la teva oferta '" + pub.titol() + "'!"));
+				}
+			});
+		} catch (Exception ignored) {}
+
+		return new Interes(id, req.publicacioId(), clientId, finalClientNom, req.missatge(), null, LocalDateTime.now());
+	}
+
+	@Transactional
+	public Optional<Tasca> acceptarInteres(String interesId) {
+		Optional<Interes> intOpt = findInteresById(interesId);
+		if (intOpt.isEmpty()) return Optional.empty();
+		Interes interes = intOpt.get();
+
+		// Si ja té una tasca vinculada, no en creem una segona
+		if (interes.tascaId() != null && !interes.tascaId().isBlank()) {
+			return findTaskById(interes.tascaId());
+		}
+
+		Optional<Publicacio> pubOpt = findPublicacioById(interes.publicacioId());
+		Optional<Oferta> ofOpt = findOfferById(interes.publicacioId());
+
+		String titol = pubOpt.map(Publicacio::titol).orElse(ofOpt.map(o -> "Servei de " + o.categoria()).orElse("Servei acordat"));
+		String desc = pubOpt.map(Publicacio::descripcio).orElse(ofOpt.map(Oferta::note).orElse(interes.missatge()));
+		String cat = pubOpt.map(Publicacio::categoria).orElse(ofOpt.map(Oferta::categoria).orElse("Altres Serveis"));
+		String preu = pubOpt.map(Publicacio::preuOPressupost).orElse(ofOpt.map(Oferta::price).orElse("Acordat"));
+		String proId = pubOpt.map(Publicacio::usuariId).orElse(interes.professionalId());
+		String proNom = pubOpt.map(Publicacio::usuariNom).orElse(interes.professionalNom());
+
+		String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
+
+		// Crea la TASCA en curs (sense estat redundant a la BD, data_finalitzacio = null)
+		jdbcTemplate.update(
+			"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, publicacio_id, interes_id, preu_acordat, data_inici, estat, tipus) " +
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'En curs', 'tasca')",
+			newTaskId, titol, desc, cat, interes.clientId(), interes.clientNom(), proId, proNom, interes.publicacioId(), interesId, preu
+		);
+
+		// Vincula la tasca a l'interès per evitar duplicats
+		jdbcTemplate.update("UPDATE interessos SET tasca_id = ? WHERE id = ?", newTaskId, interesId);
+
+		// Notifica al client
+		if (interes.clientId() != null) {
+			addAvis(interes.clientId(), "El professional " + proNom + " ha acceptat el teu interés! S'ha iniciat la tasca en curs '" + titol + "'.");
+		}
+
+		return findTaskById(newTaskId);
+	}
+
+	public boolean rebutjarInteres(String interesId) {
+		Optional<Interes> intOpt = findInteresById(interesId);
+		if (intOpt.isEmpty()) return false;
+		Interes interes = intOpt.get();
+
+		if (interes.tascaId() != null && !interes.tascaId().isBlank()) {
+			return false;
+		}
+
+		int rows = jdbcTemplate.update("DELETE FROM interessos WHERE id = ?", interesId);
+		if (rows > 0 && interes.clientId() != null) {
+			addAvis(interes.clientId(), "El teu interés en l'oferta ha estat descartat pel professional.");
+		}
+		return rows > 0;
+	}
+
+	// ==========================================
+	// GESTIÓ DE PRESSUPOSTOS PER A INCIDÈNCIES
+	// ==========================================
+
+	private final org.springframework.jdbc.core.RowMapper<Pressupost> pressupostRowMapper = (rs, rowNum) -> new Pressupost(
+		rs.getString("id"),
+		rs.getString("incidencia_id"),
+		rs.getString("incidencia_titol"),
+		rs.getString("professional_id"),
+		rs.getString("professional_nom"),
+		rs.getString("preu"),
+		rs.getString("descripcio"),
+		rs.getString("duracio_estimada"),
+		rs.getTimestamp("data_creacio") != null ? rs.getTimestamp("data_creacio").toLocalDateTime() : LocalDateTime.now()
+	);
+
+	public List<Pressupost> findPressupostosByIncidencia(String incidenciaId) {
+		try {
+			return jdbcTemplate.query(
+				"SELECT pr.id, pr.incidencia_id, COALESCE(p.titol, i.titol, 'Incidència') AS incidencia_titol, pr.professional_id, pr.professional_nom, pr.preu, pr.descripcio, pr.duracio_estimada, pr.data_creacio " +
+				"FROM pressupostos pr " +
+				"LEFT JOIN publicacions p ON p.id = pr.incidencia_id " +
+				"LEFT JOIN incidencies i ON i.id = pr.incidencia_id " +
+				"WHERE pr.incidencia_id = ? " +
+				"ORDER BY pr.data_creacio DESC",
+				pressupostRowMapper,
+				incidenciaId
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	public Optional<Pressupost> findPressupostById(String id) {
+		try {
+			List<Pressupost> res = jdbcTemplate.query(
+				"SELECT pr.id, pr.incidencia_id, COALESCE(p.titol, i.titol, 'Incidència') AS incidencia_titol, pr.professional_id, pr.professional_nom, pr.preu, pr.descripcio, pr.duracio_estimada, pr.data_creacio " +
+				"FROM pressupostos pr " +
+				"LEFT JOIN publicacions p ON p.id = pr.incidencia_id " +
+				"LEFT JOIN incidencies i ON i.id = pr.incidencia_id " +
+				"WHERE pr.id = ?",
+				pressupostRowMapper,
+				id
+			);
+			return res.stream().findFirst();
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	public Pressupost addPressupost(CrearPressupostRequest req) {
+		String id = "P-" + String.format("%03d", 200 + offers().size() + 1);
+		String proId = req.professionalId();
+		String proNom = req.professionalNom();
+		if (proNom != null) {
+			for (Usuari u : users()) {
+				if (u.nom().equalsIgnoreCase(proNom) || u.id().equalsIgnoreCase(proNom)) {
+					proId = u.id();
+					proNom = u.nom();
+					break;
+				}
+			}
+		}
+
+		try {
+			jdbcTemplate.update(
+				"INSERT INTO pressupostos (id, incidencia_id, professional_id, professional_nom, preu, descripcio, duracio_estimada) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				id, req.incidenciaId(), proId, proNom, req.preu(), req.descripcio(), req.duracioEstimada()
+			);
+
+			// També sincronitza amb ofertes per a compatibilitat retroactiva
+			jdbcTemplate.update(
+				"INSERT INTO ofertes (id, tasca_id, incidencia_id, professional, price, note, categoria) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				id, req.incidenciaId(), req.incidenciaId(), proNom, req.preu(), req.descripcio(), "Pressupost"
+			);
+
+			final String finalProNom = proNom;
+			// Notifica al client titular de la incidència
+			findPublicacioById(req.incidenciaId()).ifPresent(inc -> {
+				if (inc.usuariId() != null) {
+					addAvis(inc.usuariId(), "Nova proposta de pressupost de " + finalProNom + " (" + req.preu() + ") per a la teva incidència '" + inc.titol() + "'.");
+				}
+			});
+			findIncidenciaById(req.incidenciaId()).ifPresent(inc -> {
+				if (inc.clientId() != null) {
+					addAvis(inc.clientId(), "Nova proposta de pressupost de " + finalProNom + " (" + req.preu() + ") per a la teva incidència '" + inc.titol() + "'.");
+				}
+			});
+		} catch (Exception ignored) {}
+
+		return new Pressupost(id, req.incidenciaId(), null, proId, proNom, req.preu(), req.descripcio(), req.duracioEstimada(), LocalDateTime.now());
+	}
+
+	@Transactional
+	public Optional<Tasca> acceptarPressupost(String pressupostId) {
+		Optional<Pressupost> pOpt = findPressupostById(pressupostId);
+		if (pOpt.isEmpty()) return Optional.empty();
+		Pressupost p = pOpt.get();
+
+		// 1. Validar que la incidència encara existeix a publicacions / incidencies (evita contractació doble!)
+		Optional<Publicacio> pubOpt = findPublicacioById(p.incidenciaId());
+		Optional<Incidencia> incOpt = findIncidenciaById(p.incidenciaId());
+		if (pubOpt.isEmpty() && incOpt.isEmpty()) {
+			return Optional.empty();
+		}
+
+		String titol = pubOpt.map(Publicacio::titol).orElse(incOpt.map(Incidencia::titol).orElse("Treball acordat"));
+		String desc = pubOpt.map(Publicacio::descripcio).orElse(incOpt.map(Incidencia::descripcio).orElse(p.descripcio()));
+		String cat = pubOpt.map(Publicacio::categoria).orElse(incOpt.map(Incidencia::categoria).orElse("Altres Serveis"));
+		String clientId = pubOpt.map(Publicacio::usuariId).orElse(incOpt.map(Incidencia::clientId).orElse(null));
+		String clientNom = pubOpt.map(Publicacio::usuariNom).orElse(incOpt.map(Incidencia::clientNom).orElse("Client AVISA"));
+
+		String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
+
+		// 2. Crear la Tasca
+		jdbcTemplate.update(
+			"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, pressupost_id, preu_acordat, data_inici, estat, tipus) " +
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'En curs', 'tasca')",
+			newTaskId, titol, desc, cat, clientId, clientNom, p.professionalId(), p.professionalNom(), pressupostId, p.preu()
+		);
+
+		// 3. Eliminar la incidència de PUBLICACIONS i INCIDENCIES (ja contractada!)
+		jdbcTemplate.update("DELETE FROM publicacions WHERE id = ?", p.incidenciaId());
+		jdbcTemplate.update("DELETE FROM incidencies WHERE id = ?", p.incidenciaId());
+
+		// 4. Netejar altres pressupostos de la incidència per evitar contractacions duplicades
+		jdbcTemplate.update("DELETE FROM pressupostos WHERE incidencia_id = ? AND id != ?", p.incidenciaId(), pressupostId);
+		jdbcTemplate.update("DELETE FROM ofertes WHERE (incidencia_id = ? OR tasca_id = ?) AND id != ?", p.incidenciaId(), p.incidenciaId(), pressupostId);
+
+		// 5. Notificar al professional seleccionat
+		if (p.professionalId() != null) {
+			addAvis(p.professionalId(), "Enhorabona! " + clientNom + " ha acceptat el teu pressupost per a '" + titol + "' (" + p.preu() + ")! S'ha generat la tasca en curs.");
+		}
+
+		return findTaskById(newTaskId);
+	}
+
+	public boolean rebutjarPressupost(String pressupostId) {
+		int rows = jdbcTemplate.update("DELETE FROM pressupostos WHERE id = ?", pressupostId);
+		jdbcTemplate.update("DELETE FROM ofertes WHERE id = ?", pressupostId);
+		return rows > 0;
 	}
 }
