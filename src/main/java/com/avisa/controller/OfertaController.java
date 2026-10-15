@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Controlador REST per a la gestió d'ofertes i pressupostos (/api/offers).
- * Permet enviar ofertes per a tasques, consultar les ofertes d'una tasca, i acceptar-les o rebutjar-les.
+ * Les ofertes no tenen estat: sols tenen 2 accions possibles (acceptar-les o esborrar-les).
+ * En acceptar una oferta, es crea una tasca en curs privada entre el client i el professional,
+ * mentre que l'oferta original roman disponible al mercat perquè altres clients puguin sol·licitar el servei.
  */
 @RestController
 @RequestMapping("/api/offers")

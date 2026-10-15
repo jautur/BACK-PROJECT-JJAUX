@@ -16,7 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Controlador REST per a la gestió de tasques (/api/tasks).
- * Permet publicar tasques, consultar-les, filtrar per client o estat i marcar-les com a completades.
+ * Gestiona el cicle de vida dels projectes en curs i conclosos:
+ * 1. Les tasques acordades són estrictament privades entre el client propietari, el professional assignat i l'administrador.
+ * 2. Tant el client com el professional assignat tenen la capacitat de donar la tasca per finalitzada.
+ * 3. En finalitzar, el client pot registrar o actualitzar la valoració i opinió del servei rebut.
  */
 @RestController
 @RequestMapping("/api/tasks")
