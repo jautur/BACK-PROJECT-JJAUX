@@ -11,13 +11,17 @@ import java.time.LocalDate;
  * @param missatge Contingut textual de la notificació
  * @param llegit Indicador si l'avís ha estat llegit o continua pendent
  * @param data Data de creació de l'avís
+ * @param enllac Ruta d'enllaç per a redireccionar a l'apartat corresponent
  */
 public record Avis(
 	String id,
 	String usuariId,
 	String missatge,
 	Boolean llegit,
-	LocalDate data
+	LocalDate data,
+	String enllac
 ) {
+	public Avis(String id, String usuariId, String missatge, Boolean llegit, LocalDate data) {
+		this(id, usuariId, missatge, llegit, data, null);
+	}
 }
-

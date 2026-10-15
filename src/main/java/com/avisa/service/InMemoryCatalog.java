@@ -37,6 +37,9 @@ public class InMemoryCatalog {
 	public InMemoryCatalog(JdbcTemplate jdbcTemplate) {
 		this.jdbcTemplate = jdbcTemplate;
 		try {
+			jdbcTemplate.execute("ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100)");
+			jdbcTemplate.execute("UPDATE usuaris SET percentil = 3 WHERE percentil IS NULL");
+			jdbcTemplate.execute("ALTER TABLE avisos ADD COLUMN IF NOT EXISTS enllac VARCHAR(255)");
 			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS categoria VARCHAR(100)");
 			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS incidencia_id VARCHAR(100)");
 			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_inici TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
@@ -86,6 +89,25 @@ public class InMemoryCatalog {
 	// GESTIÓ D'USUARIS
 	// ==========================================
 
+	private Usuari mapUsuari(java.sql.ResultSet rs) throws java.sql.SQLException {
+		Integer percentil = 3;
+		try {
+			Object p = rs.getObject("percentil");
+			if (p != null) {
+				percentil = rs.getInt("percentil");
+			}
+		} catch (java.sql.SQLException ignored) {}
+		return new Usuari(
+			rs.getString("id"),
+			rs.getString("nom"),
+			rs.getString("email"),
+			rs.getString("rol"),
+			rs.getString("telefon"),
+			rs.getString("bio"),
+			percentil
+		);
+	}
+
 	/**
 	 * Recupera tots els usuaris registrats de la base de dades.
 	 * @return Llista completa d'usuaris
@@ -93,15 +115,8 @@ public class InMemoryCatalog {
 	public List<Usuari> users() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio FROM usuaris ORDER BY created_at",
-				(rs, rowNum) -> new Usuari(
-					rs.getString("id"),
-					rs.getString("nom"),
-					rs.getString("email"),
-					rs.getString("rol"),
-					rs.getString("telefon"),
-					rs.getString("bio")
-				)
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil FROM usuaris ORDER BY created_at",
+				(rs, rowNum) -> mapUsuari(rs)
 			);
 		} catch (Exception e) {
 			return List.of();
@@ -116,15 +131,8 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserById(String id) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio FROM usuaris WHERE id = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
-				(rs, rowNum) -> new Usuari(
-					rs.getString("id"),
-					rs.getString("nom"),
-					rs.getString("email"),
-					rs.getString("rol"),
-					rs.getString("telefon"),
-					rs.getString("bio")
-				),
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil FROM usuaris WHERE id = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
+				(rs, rowNum) -> mapUsuari(rs),
 				id, id, id
 			);
 			return res.stream().findFirst();
@@ -141,15 +149,8 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserByEmail(String email) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio FROM usuaris WHERE LOWER(email) = LOWER(?)",
-				(rs, rowNum) -> new Usuari(
-					rs.getString("id"),
-					rs.getString("nom"),
-					rs.getString("email"),
-					rs.getString("rol"),
-					rs.getString("telefon"),
-					rs.getString("bio")
-				),
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil FROM usuaris WHERE LOWER(email) = LOWER(?)",
+				(rs, rowNum) -> mapUsuari(rs),
 				email
 			);
 			return res.stream().findFirst();
@@ -167,15 +168,8 @@ public class InMemoryCatalog {
 	public Optional<Usuari> authenticate(String email, String password) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
-				(rs, rowNum) -> new Usuari(
-					rs.getString("id"),
-					rs.getString("nom"),
-					rs.getString("email"),
-					rs.getString("rol"),
-					rs.getString("telefon"),
-					rs.getString("bio")
-				),
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
+				(rs, rowNum) -> mapUsuari(rs),
 				email, password, password
 			);
 			return res.stream().findFirst();
@@ -191,10 +185,43 @@ public class InMemoryCatalog {
 	 * @return L'usuari amb els canvis aplicats
 	 */
 	public Usuari updateUser(String id, Usuari nou) {
+		return updateUser(id, nou, null, null);
+	}
+
+	/**
+	 * Actualitza el perfil d'un usuari amb comprovació de permisos per al percentil de comissió.
+	 * El percentil (comissió de plataforma, 0-100):
+	 * - Està predeterminat a 3.
+	 * - L'usuari només pot modificar-lo per a augmentar-lo (o mantenir-lo).
+	 * - Només un administrador pot modificar-lo a la baixa.
+	 */
+	public Usuari updateUser(String id, Usuari nou, String requesterRol, String requesterId) {
+		Usuari actual = findUserById(id).orElse(null);
+		int percentilFinal = (actual != null && actual.percentil() != null) ? actual.percentil() : 3;
+
+		if (nou.percentil() != null) {
+			int proposed = nou.percentil();
+			if (proposed < 0 || proposed > 100) {
+				throw new IllegalArgumentException("El percentil ha d'estar comprès entre 0 i 100.");
+			}
+
+			boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"))
+				|| (actual != null && "admin".equalsIgnoreCase(actual.rol()));
+
+			if (proposed < percentilFinal) {
+				if (!isAdmin) {
+					throw new SecurityException("Només un administrador pot reduir el percentil de comissió (comissió actual: " + percentilFinal + "%). Com a usuari només pots augmentar-lo.");
+				}
+				percentilFinal = proposed;
+			} else {
+				percentilFinal = proposed;
+			}
+		}
+
 		try {
 			jdbcTemplate.update(
-				"UPDATE usuaris SET nom = ?, telefon = ?, bio = ? WHERE id = ?",
-				nou.nom(), nou.telefon(), nou.bio(), id
+				"UPDATE usuaris SET nom = ?, telefon = ?, bio = ?, percentil = ? WHERE id = ?",
+				nou.nom(), nou.telefon(), nou.bio(), percentilFinal, id
 			);
 			return findUserById(id).orElse(nou);
 		} catch (Exception e) {
@@ -246,11 +273,11 @@ public class InMemoryCatalog {
 		String password = request.password() != null ? request.password() : "123456";
 		try {
 			jdbcTemplate.update(
-				"INSERT INTO usuaris (id, nom, email, password, rol, telefon) VALUES (?, ?, ?, ?, ?, ?)",
+				"INSERT INTO usuaris (id, nom, email, password, rol, telefon, percentil) VALUES (?, ?, ?, ?, ?, ?, 3)",
 				id, request.nom(), request.email(), password, request.rol(), request.telefon()
 			);
 		} catch (Exception ignored) {}
-		return new Usuari(id, request.nom(), request.email(), request.rol(), request.telefon(), null);
+		return new Usuari(id, request.nom(), request.email(), request.rol(), request.telefon(), null, 3);
 	}
 
 	// ==========================================
@@ -982,17 +1009,26 @@ public class InMemoryCatalog {
 	 * Obté tots els avisos des de PostgreSQL ordenats per data descendent.
 	 * @return Llista d'avisos
 	 */
+	private Avis mapAvis(java.sql.ResultSet rs) throws java.sql.SQLException {
+		String enllac = null;
+		try {
+			enllac = rs.getString("enllac");
+		} catch (java.sql.SQLException ignored) {}
+		return new Avis(
+			rs.getString("id"),
+			rs.getString("usuari_id"),
+			rs.getString("missatge"),
+			rs.getBoolean("llegit"),
+			rs.getDate("data") != null ? rs.getDate("data").toLocalDate() : LocalDate.now(),
+			enllac
+		);
+	}
+
 	public List<Avis> avisos() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, usuari_id, missatge, llegit, data FROM avisos ORDER BY created_at DESC",
-				(rs, rowNum) -> new Avis(
-					rs.getString("id"),
-					rs.getString("usuari_id"),
-					rs.getString("missatge"),
-					rs.getBoolean("llegit"),
-					rs.getDate("data") != null ? rs.getDate("data").toLocalDate() : LocalDate.now()
-				)
+				"SELECT id, usuari_id, missatge, llegit, data, enllac FROM avisos ORDER BY created_at DESC",
+				(rs, rowNum) -> mapAvis(rs)
 			);
 		} catch (Exception e) {
 			return List.of();
@@ -1007,14 +1043,8 @@ public class InMemoryCatalog {
 	public List<Avis> findAvisosByUsuari(String usuariId) {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, usuari_id, missatge, llegit, data FROM avisos WHERE usuari_id = ? OR usuari_id IN (SELECT id FROM usuaris WHERE LOWER(nom) = LOWER(?)) ORDER BY created_at DESC",
-				(rs, rowNum) -> new Avis(
-					rs.getString("id"),
-					rs.getString("usuari_id"),
-					rs.getString("missatge"),
-					rs.getBoolean("llegit"),
-					rs.getDate("data") != null ? rs.getDate("data").toLocalDate() : LocalDate.now()
-				),
+				"SELECT id, usuari_id, missatge, llegit, data, enllac FROM avisos WHERE usuari_id = ? OR usuari_id IN (SELECT id FROM usuaris WHERE LOWER(nom) = LOWER(?)) ORDER BY created_at DESC",
+				(rs, rowNum) -> mapAvis(rs),
 				usuariId, usuariId
 			);
 		} catch (Exception e) {
@@ -1023,21 +1053,43 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Crea un nou avís o notificació per a un usuari.
-	 * @param usuariId Identificador de l'usuari destinatari
-	 * @param missatge Missatge descriptiu de l'avís
-	 * @return L'avís creat
+	 * Crea un nou avís o notificació per a un usuari sense enllaç explícit (auto-detectat).
 	 */
 	public Avis addAvis(String usuariId, String missatge) {
+		return addAvis(usuariId, missatge, null);
+	}
+
+	/**
+	 * Crea un nou avís o notificació per a un usuari amb enllaç de redirecció.
+	 * @param usuariId Identificador de l'usuari destinatari
+	 * @param missatge Missatge descriptiu de l'avís
+	 * @param enllac Enllaç o ruta cap a la secció corresponent
+	 * @return L'avís creat
+	 */
+	public Avis addAvis(String usuariId, String missatge, String enllac) {
 		String id = "A-" + UUID.randomUUID().toString().substring(0, 8);
 		LocalDate data = LocalDate.now();
+		String targetEnllac = enllac;
+		if (targetEnllac == null || targetEnllac.isBlank()) {
+			String m = missatge != null ? missatge.toLowerCase() : "";
+			if (m.contains("oferta") || m.contains("contractat")) {
+				targetEnllac = "/professional/les-meves-ofertes";
+			} else if (m.contains("tasca") || m.contains("pressupost") || m.contains("incidència")) {
+				targetEnllac = "/tasques-ofertes";
+			} else if (m.contains("perfil") || m.contains("contrasenya") || m.contains("valoració") || m.contains("estrelles")) {
+				targetEnllac = "/perfil";
+			} else {
+				targetEnllac = "/tasques-ofertes";
+			}
+		}
+
 		try {
 			jdbcTemplate.update(
-				"INSERT INTO avisos (id, usuari_id, missatge, llegit, data) VALUES (?, ?, ?, false, ?)",
-				id, usuariId, missatge, data
+				"INSERT INTO avisos (id, usuari_id, missatge, llegit, data, enllac) VALUES (?, ?, ?, false, ?, ?)",
+				id, usuariId, missatge, data, targetEnllac
 			);
 		} catch (Exception ignored) {}
-		return new Avis(id, usuariId, missatge, false, data);
+		return new Avis(id, usuariId, missatge, false, data, targetEnllac);
 	}
 
 	/**

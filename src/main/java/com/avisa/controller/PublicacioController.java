@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/publicacions")
 @CrossOrigin(origins = {"http://localhost:4200", "http://localhost:4300"})
+@Tag(name = "Publicacions", description = "Gestió del mercat d'ofertes de professionals i incidències de clients")
 public class PublicacioController {
 
 	private final InMemoryCatalog catalog;
@@ -37,6 +40,7 @@ public class PublicacioController {
 	}
 
 	@GetMapping
+	@Operation(summary = "Llistar publicacions", description = "Retorna totes les publicacions o filtrades per tipus ('OFERTA' o 'INCIDENCIA')")
 	public List<Publicacio> list(@RequestParam(required = false) String tipus) {
 		if (tipus != null && !tipus.isBlank()) {
 			return catalog.publicacionsByTipus(tipus);
@@ -45,6 +49,7 @@ public class PublicacioController {
 	}
 
 	@GetMapping("/{id}")
+	@Operation(summary = "Obtenir publicació per ID", description = "Retorna els detalls d'una oferta o incidència")
 	public ResponseEntity<Publicacio> getById(@PathVariable String id) {
 		return catalog.findPublicacioById(id)
 			.map(ResponseEntity::ok)

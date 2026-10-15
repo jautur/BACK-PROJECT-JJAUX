@@ -17,6 +17,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+
 /**
  * Controlador REST per a la gestió de pressupostos sobre incidències (/api/pressupostos).
  * Permet als professionals enviar pressupostos a incidències obertes per clients.
@@ -26,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/pressupostos")
 @CrossOrigin(origins = {"http://localhost:4200", "http://localhost:4300"})
+@Tag(name = "Pressupostos", description = "Enviament i acceptació transaccional de pressupostos")
 public class PressupostController {
 
 	private final InMemoryCatalog catalog;
@@ -35,7 +40,8 @@ public class PressupostController {
 	}
 
 	@PostMapping
-	public ResponseEntity<?> create(@RequestBody CrearPressupostRequest req) {
+	@Operation(summary = "Crear pressupost", description = "Permet a un professional presentar un pressupost per a una incidència oberta")
+	public ResponseEntity<?> create(@Valid @RequestBody CrearPressupostRequest req) {
 		// Validació del professional en el backend
 		String proIdentifier = req.professionalId() != null ? req.professionalId() : req.professionalNom();
 		if (proIdentifier != null) {

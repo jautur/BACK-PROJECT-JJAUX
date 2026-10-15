@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 /**
  * Controlador REST per a la gestió de ressenyes i valoracions (/api/resenyes).
  * Permet consultar les opinions sobre professionals i registrar noves valoracions.
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/resenyes")
 @CrossOrigin(origins = "http://localhost:4200")
+@Tag(name = "Ressenyes", description = "Opinions i puntuacions de servei a professionals")
 public class ResenyaController {
 
 	private final InMemoryCatalog catalog;
