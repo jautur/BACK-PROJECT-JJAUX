@@ -42,6 +42,8 @@ public class InMemoryCatalog {
 			jdbcTemplate.execute("ALTER TABLE avisos ADD COLUMN IF NOT EXISTS enllac VARCHAR(255)");
 			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS categoria VARCHAR(100)");
 			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS incidencia_id VARCHAR(100)");
+			jdbcTemplate.execute("ALTER TABLE ofertes ALTER COLUMN tasca_id DROP NOT NULL");
+			jdbcTemplate.execute("ALTER TABLE resenyes ALTER COLUMN descripcio DROP NOT NULL");
 			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_inici TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_finalitzacio TIMESTAMP");
 			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_valoracio TIMESTAMP");
