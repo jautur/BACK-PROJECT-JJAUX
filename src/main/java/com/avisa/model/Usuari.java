@@ -26,17 +26,27 @@ public record Usuari(
 	@Min(value = 0, message = "El percentil no pot ser inferior a 0")
 	@Max(value = 100, message = "El percentil no pot superar 100")
 	Integer percentil,
-	String token
+	String token,
+	Boolean verificat,
+	Boolean sollicitudVerificacio
 ) {
+	public Usuari(String id, String nom, String email, String rol, String telefon, String bio, Integer percentil, String token) {
+		this(id, nom, email, rol, telefon, bio, percentil, token, false, false);
+	}
+
 	public Usuari(String id, String nom, String email, String rol, String telefon, String bio, Integer percentil) {
-		this(id, nom, email, rol, telefon, bio, percentil, null);
+		this(id, nom, email, rol, telefon, bio, percentil, null, false, false);
 	}
 
 	public Usuari(String id, String nom, String email, String rol, String telefon, String bio) {
-		this(id, nom, email, rol, telefon, bio, 3, null);
+		this(id, nom, email, rol, telefon, bio, 3, null, false, false);
 	}
 
 	public Usuari withToken(String token) {
-		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token);
+		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio);
+	}
+
+	public Usuari withVerification(Boolean verificat, Boolean sollicitudVerificacio) {
+		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio);
 	}
 }
