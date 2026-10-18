@@ -7,10 +7,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * Seeder de dades inicials per a la plataforma AVISA / JJAUX.
- * Manté únicament els usuaris necessaris per a proves des de zero:
- * - admin: Administrador General (admin@admin.es / adminadmin)
- * - cli: Client de proves (cli / clicli)
- * - pro: Professional de proves (pro / propro)
+ * Introdueix usuaris (clients, professionals verificats i admin), ofertes,
+ * incidències obertes, tasques en curs i valoracions de mostra perquè
+ * la plataforma es veja viva, completa i plenament funcional en pantalles i vídeos.
  */
 @Component
 public class DemoDataSeeder implements ApplicationRunner {
@@ -24,20 +23,97 @@ public class DemoDataSeeder implements ApplicationRunner {
 	@Override
 	public void run(ApplicationArguments args) {
 		seedUsers();
+		seedOfertes();
+		seedIncidencies();
+		seedTasques();
+		seedResenyes();
 	}
 
+	// ==========================================
+	// 1. USUARIS (CLIENTS I PROFESSIONALS VERIFICATS)
+	// ==========================================
 	private void seedUsers() {
-		// Assegurar usuari administrador
-		upsertUser("u-admin", "Administrador General", "admin@admin.es", "adminadmin", "admin", null, "Administrador de la plataforma AVISA");
+		// Administrador General
+		upsertUser("u-admin", "Administrador General", "admin@admin.es", "adminadmin", "admin", "960000000", "Administrador de la plataforma comunitària AVISA.", 3, true, false);
 
-		// Usuari Client de proves
-		upsertUser("u-cli", "cli", "cli", "clicli", "client", "600111222", "Compte client de proves per a creació d'incidències.");
+		// Usuaris base de proves
+		upsertUser("u-cli", "cli", "cli", "clicli", "client", "600111222", "Compte client de proves per a creació d'incidències.", 3, false, false);
+		upsertUser("u-pro", "pro", "pro", "propro", "professional", "000444555", "Compte professional de proves per a pressupostos i ofertes.", 3, true, false);
 
-		// Usuari Professional de proves
-		upsertUser("u-pro", "pro", "pro", "propro", "professional", "000444555", "Compte professional de proves per a pressupostos i ofertes.");
+		// Professionals especialitzats amb distintiu oficial verificat
+		upsertUser(
+			"u-pro-vicent",
+			"Vicent Fontanals (Lampisteria)",
+			"vicent@prof.es",
+			"123456",
+			"professional",
+			"611223344",
+			"Més de 15 anys d'experiència en reparació de canonades, descalcificadors, termos i calderes. Servei urgent 24h a València i comarques.",
+			5,
+			true,
+			false
+		);
+
+		upsertUser(
+			"u-pro-elena",
+			"Elena Martínez (Electricitat)",
+			"elena@prof.es",
+			"123456",
+			"professional",
+			"622334455",
+			"Instal·lacions elèctriques autoritzades d'alta i baixa tensió, butlletins oficials, il·luminació LED i panells solars.",
+			4,
+			true,
+			false
+		);
+
+		upsertUser(
+			"u-pro-marc",
+			"Marc Soler (Pintura i Decoració)",
+			"marc@prof.es",
+			"123456",
+			"professional",
+			"633445566",
+			"Pintor professional d'interiors i exteriors. Allisat de gotelé, pintura plàstica ecològica i impermeabilització de terrasses.",
+			4,
+			true,
+			false
+		);
+
+		upsertUser(
+			"u-pro-laura",
+			"Laura Beneyto (Climatització)",
+			"laura@prof.es",
+			"123456",
+			"professional",
+			"655667788",
+			"Tècnica especialista en climatització, aerotèrmia, càrregues de gas i manteniment d'equips industrials i domèstics.",
+			5,
+			true,
+			false
+		);
+
+		// Professional amb sol·licitud de verificació pendent de trucada
+		upsertUser(
+			"u-pro-carles",
+			"Carles Ribes (Fusteria)",
+			"carles@prof.es",
+			"123456",
+			"professional",
+			"644556677",
+			"Fuster artesà. Fabricació i muntatge de cuines, portes, armaris encastats i terres laminats. Pressupostos sense compromís.",
+			3,
+			false,
+			true
+		);
+
+		// Clients particulars de la comunitat
+		upsertUser("u-cli-joan", "Joan Navarro", "joan@client.es", "123456", "client", "666112233", "Client particular resident a l'Horta Sud.", 3, false, false);
+		upsertUser("u-cli-marta", "Marta Albiol", "marta@client.es", "123456", "client", "677223344", "Clienta particular a Gandia.", 3, false, false);
+		upsertUser("u-cli-pau", "Pau Ferrandis", "pau@client.es", "123456", "client", "688334455", "Client particular resident a València.", 3, false, false);
 	}
 
-	private void upsertUser(String id, String nom, String email, String password, String rol, String telefon, String bio) {
+	private void upsertUser(String id, String nom, String email, String password, String rol, String telefon, String bio, int percentil, boolean verificat, boolean sollicitudVerificacio) {
 		try {
 			Integer exists = jdbcTemplate.queryForObject(
 				"SELECT COUNT(*) FROM usuaris WHERE LOWER(email) = LOWER(?) OR LOWER(nom) = LOWER(?) OR id = ?",
@@ -45,13 +121,303 @@ public class DemoDataSeeder implements ApplicationRunner {
 			);
 			if (exists != null && exists > 0) {
 				jdbcTemplate.update(
-					"UPDATE usuaris SET nom = ?, email = ?, password = ?, rol = ?, telefon = ?, bio = ? WHERE LOWER(email) = LOWER(?) OR LOWER(nom) = LOWER(?) OR id = ?",
-					nom, email, password, rol, telefon, bio, email, nom, id
+					"UPDATE usuaris SET nom = ?, email = ?, password = ?, rol = ?, telefon = ?, bio = ?, percentil = ?, verificat = ?, sollicitud_verificacio = ? WHERE LOWER(email) = LOWER(?) OR LOWER(nom) = LOWER(?) OR id = ?",
+					nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, email, nom, id
 				);
 			} else {
 				jdbcTemplate.update(
-					"INSERT INTO usuaris (id, nom, email, password, rol, telefon, bio) VALUES (?, ?, ?, ?, ?, ?, ?)",
-					id, nom, email, password, rol, telefon, bio
+					"INSERT INTO usuaris (id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitud_verificacio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio
+				);
+			}
+		} catch (Exception ignored) {}
+	}
+
+	// ==========================================
+	// 2. OFERTES DE PROFESSIONALS AL MERCAT
+	// ==========================================
+	private void seedOfertes() {
+		upsertOferta(
+			"O-101",
+			"u-pro-vicent",
+			"Vicent Fontanals (Lampisteria)",
+			"lampisteria",
+			"45€ / hora",
+			"Reparació urgent de fuites d'aigua, desbussament d'aigüeres, canvi d'aixetes i manteniment de calderes. Arribada en menys de 45 minuts."
+		);
+
+		upsertOferta(
+			"O-102",
+			"u-pro-elena",
+			"Elena Martínez (Electricitat)",
+			"electricitat",
+			"60€",
+			"Diagnòstic de curtcircuits, canvi de diferencials i revisió reglamentària del quadre elèctric amb garantia oficial."
+		);
+
+		upsertOferta(
+			"O-103",
+			"u-pro-marc",
+			"Marc Soler (Pintura i Decoració)",
+			"pintura",
+			"350€",
+			"Pintura completa de saló o habitació amb pintura rentada d'alta cobertura i protecció total de mobles i sòl."
+		);
+
+		upsertOferta(
+			"O-104",
+			"u-pro-carles",
+			"Carles Ribes (Fusteria)",
+			"fusteria",
+			"120€",
+			"Ajustament de portes que freguen, raspallat, canvi de panys de seguretat i reparació de calaixos encallats."
+		);
+
+		upsertOferta(
+			"O-105",
+			"u-pro-laura",
+			"Laura Beneyto (Climatització)",
+			"climatitzacio",
+			"85€",
+			"Neteja profunda de filtres, desinfecció antibacteriana i revisió de pressió de gas per a equips domèstics d'aire condicionat."
+		);
+
+		upsertOferta(
+			"O-106",
+			"u-pro",
+			"pro",
+			"reformes",
+			"95€",
+			"Treballs ràpids d'obra menor, enrajolat de zones humides i petites reparacions de paleta per a la llar."
+		);
+	}
+
+	private void upsertOferta(String id, String proId, String proNom, String categoria, String price, String note) {
+		try {
+			Integer exists = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ofertes WHERE id = ?", Integer.class, id);
+			if (exists != null && exists > 0) {
+				jdbcTemplate.update(
+					"UPDATE ofertes SET professional = ?, price = ?, note = ?, categoria = ?, estat = 'Pendent' WHERE id = ?",
+					proNom, price, note, categoria, id
+				);
+			} else {
+				jdbcTemplate.update(
+					"INSERT INTO ofertes (id, professional, price, note, categoria, estat) VALUES (?, ?, ?, ?, ?, 'Pendent')",
+					id, proNom, price, note, categoria
+				);
+			}
+
+			// Sincronitza amb la taula publicacions perquè aparega en totes les cerques
+			Integer pubExists = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM publicacions WHERE id = ?", Integer.class, id);
+			if (pubExists != null && pubExists > 0) {
+				jdbcTemplate.update(
+					"UPDATE publicacions SET usuari_id = ?, usuari_nom = ?, tipus = 'oferta', titol = ?, descripcio = ?, categoria = ?, preu_o_pressupost = ? WHERE id = ?",
+					proId, proNom, "Servei de " + categoria + ": " + proNom, note, categoria, price, id
+				);
+			} else {
+				jdbcTemplate.update(
+					"INSERT INTO publicacions (id, usuari_id, usuari_nom, tipus, titol, descripcio, categoria, preu_o_pressupost) VALUES (?, ?, ?, 'oferta', ?, ?, ?, ?)",
+					id, proId, proNom, "Servei de " + categoria + ": " + proNom, note, categoria, price
+				);
+			}
+		} catch (Exception ignored) {}
+	}
+
+	// ==========================================
+	// 3. INCIDÈNCIES OBERTES DE CLIENTS
+	// ==========================================
+	private void seedIncidencies() {
+		upsertIncidencia(
+			"INC-101",
+			"u-cli-joan",
+			"Joan Navarro",
+			"Goteig constant sota la pica de la cuina",
+			"Ha començat a perdre aigua pel sifó des d'ahir de nit i necessite canviar la junta abans que danye el moble de fusta.",
+			"lampisteria",
+			"50€"
+		);
+
+		upsertIncidencia(
+			"INC-102",
+			"u-cli-marta",
+			"Marta Albiol",
+			"Salta el diferencial quan encenem el forn",
+			"En posar en marxa el forn elèctric es queda tota la vivenda sense llum. Sembla una derivació interna o un fusible cremat.",
+			"electricitat",
+			"75€"
+		);
+
+		upsertIncidencia(
+			"INC-103",
+			"u-cli-pau",
+			"Pau Ferrandis",
+			"Pintar passadís i sanejar petita humitat",
+			"Passadís d'uns 10 metres lineals amb una taca d'humitat ja eixuta. Cal raspar, sanejar i donar dues capes de pintura blanca.",
+			"pintura",
+			"160€"
+		);
+
+		upsertIncidencia(
+			"INC-104",
+			"u-cli",
+			"cli",
+			"Reparar persiana de fusta que s'ha encallat",
+			"La corretja s'ha soltat de l'eix superior a la finestra del menjador i no es pot pujar ni baixar.",
+			"fusteria",
+			"45€"
+		);
+	}
+
+	private void upsertIncidencia(String id, String clientId, String clientNom, String titol, String descripcio, String categoria, String budget) {
+		try {
+			Integer exists = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM incidencies WHERE id = ?", Integer.class, id);
+			if (exists != null && exists > 0) {
+				jdbcTemplate.update(
+					"UPDATE incidencies SET client_id = ?, client_nom = ?, titol = ?, descripcio = ?, categoria = ?, budget = ?, estat = 'Oberta' WHERE id = ?",
+					clientId, clientNom, titol, descripcio, categoria, budget, id
+				);
+			} else {
+				jdbcTemplate.update(
+					"INSERT INTO incidencies (id, client_id, client_nom, titol, descripcio, categoria, budget, estat) VALUES (?, ?, ?, ?, ?, ?, ?, 'Oberta')",
+					id, clientId, clientNom, titol, descripcio, categoria, budget
+				);
+			}
+
+			// Sincronitza amb la taula publicacions
+			Integer pubExists = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM publicacions WHERE id = ?", Integer.class, id);
+			if (pubExists != null && pubExists > 0) {
+				jdbcTemplate.update(
+					"UPDATE publicacions SET usuari_id = ?, usuari_nom = ?, tipus = 'incidencia', titol = ?, descripcio = ?, categoria = ?, preu_o_pressupost = ? WHERE id = ?",
+					clientId, clientNom, titol, descripcio, categoria, budget, id
+				);
+			} else {
+				jdbcTemplate.update(
+					"INSERT INTO publicacions (id, usuari_id, usuari_nom, tipus, titol, descripcio, categoria, preu_o_pressupost) VALUES (?, ?, ?, 'incidencia', ?, ?, ?, ?)",
+					id, clientId, clientNom, titol, descripcio, categoria, budget
+				);
+			}
+		} catch (Exception ignored) {}
+	}
+
+	// ==========================================
+	// 4. TASQUES (EN CURS I FINALITZADES AMB VALORACIONS)
+	// ==========================================
+	private void seedTasques() {
+		upsertTasca(
+			"T-101",
+			"Substitució de termo elèctric de 80L",
+			"Desmuntatge de l'aparell vell defectuós i connexió d'un nou termo amb vàlvula de seguretat.",
+			"lampisteria",
+			"u-cli-joan",
+			"Joan Navarro",
+			"u-pro-vicent",
+			"Vicent Fontanals (Lampisteria)",
+			"180€",
+			"Finalitzada",
+			5,
+			"Vicent és puntualíssim i molt polit. Va desmuntar el termo vell i va deixar el nou funcionant impecable en dues hores."
+		);
+
+		upsertTasca(
+			"T-102",
+			"Instal·lació de línia independent per a inducció",
+			"Tirada de cable de 6mm des del quadre fins a la cuina amb magnetotèrmic dedicat de 25A.",
+			"electricitat",
+			"u-cli-marta",
+			"Marta Albiol",
+			"u-pro-elena",
+			"Elena Martínez (Electricitat)",
+			"95€",
+			"Finalitzada",
+			5,
+			"Treball impecable! Elena és una gran professional, ens va explicar tot el quadre i va deixar la cuina perfecta."
+		);
+
+		upsertTasca(
+			"T-103",
+			"Pintura del dormitori principal i sostre",
+			"Dues capes de pintura plàstica color blanc trencat i tractament preventiu antihumitat.",
+			"pintura",
+			"u-cli-pau",
+			"Pau Ferrandis",
+			"u-pro-marc",
+			"Marc Soler (Pintura i Decoració)",
+			"220€",
+			"Finalitzada",
+			4,
+			"Molt bon acabat i pintura d'alta qualitat. Va protegir el terra a la perfecció i va acabar abans del previst."
+		);
+
+		upsertTasca(
+			"T-104",
+			"Manteniment i càrrega de gas aire condicionat",
+			"Revisió de vàlvules, substitució de filtres i càrrega ecològica R32 a split domèstic.",
+			"climatitzacio",
+			"u-cli-joan",
+			"Joan Navarro",
+			"u-pro-laura",
+			"Laura Beneyto (Climatització)",
+			"85€",
+			"Finalitzada",
+			5,
+			"Molt ràpida i eficient. Ara l'equip refreda de meravella i fa molt menys soroll que abans."
+		);
+
+		upsertTasca(
+			"T-105",
+			"Ajustament de porta d'entrada que frega el terra",
+			"Desmuntatge de frontisses, raspallat inferior de 3mm i envernissat de cantells.",
+			"fusteria",
+			"u-cli",
+			"cli",
+			"u-pro",
+			"pro",
+			"60€",
+			"En curs",
+			null,
+			null
+		);
+	}
+
+	private void upsertTasca(String id, String titol, String descripcio, String categoria, String clientId, String clientNom, String proId, String proNom, String preu, String estat, Integer valoracio, String opinio) {
+		try {
+			Integer exists = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM tasques WHERE id = ?", Integer.class, id);
+			if (exists != null && exists > 0) {
+				jdbcTemplate.update(
+					"UPDATE tasques SET titol = ?, descripcio = ?, categoria = ?, client_id = ?, client_nom = ?, professional_id = ?, professional_nom = ?, preu_acordat = ?, budget = ?, estat = ?, valoracio = ?, opinio = ? WHERE id = ?",
+					titol, descripcio, categoria, clientId, clientNom, proId, proNom, preu, preu, estat, valoracio, opinio, id
+				);
+			} else {
+				jdbcTemplate.update(
+					"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, preu_acordat, budget, estat, tipus, valoracio, opinio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tasca', ?, ?)",
+					id, titol, descripcio, categoria, clientId, clientNom, proId, proNom, preu, preu, estat, valoracio, opinio
+				);
+			}
+		} catch (Exception ignored) {}
+	}
+
+	// ==========================================
+	// 5. RESSENYES PÚBLIQUES PER ALS MODALS
+	// ==========================================
+	private void seedResenyes() {
+		upsertResenya("RES-101", "u-cli-joan", "Joan Navarro", "u-pro-vicent", "Vicent Fontanals (Lampisteria)", "T-101", 5, "Vicent és puntualíssim i molt polit. Va desmuntar el termo vell i va deixar el nou funcionant impecable en dues hores.");
+		upsertResenya("RES-102", "u-cli-marta", "Marta Albiol", "u-pro-elena", "Elena Martínez (Electricitat)", "T-102", 5, "Treball impecable! Elena és una gran professional, ens va explicar tot el quadre i va deixar la cuina perfecta.");
+		upsertResenya("RES-103", "u-cli-pau", "Pau Ferrandis", "u-pro-marc", "Marc Soler (Pintura i Decoració)", "T-103", 4, "Molt bon acabat i pintura d'alta qualitat. Va protegir el terra a la perfecció i va acabar abans del previst.");
+		upsertResenya("RES-104", "u-cli-joan", "Joan Navarro", "u-pro-laura", "Laura Beneyto (Climatització)", "T-104", 5, "Molt ràpida i eficient. Ara l'equip refreda de meravella i fa molt menys soroll que abans.");
+	}
+
+	private void upsertResenya(String id, String clientId, String clientNom, String treballadorId, String treballadorNom, String tascaId, int puntuacio, String descripcio) {
+		try {
+			Integer exists = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM resenyes WHERE id = ?", Integer.class, id);
+			if (exists != null && exists > 0) {
+				jdbcTemplate.update(
+					"UPDATE resenyes SET client_id = ?, client_nom = ?, treballador_id = ?, treballador_nom = ?, tasca_id = ?, puntuacio = ?, descripcio = ? WHERE id = ?",
+					clientId, clientNom, treballadorId, treballadorNom, tascaId, puntuacio, descripcio, id
+				);
+			} else {
+				jdbcTemplate.update(
+					"INSERT INTO resenyes (id, client_id, client_nom, treballador_id, treballador_nom, tasca_id, puntuacio, descripcio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+					id, clientId, clientNom, treballadorId, treballadorNom, tascaId, puntuacio, descripcio
 				);
 			}
 		} catch (Exception ignored) {}
