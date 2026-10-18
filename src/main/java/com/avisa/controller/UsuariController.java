@@ -102,6 +102,43 @@ public class UsuariController {
 	}
 
 	/**
+	 * Sol·licitar verificació oficial de professional per comprovació telefònica.
+	 * Endpoint: POST /api/users/{id}/sollicitar-verificacio
+	 */
+	@org.springframework.web.bind.annotation.PostMapping("/{id}/sollicitar-verificacio")
+	@Operation(summary = "Sol·licitar verificació", description = "El professional sol·licita ser verificat mitjançant comprovació telefònica per part de l'administrador")
+	public ResponseEntity<?> sollicitarVerificacio(@PathVariable String id) {
+		try {
+			Usuari u = catalog.sollicitarVerificacio(id);
+			return ResponseEntity.ok(u);
+		} catch (IllegalArgumentException iae) {
+			return ResponseEntity.badRequest().body(java.util.Map.of("message", iae.getMessage()));
+		}
+	}
+
+	/**
+	 * Verificar o desverificar oficialment un professional (només administrador).
+	 * Endpoint: PUT /api/users/{id}/verificar
+	 */
+	@PutMapping("/{id}/verificar")
+	@Operation(summary = "Verificar professional", description = "L'administrador aprova o rebutja la verificació oficial d'un professional després de la trucada")
+	public ResponseEntity<?> verificarProfessional(
+		@PathVariable String id,
+		@org.springframework.web.bind.annotation.RequestParam(defaultValue = "true") boolean estat,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
+	) {
+		try {
+			Usuari u = catalog.verificarProfessional(id, estat, requesterRol);
+			return ResponseEntity.ok(u);
+		} catch (SecurityException se) {
+			return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
+				.body(java.util.Map.of("message", se.getMessage()));
+		} catch (IllegalArgumentException iae) {
+			return ResponseEntity.badRequest().body(java.util.Map.of("message", iae.getMessage()));
+		}
+	}
+
+	/**
 	 * Donar de baixa o eliminar un usuari de la plataforma.
 	 * Endpoint: DELETE /api/users/{id}
 	 * @param id Identificador de l'usuari

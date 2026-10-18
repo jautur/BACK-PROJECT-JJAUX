@@ -38,12 +38,22 @@ public class UsuariEntity {
 	@Column(name = "percentil", columnDefinition = "INT DEFAULT 3")
 	private Integer percentil = 3;
 
+	@Column(name = "verificat")
+	private Boolean verificat = false;
+
+	@Column(name = "sollicitud_verificacio")
+	private Boolean sollicitudVerificacio = false;
+
 	@Column(name = "created_at")
 	private LocalDateTime createdAt = LocalDateTime.now();
 
 	public UsuariEntity() {}
 
 	public UsuariEntity(String id, String nom, String email, String password, String rol, String telefon, String bio, Integer percentil) {
+		this(id, nom, email, password, rol, telefon, bio, percentil, false, false);
+	}
+
+	public UsuariEntity(String id, String nom, String email, String password, String rol, String telefon, String bio, Integer percentil, Boolean verificat, Boolean sollicitudVerificacio) {
 		this.id = id;
 		this.nom = nom;
 		this.email = email;
@@ -52,6 +62,8 @@ public class UsuariEntity {
 		this.telefon = telefon;
 		this.bio = bio;
 		this.percentil = (percentil != null) ? percentil : 3;
+		this.verificat = (verificat != null) ? verificat : false;
+		this.sollicitudVerificacio = (sollicitudVerificacio != null) ? sollicitudVerificacio : false;
 		this.createdAt = LocalDateTime.now();
 	}
 
@@ -78,6 +90,12 @@ public class UsuariEntity {
 
 	public Integer getPercentil() { return percentil; }
 	public void setPercentil(Integer percentil) { this.percentil = percentil; }
+
+	public Boolean getVerificat() { return verificat; }
+	public void setVerificat(Boolean verificat) { this.verificat = verificat; }
+
+	public Boolean getSollicitudVerificacio() { return sollicitudVerificacio; }
+	public void setSollicitudVerificacio(Boolean sollicitudVerificacio) { this.sollicitudVerificacio = sollicitudVerificacio; }
 
 	public LocalDateTime getCreatedAt() { return createdAt; }
 	public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

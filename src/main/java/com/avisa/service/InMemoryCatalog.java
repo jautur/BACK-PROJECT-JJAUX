@@ -39,6 +39,10 @@ public class InMemoryCatalog {
 		try {
 			jdbcTemplate.execute("ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100)");
 			jdbcTemplate.execute("UPDATE usuaris SET percentil = 3 WHERE percentil IS NULL");
+			jdbcTemplate.execute("ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS verificat BOOLEAN DEFAULT FALSE");
+			jdbcTemplate.execute("ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS sollicitud_verificacio BOOLEAN DEFAULT FALSE");
+			jdbcTemplate.execute("UPDATE usuaris SET verificat = FALSE WHERE verificat IS NULL");
+			jdbcTemplate.execute("UPDATE usuaris SET sollicitud_verificacio = FALSE WHERE sollicitud_verificacio IS NULL");
 			jdbcTemplate.execute("ALTER TABLE avisos ADD COLUMN IF NOT EXISTS enllac VARCHAR(255)");
 			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS categoria VARCHAR(100)");
 			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS incidencia_id VARCHAR(100)");
@@ -99,6 +103,20 @@ public class InMemoryCatalog {
 				percentil = rs.getInt("percentil");
 			}
 		} catch (java.sql.SQLException ignored) {}
+		Boolean verificat = false;
+		try {
+			Object v = rs.getObject("verificat");
+			if (v != null) {
+				verificat = rs.getBoolean("verificat");
+			}
+		} catch (java.sql.SQLException ignored) {}
+		Boolean sollicitudVerificacio = false;
+		try {
+			Object s = rs.getObject("sollicitud_verificacio");
+			if (s != null) {
+				sollicitudVerificacio = rs.getBoolean("sollicitud_verificacio");
+			}
+		} catch (java.sql.SQLException ignored) {}
 		return new Usuari(
 			rs.getString("id"),
 			rs.getString("nom"),
@@ -106,7 +124,10 @@ public class InMemoryCatalog {
 			rs.getString("rol"),
 			rs.getString("telefon"),
 			rs.getString("bio"),
-			percentil
+			percentil,
+			null,
+			verificat,
+			sollicitudVerificacio
 		);
 	}
 
@@ -117,7 +138,7 @@ public class InMemoryCatalog {
 	public List<Usuari> users() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil FROM usuaris ORDER BY created_at",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio FROM usuaris ORDER BY created_at",
 				(rs, rowNum) -> mapUsuari(rs)
 			);
 		} catch (Exception e) {
@@ -133,7 +154,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserById(String id) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil FROM usuaris WHERE id = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio FROM usuaris WHERE id = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
 				(rs, rowNum) -> mapUsuari(rs),
 				id, id, id
 			);
@@ -151,7 +172,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserByEmail(String email) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil FROM usuaris WHERE LOWER(email) = LOWER(?)",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio FROM usuaris WHERE LOWER(email) = LOWER(?)",
 				(rs, rowNum) -> mapUsuari(rs),
 				email
 			);
@@ -170,7 +191,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> authenticate(String email, String password) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
 				(rs, rowNum) -> mapUsuari(rs),
 				email, password, password
 			);
@@ -242,6 +263,47 @@ public class InMemoryCatalog {
 			jdbcTemplate.update("UPDATE usuaris SET password = ? WHERE id = ?", newPassword, id);
 			addAvis(id, "La teva contrasenya d'accés ha estat actualitzada correctament.");
 		} catch (Exception ignored) {}
+	}
+
+	/**
+	 * Permet a un professional sol·licitar la verificació oficial del seu compte.
+	 * Requereix email i telèfon obligatoris perquè l'administrador pugui fer la comprovació telefònica.
+	 * @param id Identificador de l'usuari
+	 * @return Usuari actualitzat amb sollicitud_verificacio = true
+	 */
+	public Usuari sollicitarVerificacio(String id) {
+		Usuari usuari = findUserById(id).orElseThrow(() -> new IllegalArgumentException("Usuari no trobat"));
+		if (usuari.email() == null || usuari.email().trim().isBlank()) {
+			throw new IllegalArgumentException("Cal disposar d'un correu electrònic vàlid per sol·licitar la verificació.");
+		}
+		if (usuari.telefon() == null || usuari.telefon().trim().isBlank()) {
+			throw new IllegalArgumentException("El telèfon de contacte és obligatori per sol·licitar la verificació (l'administrador et trucarà per validar la teva identitat).");
+		}
+		jdbcTemplate.update("UPDATE usuaris SET sollicitud_verificacio = TRUE WHERE id = ?", id);
+		addAvis("u-admin", "Nova sol·licitud de verificació professional: " + usuari.nom() + " (Tel: " + usuari.telefon() + ", Email: " + usuari.email() + "). Cal realitzar la trucada de comprovació.");
+		return findUserById(id).orElse(usuari);
+	}
+
+	/**
+	 * Permet a l'administrador verificar o desverificar oficialment un professional després de la comprovació telefònica.
+	 * @param id Identificador de l'usuari a verificar
+	 * @param estat true per aprovar la verificació, false per desverificar/rebutjar
+	 * @param requesterRol Rol de l'usuari que fa la petició (ha de ser 'admin')
+	 * @return Usuari actualitzat
+	 */
+	public Usuari verificarProfessional(String id, boolean estat, String requesterRol) {
+		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
+		if (!isAdmin) {
+			throw new SecurityException("Només un administrador té permisos per verificar o desverificar professionals.");
+		}
+		Usuari usuari = findUserById(id).orElseThrow(() -> new IllegalArgumentException("Usuari no trobat"));
+		jdbcTemplate.update("UPDATE usuaris SET verificat = ?, sollicitud_verificacio = FALSE WHERE id = ?", estat, id);
+		if (estat) {
+			addAvis(id, "Enhorabona! L'administrador ha verificat oficialment el teu compte de professional després de la comprovació telefònica.");
+		} else {
+			addAvis(id, "El teu estat de professional verificat ha estat desactivat o la teva sol·licitud ha estat rebutjada.");
+		}
+		return findUserById(id).orElse(usuari);
 	}
 
 	/**
