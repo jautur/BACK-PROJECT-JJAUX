@@ -94,21 +94,24 @@ else
             rol VARCHAR(50) NOT NULL,
             telefon VARCHAR(50),
             bio TEXT,
+            percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          )
+          );
+          ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100);
+          UPDATE usuaris SET percentil = 3 WHERE percentil IS NULL;
         \`);
         const chk = await c.query(\"SELECT id FROM usuaris WHERE LOWER(email) = 'admin@admin.es'\");
         if (chk.rows.length === 0) {
           const chkAdmin = await c.query(\"SELECT id FROM usuaris WHERE id = 'u-admin'\");
           if (chkAdmin.rows.length > 0) {
-            await c.query(\"UPDATE usuaris SET email = 'admin@admin.es', password = 'adminadmin', rol = 'admin' WHERE id = 'u-admin'\");
+            await c.query(\"UPDATE usuaris SET email = 'admin@admin.es', password = 'adminadmin', rol = 'admin', percentil = 3 WHERE id = 'u-admin'\");
             console.log('  -> Usuari administrador u-admin actualitzat a admin@admin.es.');
           } else {
-            await c.query(\"INSERT INTO usuaris (id, nom, email, password, rol, bio) VALUES ('u-admin', 'Administrador General', 'admin@admin.es', 'adminadmin', 'admin', 'Administrador de la plataforma AVISA')\");
+            await c.query(\"INSERT INTO usuaris (id, nom, email, password, rol, bio, percentil) VALUES ('u-admin', 'Administrador General', 'admin@admin.es', 'adminadmin', 'admin', 'Administrador de la plataforma AVISA', 3)\");
             console.log('  -> Usuari administrador creat: admin@admin.es (password: adminadmin).');
           }
         } else {
-          await c.query(\"UPDATE usuaris SET password = 'adminadmin', rol = 'admin' WHERE LOWER(email) = 'admin@admin.es'\");
+          await c.query(\"UPDATE usuaris SET password = 'adminadmin', rol = 'admin', percentil = 3 WHERE LOWER(email) = 'admin@admin.es'\");
           console.log('  -> Usuari administrador admin@admin.es verificat (password: adminadmin).');
         }
       } catch(e) {} finally { await c.end().catch(()=>{}); }
@@ -120,16 +123,35 @@ fi
 # 2. Backend Spring Boot (Port 8080)
 # ------------------------------------------------------------------------------
 echo -e "\n[2/3] Comprovant Backend Spring Boot..."
+JAR_FILE="${BACK_DIR}/target/jjaux-back-0.0.1-SNAPSHOT.jar"
+REBUILD_BACKEND=false
+
+if [ ! -f "${JAR_FILE}" ]; then
+    REBUILD_BACKEND=true
+elif [ -n "$(find "${BACK_DIR}/src" "${BACK_DIR}/pom.xml" -newer "${JAR_FILE}" 2>/dev/null)" ]; then
+    echo "  -> Canvis detectats al codi del Backend (JPA Entities / Repositories)."
+    REBUILD_BACKEND=true
+fi
+
+if [ "$REBUILD_BACKEND" = "true" ]; then
+    # Aturar backend antic si estigués bloquejant el fitxer JAR a Windows
+    if [ -f "${BACK_DIR}/backend.pid" ]; then
+        OLD_PID=$(cat "${BACK_DIR}/backend.pid" 2>/dev/null | tr -d '\r\n')
+        [ -n "$OLD_PID" ] && (taskkill //F //PID "$OLD_PID" 2>/dev/null || kill -9 "$OLD_PID" 2>/dev/null || true)
+        rm -f "${BACK_DIR}/backend.pid"
+    fi
+    echo "  -> Compilant el backend amb Maven..."
+    cd "${BACK_DIR}"
+    if [ -f "./mvnw.cmd" ] && command -v cmd.exe >/dev/null 2>&1; then
+        cmd.exe /c mvnw.cmd package -DskipTests
+    else
+        ./mvnw package -DskipTests
+    fi
+fi
+
 if nc -z 127.0.0.1 8080 2>/dev/null || curl -s -o /dev/null http://localhost:8080/api/dashboard 2>/dev/null; then
     echo "  -> Backend ja està responent a http://localhost:8080"
 else
-    JAR_FILE="${BACK_DIR}/target/jjaux-back-0.0.1-SNAPSHOT.jar"
-    if [ ! -f "${JAR_FILE}" ]; then
-        echo "  -> Compilant el backend amb Maven..."
-        cd "${BACK_DIR}"
-        ./mvnw package -DskipTests
-    fi
-
     echo "  -> Engegant Spring Boot en segon pla..."
     cd "${BACK_DIR}"
     export SPRING_DATASOURCE_PASSWORD="postgres"

@@ -48,8 +48,13 @@ const baseConfig = {
 
 async function tryConnect(password) {
   const client = new Client({ ...baseConfig, password });
-  await client.connect();
-  return client;
+  try {
+    await client.connect();
+    return client;
+  } catch (err) {
+    try { await client.end(); } catch (e) {}
+    throw err;
+  }
 }
 
 async function getConnectedClient() {
@@ -229,6 +234,15 @@ async function main() {
         data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100);
+      UPDATE usuaris SET percentil = 3 WHERE percentil IS NULL;
+      ALTER TABLE avisos ADD COLUMN IF NOT EXISTS enllac VARCHAR(255);
+      ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS categoria VARCHAR(100);
+      ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS incidencia_id VARCHAR(100);
+      ALTER TABLE ofertes ALTER COLUMN tasca_id DROP NOT NULL;
+      ALTER TABLE resenyes ADD COLUMN IF NOT EXISTS comentari TEXT;
+      ALTER TABLE resenyes ADD COLUMN IF NOT EXISTS professional_nom VARCHAR(150);
+      ALTER TABLE resenyes ALTER COLUMN descripcio DROP NOT NULL;
       ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_inici TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
       ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_finalitzacio TIMESTAMP;
       ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_valoracio TIMESTAMP;
@@ -238,63 +252,43 @@ async function main() {
       ALTER TABLE tasques ADD COLUMN IF NOT EXISTS publicacio_id VARCHAR(100);
     `);
 
-    // 2. Buidar totes les taules d'activitat
-    console.log('🧹 Buidant taules d\'activitat (publicacions, interessos, pressupostos, tasques, incidències, ofertes, avisos)...');
-    try { await client.query('DELETE FROM interessos;'); } catch (ignored) {}
-    try { await client.query('DELETE FROM pressupostos;'); } catch (ignored) {}
-    await client.query('DELETE FROM tasques;');
-    try { await client.query('DELETE FROM publicacions;'); } catch (ignored) {}
-    await client.query('DELETE FROM incidencies;');
-    await client.query('DELETE FROM ofertes;');
-    await client.query('DELETE FROM avisos;');
+    // 2. Buidar totes les taules d'activitat i usuaris respectant dependències i claus foranes (FK)
+    console.log('🧹 Buidant taules d\'activitat (publicacions, interessos, pressupostos, tasques, incidències, ofertes, avisos, resenyes) respectant claus foranes...');
     try {
-      await client.query('DELETE FROM resenyes;');
-    } catch (ignored) {}
+      await client.query(`
+        TRUNCATE TABLE 
+          interessos, 
+          pressupostos, 
+          ofertes, 
+          resenyes, 
+          avisos, 
+          tasques, 
+          incidencies, 
+          publicacions, 
+          usuaris 
+        RESTART IDENTITY CASCADE;
+      `);
+    } catch (truncateErr) {
+      // Fallback si alguna taula no existís encara en aquest punt
+      try { await client.query('DELETE FROM interessos;'); } catch (e) {}
+      try { await client.query('DELETE FROM pressupostos;'); } catch (e) {}
+      try { await client.query('DELETE FROM ofertes;'); } catch (e) {}
+      try { await client.query('DELETE FROM resenyes;'); } catch (e) {}
+      try { await client.query('DELETE FROM avisos;'); } catch (e) {}
+      try { await client.query('DELETE FROM tasques;'); } catch (e) {}
+      try { await client.query('DELETE FROM incidencies;'); } catch (e) {}
+      try { await client.query('DELETE FROM publicacions;'); } catch (e) {}
+      try { await client.query('DELETE FROM usuaris;'); } catch (e) {}
+    }
 
-    // 3. Netejar usuaris i reiniciar als 3 usuaris base
+    // 3. Reiniciar als 3 usuaris base amb tots els camps complets (incloent percentil)
     console.log('👤 Reiniciant usuaris: deixant exclusivament admin, cli i pro...');
-    await client.query('DELETE FROM usuaris;');
-
-    // Inserir Admin (admin@admin.es / adminadmin)
     await client.query(`
-      INSERT INTO usuaris (id, nom, email, password, rol, telefon, bio)
-      VALUES (
-        'u-admin',
-        'Administrador General',
-        'admin@admin.es',
-        'adminadmin',
-        'admin',
-        NULL,
-        'Administrador de la plataforma AVISA'
-      );
-    `);
-
-    // Inserir Client (cli / clicli)
-    await client.query(`
-      INSERT INTO usuaris (id, nom, email, password, rol, telefon, bio)
-      VALUES (
-        'u-cli',
-        'cli',
-        'cli',
-        'clicli',
-        'client',
-        '600111222',
-        'Compte client de proves per a creació d''incidències.'
-      );
-    `);
-
-    // Inserir Professional (pro / propro)
-    await client.query(`
-      INSERT INTO usuaris (id, nom, email, password, rol, telefon, bio)
-      VALUES (
-        'u-pro',
-        'pro',
-        'pro',
-        'propro',
-        'professional',
-        '000444555',
-        'Compte professional de proves per a pressupostos i ofertes.'
-      );
+      INSERT INTO usuaris (id, nom, email, password, rol, telefon, bio, percentil)
+      VALUES 
+        ('u-admin', 'Administrador General', 'admin@admin.es', 'adminadmin', 'admin', NULL, 'Administrador de la plataforma AVISA', 3),
+        ('u-cli', 'cli', 'cli', 'clicli', 'client', '600111222', 'Compte client de proves per a creació d''incidències.', 3),
+        ('u-pro', 'pro', 'pro', 'propro', 'professional', '000444555', 'Compte professional de proves per a pressupostos i ofertes.', 3);
     `);
 
     console.log('✅ Base de dades buidada i reiniciada correctament!\n');
