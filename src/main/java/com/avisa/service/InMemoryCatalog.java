@@ -271,6 +271,9 @@ public class InMemoryCatalog {
 	 * @return L'usuari creat
 	 */
 	public Usuari addUser(RegisterRequest request) {
+		if (findUserByEmail(request.email()).isPresent()) {
+			throw new IllegalArgumentException("El correu electrònic '" + request.email() + "' ja està registrat a la plataforma.");
+		}
 		String id = "u-" + UUID.randomUUID().toString().substring(0, 8);
 		String password = request.password() != null ? request.password() : "123456";
 		try {
@@ -278,7 +281,12 @@ public class InMemoryCatalog {
 				"INSERT INTO usuaris (id, nom, email, password, rol, telefon, percentil) VALUES (?, ?, ?, ?, ?, ?, 3)",
 				id, request.nom(), request.email(), password, request.rol(), request.telefon()
 			);
-		} catch (Exception ignored) {}
+		} catch (Exception e) {
+			if (e.getMessage() != null && e.getMessage().toLowerCase().contains("unique")) {
+				throw new IllegalArgumentException("El correu electrònic '" + request.email() + "' ja està en ús.");
+			}
+			throw new RuntimeException("Error en desar l'usuari a la base de dades: " + e.getMessage(), e);
+		}
 		return new Usuari(id, request.nom(), request.email(), request.rol(), request.telefon(), null, 3);
 	}
 
