@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 /**
  * Controlador REST per al tauler general d'estadístiques (/api/dashboard).
  * Proporciona el resum consolidat del sistema:
@@ -17,7 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/dashboard")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(originPatterns = "*")
+@Tag(name = "Dashboard", description = "Mètriques globals i comptadors del sistema")
 public class DashboardController {
 
 	private final InMemoryCatalog catalog;
@@ -27,6 +31,7 @@ public class DashboardController {
 	}
 
 	@GetMapping
+	@Operation(summary = "Obtenir mètriques del tauler", description = "Retorna estadístiques globals i llistat de tasques i ofertes")
 	public DashboardResponse getDashboard() {
 		return catalog.dashboard();
 	}

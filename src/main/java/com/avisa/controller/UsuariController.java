@@ -2,6 +2,9 @@ package com.avisa.controller;
 
 import com.avisa.model.Usuari;
 import com.avisa.service.InMemoryCatalog;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -19,7 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(originPatterns = "*")
+@Tag(name = "Usuaris", description = "Gestió de comptes, perfils, bio i comissió de percentils")
 public class UsuariController {
 
 	private final InMemoryCatalog catalog;
@@ -34,6 +38,7 @@ public class UsuariController {
 	 * @return Llista completa d'usuaris
 	 */
 	@GetMapping
+	@Operation(summary = "Llistar usuaris", description = "Retorna tots els comptes registrats a la plataforma")
 	public List<Usuari> list() {
 		return catalog.users();
 	}
@@ -46,6 +51,7 @@ public class UsuariController {
 	 * @return L'objecte Usuari o 404 Not Found si no existeix
 	 */
 	@GetMapping("/{id}")
+	@Operation(summary = "Obtenir perfil d'usuari", description = "Retorna el perfil complet per identificador")
 	public ResponseEntity<Usuari> getById(@PathVariable String id) {
 		return catalog.findUserById(id)
 			.map(ResponseEntity::ok)
@@ -60,6 +66,7 @@ public class UsuariController {
 	 * @return Llista d'usuaris que coincideixen amb el rol
 	 */
 	@GetMapping("/rol/{rol}")
+	@Operation(summary = "Llistar per rol", description = "Filtra usuaris segons siguin clients, professionals o administradors")
 	public List<Usuari> listByRol(@PathVariable String rol) {
 		return catalog.users().stream()
 			.filter(u -> u.rol().equalsIgnoreCase(rol))
@@ -75,9 +82,23 @@ public class UsuariController {
 	 * @return Usuari actualitzat
 	 */
 	@PutMapping("/{id}")
-	public ResponseEntity<Usuari> updateProfile(@PathVariable String id, @RequestBody Usuari usuari) {
-		Usuari updated = catalog.updateUser(id, usuari);
-		return ResponseEntity.ok(updated);
+	@Operation(summary = "Actualitzar perfil", description = "Modifica nom, telèfon, bio o percentil validant els permisos de rol")
+	public ResponseEntity<?> updateProfile(
+		@PathVariable String id,
+		@Valid @RequestBody Usuari usuari,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Id", required = false) String requesterId
+	) {
+		try {
+			Usuari updated = catalog.updateUser(id, usuari, requesterRol, requesterId);
+			return ResponseEntity.ok(updated);
+		} catch (SecurityException se) {
+			return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
+				.body(java.util.Map.of("message", se.getMessage()));
+		} catch (IllegalArgumentException iae) {
+			return ResponseEntity.badRequest()
+				.body(java.util.Map.of("message", iae.getMessage()));
+		}
 	}
 
 	/**
@@ -87,6 +108,7 @@ public class UsuariController {
 	 * @return 204 No Content si s'elimina correctament, o 400 Bad Request si no es pot eliminar
 	 */
 	@DeleteMapping("/{id}")
+	@Operation(summary = "Eliminar usuari", description = "Elimina el compte d'usuari de la base de dades")
 	public ResponseEntity<Void> deleteUser(@PathVariable String id) {
 		boolean deleted = catalog.deleteUser(id);
 		if (!deleted) {

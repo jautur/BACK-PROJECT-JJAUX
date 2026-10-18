@@ -14,16 +14,21 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+
 /**
  * Controlador REST per a la gestió de tasques (/api/tasks).
  * Gestiona el cicle de vida dels projectes en curs i conclosos:
- * 1. Les tasques acordades són estrictament privades entre el client propietari, el professional assignat i l'administrador.
+ * 1. Les tasques acordades són privades entre el client propietari, el professional assignat i l'administrador.
  * 2. Tant el client com el professional assignat tenen la capacitat de donar la tasca per finalitzada.
  * 3. En finalitzar, el client pot registrar o actualitzar la valoració i opinió del servei rebut.
  */
 @RestController
 @RequestMapping("/api/tasks")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(originPatterns = "*")
+@Tag(name = "Tasques", description = "Cicle de vida de tasques privades, seguiment, finalització i avaluacions")
 public class TascaController {
 
 	private final InMemoryCatalog catalog;

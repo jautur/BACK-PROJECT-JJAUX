@@ -129,6 +129,7 @@ async function main() {
         rol VARCHAR(50) NOT NULL,
         telefon VARCHAR(50),
         bio TEXT,
+        percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -182,11 +183,67 @@ async function main() {
         data DATE DEFAULT CURRENT_DATE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS resenyes (
+        id VARCHAR(100) PRIMARY KEY,
+        client_id VARCHAR(100),
+        client_nom VARCHAR(150),
+        treballador_id VARCHAR(100),
+        treballador_nom VARCHAR(150),
+        tasca_id VARCHAR(100),
+        puntuacio INTEGER NOT NULL,
+        descripcio TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS publicacions (
+        id VARCHAR(100) PRIMARY KEY,
+        usuari_id VARCHAR(100),
+        usuari_nom VARCHAR(150) NOT NULL,
+        tipus VARCHAR(50) NOT NULL,
+        titol VARCHAR(255) NOT NULL,
+        descripcio TEXT,
+        categoria VARCHAR(100),
+        preu_o_pressupost VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS interessos (
+        id VARCHAR(100) PRIMARY KEY,
+        publicacio_id VARCHAR(100),
+        client_id VARCHAR(100),
+        client_nom VARCHAR(150) NOT NULL,
+        missatge TEXT,
+        tasca_id VARCHAR(100),
+        data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS pressupostos (
+        id VARCHAR(100) PRIMARY KEY,
+        incidencia_id VARCHAR(100),
+        professional_id VARCHAR(100),
+        professional_nom VARCHAR(150) NOT NULL,
+        preu VARCHAR(50) NOT NULL,
+        descripcio TEXT,
+        duracio_estimada VARCHAR(100),
+        data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_inici TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_finalitzacio TIMESTAMP;
+      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_valoracio TIMESTAMP;
+      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS interes_id VARCHAR(100);
+      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS pressupost_id VARCHAR(100);
+      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS preu_acordat VARCHAR(50);
+      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS publicacio_id VARCHAR(100);
     `);
 
     // 2. Buidar totes les taules d'activitat
-    console.log('🧹 Buidant taules d\'activitat (tasques, incidències, ofertes, avisos)...');
+    console.log('🧹 Buidant taules d\'activitat (publicacions, interessos, pressupostos, tasques, incidències, ofertes, avisos)...');
+    try { await client.query('DELETE FROM interessos;'); } catch (ignored) {}
+    try { await client.query('DELETE FROM pressupostos;'); } catch (ignored) {}
     await client.query('DELETE FROM tasques;');
+    try { await client.query('DELETE FROM publicacions;'); } catch (ignored) {}
     await client.query('DELETE FROM incidencies;');
     await client.query('DELETE FROM ofertes;');
     await client.query('DELETE FROM avisos;');
@@ -262,7 +319,7 @@ async function main() {
     console.table(stats);
 
     console.log('🔑 === USUARIS DISPONIBLES PER A PROVES ===');
-    const usersRes = await client.query('SELECT id, nom, email, password, rol, telefon FROM usuaris ORDER BY id');
+    const usersRes = await client.query('SELECT id, nom, email, password, rol, telefon, percentil FROM usuaris ORDER BY id');
     console.table(usersRes.rows);
 
     console.log('✨ Tot a punt per testejar des de zero tant a casa com a classe!');
@@ -276,4 +333,3 @@ async function main() {
 }
 
 main();
-

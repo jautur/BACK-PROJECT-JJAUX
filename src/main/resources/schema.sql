@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS usuaris (
     rol VARCHAR(50) NOT NULL,
     telefon VARCHAR(50),
     bio TEXT,
+    percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

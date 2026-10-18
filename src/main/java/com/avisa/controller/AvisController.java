@@ -14,18 +14,22 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 /**
  * Controlador REST per a la gestió d'avisos i notificacions (/api/avisos).
  * Permet consultar la safata d'avisos globals o personals, canviar l'estat de lectura i suprimir alertes.
  */
 @RestController
 @RequestMapping("/api/avisos")
-@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:4300"})
-public class AvísController {
+@CrossOrigin(originPatterns = "*")
+@Tag(name = "Avisos", description = "Safata d'alertes i notificacions personals dels usuaris")
+public class AvisController {
 
 	private final InMemoryCatalog catalog;
 
-	public AvísController(InMemoryCatalog catalog) {
+	public AvisController(InMemoryCatalog catalog) {
 		this.catalog = catalog;
 	}
 
