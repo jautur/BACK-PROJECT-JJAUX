@@ -70,22 +70,25 @@ async function assegurarAdmin() {
         rol VARCHAR(50) NOT NULL,
         telefon VARCHAR(50),
         bio TEXT,
+        percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+      );
+      ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100);
+      UPDATE usuaris SET percentil = 3 WHERE percentil IS NULL;
     `);
 
-    const check = await client.query("SELECT id, nom, email, password, rol FROM usuaris WHERE LOWER(email) = 'admin@admin.es'");
+    const check = await client.query("SELECT id, nom, email, password, rol, percentil FROM usuaris WHERE LOWER(email) = 'admin@admin.es'");
     if (check.rows.length === 0) {
       const checkAdmin = await client.query("SELECT id FROM usuaris WHERE id = 'u-admin'");
       if (checkAdmin.rows.length > 0) {
-        await client.query("UPDATE usuaris SET email = 'admin@admin.es', password = 'adminadmin', rol = 'admin' WHERE id = 'u-admin'");
+        await client.query("UPDATE usuaris SET email = 'admin@admin.es', password = 'adminadmin', rol = 'admin', percentil = 3 WHERE id = 'u-admin'");
         console.log('✅ Usuari administrador u-admin actualitzat a: admin@admin.es (password: adminadmin)');
       } else {
-        await client.query("INSERT INTO usuaris (id, nom, email, password, rol, bio) VALUES ('u-admin', 'Administrador General', 'admin@admin.es', 'adminadmin', 'admin', 'Administrador de la plataforma AVISA')");
+        await client.query("INSERT INTO usuaris (id, nom, email, password, rol, bio, percentil) VALUES ('u-admin', 'Administrador General', 'admin@admin.es', 'adminadmin', 'admin', 'Administrador de la plataforma AVISA', 3)");
         console.log('✅ Usuari administrador creat: admin@admin.es (password: adminadmin)');
       }
     } else {
-      await client.query("UPDATE usuaris SET password = 'adminadmin', rol = 'admin' WHERE LOWER(email) = 'admin@admin.es'");
+      await client.query("UPDATE usuaris SET password = 'adminadmin', rol = 'admin', percentil = 3 WHERE LOWER(email) = 'admin@admin.es'");
       console.log('✅ Usuari administrador admin@admin.es verificat i actualitzat (password: adminadmin)');
     }
 

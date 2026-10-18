@@ -2,7 +2,8 @@
 
 # ==============================================================================
 # Script per buidar la base de dades a CASA (JJAUX / AVISA)
-# Bstatus: Bbuida tasques, incidències, ofertes i avisos
+# Buida tasques, incidències, ofertes, avisos, publicacions, interessos,
+# pressupostos i resenyes respectant claus foranes i dependències d'entitats JPA
 # Manté únicament els 3 usuaris base: admin, cli i pro
 # ==============================================================================
 
