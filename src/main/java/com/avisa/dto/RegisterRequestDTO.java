@@ -85,3 +85,4 @@ public class RegisterRequestDTO {
     public boolean isAcceptedPrivacy() { return acceptedPrivacy; }
     public void setAcceptedPrivacy(boolean acceptedPrivacy) { this.acceptedPrivacy = acceptedPrivacy; }
 }
+
