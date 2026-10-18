@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(originPatterns = "*")
 @Tag(name = "Usuaris", description = "Gestió de comptes, perfils, bio i comissió de percentils")
 public class UsuariController {
 

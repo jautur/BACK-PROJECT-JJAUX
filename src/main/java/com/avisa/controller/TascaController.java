@@ -27,7 +27,7 @@ import jakarta.validation.Valid;
  */
 @RestController
 @RequestMapping("/api/tasks")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(originPatterns = "*")
 @Tag(name = "Tasques", description = "Cicle de vida de tasques privades, seguiment, finalització i avaluacions")
 public class TascaController {
 

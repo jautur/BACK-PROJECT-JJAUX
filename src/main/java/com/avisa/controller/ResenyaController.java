@@ -21,7 +21,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  */
 @RestController
 @RequestMapping("/api/resenyes")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(originPatterns = "*")
 @Tag(name = "Ressenyes", description = "Opinions i puntuacions de servei a professionals")
 public class ResenyaController {
 

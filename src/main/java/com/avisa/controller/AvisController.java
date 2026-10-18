@@ -23,7 +23,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  */
 @RestController
 @RequestMapping("/api/avisos")
-@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:4300"})
+@CrossOrigin(originPatterns = "*")
 @Tag(name = "Avisos", description = "Safata d'alertes i notificacions personals dels usuaris")
 public class AvisController {
 

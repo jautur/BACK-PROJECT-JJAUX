@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/publicacions")
-@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:4300"})
+@CrossOrigin(originPatterns = "*")
 @Tag(name = "Publicacions", description = "Gestió del mercat d'ofertes de professionals i incidències de clients")
 public class PublicacioController {
 

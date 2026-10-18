@@ -20,7 +20,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  */
 @RestController
 @RequestMapping("/api/dashboard")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(originPatterns = "*")
 @Tag(name = "Dashboard", description = "Mètriques globals i comptadors del sistema")
 public class DashboardController {
 

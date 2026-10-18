@@ -29,7 +29,7 @@ import jakarta.validation.Valid;
  */
 @RestController
 @RequestMapping("/api/pressupostos")
-@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:4300"})
+@CrossOrigin(originPatterns = "*")
 @Tag(name = "Pressupostos", description = "Enviament i acceptació transaccional de pressupostos")
 public class PressupostController {
 
