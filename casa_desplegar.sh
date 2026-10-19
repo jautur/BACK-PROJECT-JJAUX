@@ -178,14 +178,14 @@ fi
 # ------------------------------------------------------------------------------
 # 4. Obrir al navegador
 # ------------------------------------------------------------------------------
-start http://localhost:4300 2>/dev/null || true
+start http://localhost:4300/inici 2>/dev/null || true
 
 echo "=========================================================="
 echo "           DESPLEGAMENT COMPLETAT AMB ÈXIT!"
 echo "=========================================================="
 echo " - Base de dades: PostgreSQL a localhost:5432 (BD: jjaux_db)"
 echo " - API Backend:   http://localhost:8080/api"
-echo " - Aplicació Web: http://localhost:4300"
+echo " - Aplicació Web: http://localhost:4300/inici"
 echo " - Usuari Admin:  admin@admin.es / adminadmin"
 echo "=========================================================="
 echo "Per aturar tots els serveis: ./casa_aturar.sh"

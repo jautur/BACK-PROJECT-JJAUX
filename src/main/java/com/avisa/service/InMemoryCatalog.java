@@ -896,13 +896,18 @@ public class InMemoryCatalog {
 						"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En curs', 'tasca')",
 						newTaskId, inc.titol(), inc.descripcio(), inc.categoria(), inc.clientId(), inc.clientNom(), proId, of.professional(), inc.id(), of.price()
 					);
-					// NOTA: L'oferta no s'esborra ni s'altera, ja que més d'un client es pot interessar pel mateix servei
+
+					// Eliminar la incidència i el pressupost acceptat (passa a ser tasca i s'elimina!)
+					jdbcTemplate.update("DELETE FROM publicacions WHERE id = ?", targetId);
+					jdbcTemplate.update("DELETE FROM incidencies WHERE id = ?", targetId);
+					jdbcTemplate.update("DELETE FROM ofertes WHERE id = ? OR tasca_id = ? OR incidencia_id = ?", offerId, targetId, targetId);
+					jdbcTemplate.update("DELETE FROM pressupostos WHERE id = ? OR incidencia_id = ?", offerId, targetId);
 
 					final String finalProId = proId;
 					if (finalProId != null) {
-						addAvis(finalProId, "Enhorabona! La teva oferta per a '" + inc.titol() + "' ha estat ACCEPTADA per " + inc.clientNom() + "! S'ha generat la TASCA en curs!");
+						addAvis(finalProId, "Enhorabona! La teva oferta per a '" + inc.titol() + "' ha estat ACCEPTADA per " + inc.clientNom() + "! S'ha generat la TASCA en curs.");
 					}
-					return findOfferById(offerId);
+					return Optional.of(of);
 				}
 
 				// Si ja era una tasca existent:
@@ -922,15 +927,19 @@ public class InMemoryCatalog {
 						);
 					}
 
+					// Eliminar el pressupost/oferta acceptat i la resta per a aquesta tasca
+					jdbcTemplate.update("DELETE FROM ofertes WHERE id = ? OR tasca_id = ?", offerId, targetId);
+					jdbcTemplate.update("DELETE FROM pressupostos WHERE id = ? OR incidencia_id = ?", offerId, targetId);
+
 					findTaskById(targetId).ifPresent(task -> {
 						users().stream()
 							.filter(u -> u.nom().equalsIgnoreCase(of.professional()) || u.id().equalsIgnoreCase(of.professional()))
 							.findFirst()
-							.ifPresent(proUser -> addAvis(proUser.id(), "Enhorabona! La teva oferta per a '" + task.titol() + "' ha estat ACCEPTADA per " + task.client() + "! S'ha generat la TASCA en curs!"));
+							.ifPresent(proUser -> addAvis(proUser.id(), "Enhorabona! La teva oferta per a '" + task.titol() + "' ha estat ACCEPTADA per " + task.client() + "! S'ha generat la TASCA en curs."));
 					});
 				}
 
-				return findOfferById(offerId);
+				return Optional.of(of);
 			}
 			return Optional.empty();
 		} catch (Exception e) {
@@ -1632,11 +1641,29 @@ public class InMemoryCatalog {
 		if (pOpt.isEmpty()) return Optional.empty();
 		Pressupost p = pOpt.get();
 
-		// 1. Validar que la incidència encara existeix a publicacions / incidencies (evita contractació doble!)
+		// 1. Validar que la incidència o tasca existeix
 		Optional<Publicacio> pubOpt = findPublicacioById(p.incidenciaId());
 		Optional<Incidencia> incOpt = findIncidenciaById(p.incidenciaId());
-		if (pubOpt.isEmpty() && incOpt.isEmpty()) {
+		Optional<Tasca> taskOpt = findTaskById(p.incidenciaId());
+		if (pubOpt.isEmpty() && incOpt.isEmpty() && taskOpt.isEmpty()) {
 			return Optional.empty();
+		}
+
+		if (taskOpt.isPresent()) {
+			Tasca t = taskOpt.get();
+			jdbcTemplate.update(
+				"UPDATE tasques SET estat = 'En curs', tipus = 'tasca', professional_id = ?, professional_nom = ?, pressupost_id = ?, preu_acordat = ?, budget = ? WHERE id = ?",
+				p.professionalId(), p.professionalNom(), pressupostId, p.preu(), p.preu(), t.id()
+			);
+
+			// El pressupost acceptat i la resta s'eliminen perquè ja és una tasca en curs
+			jdbcTemplate.update("DELETE FROM pressupostos WHERE incidencia_id = ? OR id = ?", p.incidenciaId(), pressupostId);
+			jdbcTemplate.update("DELETE FROM ofertes WHERE (incidencia_id = ? OR tasca_id = ?) OR id = ?", p.incidenciaId(), p.incidenciaId(), pressupostId);
+
+			if (p.professionalId() != null) {
+				addAvis(p.professionalId(), "Enhorabona! " + t.client() + " ha acceptat el teu pressupost per a '" + t.titol() + "' (" + p.preu() + ")! S'ha generat la tasca en curs.");
+			}
+			return findTaskById(t.id());
 		}
 
 		String titol = pubOpt.map(Publicacio::titol).orElse(incOpt.map(Incidencia::titol).orElse("Treball acordat"));
@@ -1658,9 +1685,9 @@ public class InMemoryCatalog {
 		jdbcTemplate.update("DELETE FROM publicacions WHERE id = ?", p.incidenciaId());
 		jdbcTemplate.update("DELETE FROM incidencies WHERE id = ?", p.incidenciaId());
 
-		// 4. Netejar altres pressupostos de la incidència per evitar contractacions duplicades
-		jdbcTemplate.update("DELETE FROM pressupostos WHERE incidencia_id = ? AND id != ?", p.incidenciaId(), pressupostId);
-		jdbcTemplate.update("DELETE FROM ofertes WHERE (incidencia_id = ? OR tasca_id = ?) AND id != ?", p.incidenciaId(), p.incidenciaId(), pressupostId);
+		// 4. Eliminar el pressupost acceptat i la resta de propostes (passa a ser una tasca i s'elimina!)
+		jdbcTemplate.update("DELETE FROM pressupostos WHERE incidencia_id = ? OR id = ?", p.incidenciaId(), pressupostId);
+		jdbcTemplate.update("DELETE FROM ofertes WHERE (incidencia_id = ? OR tasca_id = ?) OR id = ?", p.incidenciaId(), p.incidenciaId(), pressupostId);
 
 		// 5. Notificar al professional seleccionat
 		if (p.professionalId() != null) {
