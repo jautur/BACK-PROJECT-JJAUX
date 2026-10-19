@@ -322,8 +322,11 @@ async function main() {
     console.error('❌ Error durant el buidat de la base de dades:', err.message);
     process.exit(1);
   } finally {
-    await client.end();
+    try { await client.end(); } catch(e) {}
   }
 }
 
-main();
+main().then(() => process.exit(0)).catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

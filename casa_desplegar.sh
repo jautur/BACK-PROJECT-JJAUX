@@ -11,7 +11,7 @@
 set -e
 
 # Assegurar accés a binaris en entorns Windows/Git Bash/WSL
-export PATH="$PATH:/c/Program Files/nodejs:/c/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot/bin:/c/Program Files/PostgreSQL/18/bin"
+export PATH="/c/Program Files/nodejs:/c/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot/bin:/c/Program Files/PostgreSQL/18/bin:$PATH"
 
 # Directoris del projecte a CASA
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,19 +29,42 @@ else
     BACK_DIR="/c/Users/User/Desktop/BACK-PROJECT-JJAUX"
 fi
 
+# Conversió a ruta Windows
+to_win_path() {
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$1"
+    else
+        echo "$1" | sed 's|^/c/|C:\\|' | sed 's|/|\\|g'
+    fi
+}
+
+FRONT_WIN=$(to_win_path "${FRONT_DIR}")
+BACK_WIN=$(to_win_path "${BACK_DIR}")
+
 echo "=========================================================="
 echo "          INICIANT DESPLEGAMENT LOCAL JJAUX (CASA)"
 echo "=========================================================="
+
+# Funció per alliberar un port si està bloquejat per processos antics
+free_port() {
+    local port="$1"
+    if command -v netstat >/dev/null 2>&1; then
+        local pids=$(netstat -ano 2>/dev/null | grep ":${port} " | awk '{print $5}' | sort -u | grep -v '^0$' || true)
+        for p in $pids; do
+            taskkill //F //PID "$p" >/dev/null 2>&1 || true
+        done
+    fi
+}
 
 # ------------------------------------------------------------------------------
 # 1. Base de dades PostgreSQL (Port 5432)
 # ------------------------------------------------------------------------------
 echo -e "\n[1/3] Comprovant PostgreSQL..."
-if nc -z 127.0.0.1 5432 2>/dev/null || node -e "const net = require('net'); const s = net.connect(5432, '127.0.0.1', () => { process.exit(0); }); s.on('error', () => process.exit(1));" 2>/dev/null; then
+if node -e "const net = require('net'); const s = net.connect(5432, '127.0.0.1', () => { s.destroy(); process.exit(0); }); s.on('error', () => process.exit(1));" 2>/dev/null; then
     echo "  -> PostgreSQL ja està en marxa al port 5432."
 else
     echo "  -> Engegant servei PostgreSQL..."
-    net start postgresql-x64-18 2>/dev/null || "/c/Program Files/PostgreSQL/18/bin/pg_ctl.exe" start -D "/c/Program Files/PostgreSQL/18/data" 2>/dev/null || true
+    net start postgresql-x64-18 2>/dev/null || "/c/Program Files/PostgreSQL/18/bin/pg_ctl.exe" start -D "C:\\Program Files\\PostgreSQL\\18\\data" 2>/dev/null || true
     sleep 2
 fi
 
@@ -62,9 +85,9 @@ const { Client } = pg;
       console.log('  -> Base de dades jjaux_db creada amb èxit.');
     }
   } catch(e) {
-    // ignorar si ja existeix
   } finally {
-    await c.end();
+    try { await c.end(); } catch(e){}
+    process.exit(0);
   }
 })();
 " 2>/dev/null || true
@@ -75,48 +98,6 @@ if [ -f "${FRONT_DIR}/assegurar_admin.js" ]; then
     node "${FRONT_DIR}/assegurar_admin.js" || true
 elif [ -f "${BACK_DIR}/assegurar_admin.js" ]; then
     node "${BACK_DIR}/assegurar_admin.js" || true
-else
-    node -e "
-    let pg;
-    try { pg = require('pg'); } catch(e) { try { pg = require('${FRONT_DIR}/node_modules/pg'); } catch(e2){} }
-    if (!pg) process.exit(0);
-    const { Client } = pg;
-    (async () => {
-      const c = new Client({ host: 'localhost', port: 5432, user: 'postgres', password: process.env.PGPASSWORD || 'postgres', database: 'jjaux_db' });
-      try {
-        await c.connect();
-        await c.query(\`
-          CREATE TABLE IF NOT EXISTS usuaris (
-            id VARCHAR(100) PRIMARY KEY,
-            nom VARCHAR(150) NOT NULL,
-            email VARCHAR(150) UNIQUE NOT NULL,
-            password VARCHAR(255) NOT NULL,
-            rol VARCHAR(50) NOT NULL,
-            telefon VARCHAR(50),
-            bio TEXT,
-            percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          );
-          ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100);
-          UPDATE usuaris SET percentil = 3 WHERE percentil IS NULL;
-        \`);
-        const chk = await c.query(\"SELECT id FROM usuaris WHERE LOWER(email) = 'admin@admin.es'\");
-        if (chk.rows.length === 0) {
-          const chkAdmin = await c.query(\"SELECT id FROM usuaris WHERE id = 'u-admin'\");
-          if (chkAdmin.rows.length > 0) {
-            await c.query(\"UPDATE usuaris SET email = 'admin@admin.es', password = 'adminadmin', rol = 'admin', percentil = 3 WHERE id = 'u-admin'\");
-            console.log('  -> Usuari administrador u-admin actualitzat a admin@admin.es.');
-          } else {
-            await c.query(\"INSERT INTO usuaris (id, nom, email, password, rol, bio, percentil) VALUES ('u-admin', 'Administrador General', 'admin@admin.es', 'adminadmin', 'admin', 'Administrador de la plataforma AVISA', 3)\");
-            console.log('  -> Usuari administrador creat: admin@admin.es (password: adminadmin).');
-          }
-        } else {
-          await c.query(\"UPDATE usuaris SET password = 'adminadmin', rol = 'admin', percentil = 3 WHERE LOWER(email) = 'admin@admin.es'\");
-          console.log('  -> Usuari administrador admin@admin.es verificat (password: adminadmin).');
-        }
-      } catch(e) {} finally { await c.end().catch(()=>{}); }
-    })();
-    " 2>/dev/null || true
 fi
 
 # ------------------------------------------------------------------------------
@@ -124,41 +105,40 @@ fi
 # ------------------------------------------------------------------------------
 echo -e "\n[2/3] Comprovant Backend Spring Boot..."
 JAR_FILE="${BACK_DIR}/target/jjaux-back-0.0.1-SNAPSHOT.jar"
+WIN_JAR_FILE="${BACK_WIN}\\target\\jjaux-back-0.0.1-SNAPSHOT.jar"
 REBUILD_BACKEND=false
 
 if [ ! -f "${JAR_FILE}" ]; then
     REBUILD_BACKEND=true
 elif [ -n "$(find "${BACK_DIR}/src" "${BACK_DIR}/pom.xml" -newer "${JAR_FILE}" 2>/dev/null)" ]; then
-    echo "  -> Canvis detectats al codi del Backend (JPA Entities / Repositories)."
+    echo "  -> Canvis detectats al codi del Backend."
     REBUILD_BACKEND=true
 fi
 
 if [ "$REBUILD_BACKEND" = "true" ]; then
-    # Aturar backend antic si estigués bloquejant el fitxer JAR a Windows
-    if [ -f "${BACK_DIR}/backend.pid" ]; then
-        OLD_PID=$(cat "${BACK_DIR}/backend.pid" 2>/dev/null | tr -d '\r\n')
-        [ -n "$OLD_PID" ] && (taskkill //F //PID "$OLD_PID" 2>/dev/null || kill -9 "$OLD_PID" 2>/dev/null || true)
-        rm -f "${BACK_DIR}/backend.pid"
-    fi
+    free_port 8080
     echo "  -> Compilant el backend amb Maven..."
     cd "${BACK_DIR}"
-    if [ -f "./mvnw.cmd" ] && command -v cmd.exe >/dev/null 2>&1; then
-        cmd.exe /c mvnw.cmd package -DskipTests
+    if [ -f "./mvnw.cmd" ]; then
+        cmd.exe /c "mvnw.cmd package -DskipTests"
     else
         ./mvnw package -DskipTests
     fi
 fi
 
-if nc -z 127.0.0.1 8080 2>/dev/null || curl -s -o /dev/null http://localhost:8080/api/dashboard 2>/dev/null; then
+if curl -s -o /dev/null http://localhost:8080/api/dashboard 2>/dev/null; then
     echo "  -> Backend ja està responent a http://localhost:8080"
 else
     echo "  -> Engegant Spring Boot en segon pla..."
+    free_port 8080
     cd "${BACK_DIR}"
     export SPRING_DATASOURCE_PASSWORD="postgres"
-    nohup java -jar "${JAR_FILE}" > "${BACK_DIR}/backend.log" 2>&1 &
-    BACKEND_PID=$!
-    disown $BACKEND_PID 2>/dev/null || true
-    echo $BACKEND_PID > "${BACK_DIR}/backend.pid"
+
+    # Engegar procés desacoblat a Windows via PowerShell Start-Process amb registre de PID
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "\$p = Start-Process -FilePath 'java' -ArgumentList '-jar', '${WIN_JAR_FILE}' -WorkingDirectory '${BACK_WIN}' -RedirectStandardOutput '${BACK_WIN}\\backend.log' -RedirectStandardError '${BACK_WIN}\\backend_err.log' -WindowStyle Minimized -PassThru; Set-Content -Path '${BACK_WIN}\\backend.pid' -Value \$p.Id" 2>/dev/null || {
+        nohup java -jar "${JAR_FILE}" > "${BACK_DIR}/backend.log" 2>&1 &
+        echo $! > "${BACK_DIR}/backend.pid"
+    }
 
     echo -n "  -> Esperant que el backend estigui llest..."
     for i in {1..35}; do
@@ -175,37 +155,30 @@ fi
 # 3. Frontend Angular (Port 4300)
 # ------------------------------------------------------------------------------
 echo -e "\n[3/3] Comprovant Frontend Angular..."
-if nc -z 127.0.0.1 4300 2>/dev/null || curl -s -o /dev/null http://localhost:4300 2>/dev/null; then
+if curl -s -o /dev/null http://localhost:4300 2>/dev/null; then
     echo "  -> Frontend ja està servint a http://localhost:4300"
 else
     if [ ! -d "${FRONT_DIR}/dist/front-project-jjaux-1/browser" ]; then
         echo "  -> Compilant aplicació Angular..."
         cd "${FRONT_DIR}"
-        npm run build || npm.cmd run build
+        cmd.exe /c "npm run build" || npm run build
     fi
 
-    echo "  -> Engegant servidor web del Frontend..."
+    echo "  -> Engegant servidor web del Frontend (port 4300)..."
+    free_port 4300
     cd "${FRONT_DIR}"
-    nohup node serve.js > "${FRONT_DIR}/frontend.log" 2>&1 &
-    FRONT_PID=$!
-    disown $FRONT_PID 2>/dev/null || true
-    echo $FRONT_PID > "${FRONT_DIR}/frontend.pid"
-    sleep 1
+
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "\$p = Start-Process -FilePath 'node' -ArgumentList 'serve.js' -WorkingDirectory '${FRONT_WIN}' -RedirectStandardOutput '${FRONT_WIN}\\frontend.log' -RedirectStandardError '${FRONT_WIN}\\frontend_err.log' -WindowStyle Minimized -PassThru; Set-Content -Path '${FRONT_WIN}\\frontend.pid' -Value \$p.Id" 2>/dev/null || {
+        nohup node serve.js > "${FRONT_DIR}/frontend.log" 2>&1 &
+        echo $! > "${FRONT_DIR}/frontend.pid"
+    }
+    sleep 2
 fi
 
 # ------------------------------------------------------------------------------
 # 4. Obrir al navegador
 # ------------------------------------------------------------------------------
-echo -e "\n  -> Obrint aplicació al navegador..."
-if command -v cmd.exe >/dev/null 2>&1; then
-    cmd.exe /c start http://localhost:4300 2>/dev/null || true
-elif command -v start >/dev/null 2>&1; then
-    start http://localhost:4300 2>/dev/null || true
-elif command -v explorer.exe >/dev/null 2>&1; then
-    explorer.exe "http://localhost:4300" 2>/dev/null || true
-elif command -v xdg-open >/dev/null 2>&1; then
-    xdg-open http://localhost:4300 2>/dev/null || true
-fi
+start http://localhost:4300 2>/dev/null || true
 
 echo "=========================================================="
 echo "           DESPLEGAMENT COMPLETAT AMB ÈXIT!"
@@ -217,4 +190,3 @@ echo " - Usuari Admin:  admin@admin.es / adminadmin"
 echo "=========================================================="
 echo "Per aturar tots els serveis: ./casa_aturar.sh"
 echo "=========================================================="
-

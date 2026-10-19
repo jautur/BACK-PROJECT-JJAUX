@@ -113,9 +113,12 @@ async function run() {
   } catch (err) {
     console.error('❌ Error executant la consulta SQL:', err.message);
   } finally {
-    await client.end();
+    try { await client.end(); } catch(e) {}
   }
 }
 
-run();
+run().then(() => process.exit(0)).catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
 
