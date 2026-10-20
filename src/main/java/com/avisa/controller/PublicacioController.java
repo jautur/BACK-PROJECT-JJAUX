@@ -1,10 +1,14 @@
 package com.avisa.controller;
 
 import com.avisa.model.Publicacio;
+import com.avisa.model.Tasca;
 import com.avisa.model.Usuari;
-import com.avisa.service.InMemoryCatalog;
+import com.avisa.service.PublicacioService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -17,8 +21,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -33,25 +35,25 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Publicacions", description = "Gestió del mercat d'ofertes de professionals i incidències de clients")
 public class PublicacioController {
 
-	private final InMemoryCatalog catalog;
+	private final PublicacioService publicacioService;
 
-	public PublicacioController(InMemoryCatalog catalog) {
-		this.catalog = catalog;
+	public PublicacioController(PublicacioService publicacioService) {
+		this.publicacioService = publicacioService;
 	}
 
 	@GetMapping
 	@Operation(summary = "Llistar publicacions", description = "Retorna totes les publicacions o filtrades per tipus ('OFERTA' o 'INCIDENCIA')")
 	public List<Publicacio> list(@RequestParam(required = false) String tipus) {
 		if (tipus != null && !tipus.isBlank()) {
-			return catalog.publicacionsByTipus(tipus);
+			return publicacioService.listByTipus(tipus);
 		}
-		return catalog.publicacions();
+		return publicacioService.list();
 	}
 
 	@GetMapping("/{id}")
 	@Operation(summary = "Obtenir publicació per ID", description = "Retorna els detalls d'una oferta o incidència")
 	public ResponseEntity<Publicacio> getById(@PathVariable String id) {
-		return catalog.findPublicacioById(id)
+		return publicacioService.findById(id)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -65,10 +67,10 @@ public class PublicacioController {
 		// Resolució d'usuari i validació de rols en el backend
 		Optional<Usuari> userOpt = Optional.empty();
 		if (usuariId != null) {
-			userOpt = catalog.findUserById(usuariId);
+			userOpt = publicacioService.findUser(usuariId);
 		}
 		if (userOpt.isEmpty() && usuariNom != null) {
-			userOpt = catalog.findUserById(usuariNom);
+			userOpt = publicacioService.findUser(usuariNom);
 		}
 
 		if (userOpt.isPresent()) {
@@ -101,13 +103,13 @@ public class PublicacioController {
 			LocalDateTime.now()
 		);
 
-		Publicacio created = catalog.addPublicacio(pub);
+		Publicacio created = publicacioService.create(pub);
 		return ResponseEntity.status(HttpStatus.CREATED).body(created);
 	}
 
 	@DeleteMapping("/{id}")
 	public ResponseEntity<Void> delete(@PathVariable String id) {
-		catalog.deletePublicacio(id);
+		publicacioService.delete(id);
 		return ResponseEntity.noContent().build();
 	}
 
@@ -117,16 +119,15 @@ public class PublicacioController {
 	 * Endpoint: POST /api/publicacions/{id}/contractar
 	 */
 	@PostMapping("/{id}/contractar")
-	public ResponseEntity<com.avisa.model.Tasca> hireOffer(
+	public ResponseEntity<Tasca> hireOffer(
 		@PathVariable String id,
-		@RequestBody(required = false) java.util.Map<String, String> body
+		@RequestBody(required = false) Map<String, String> body
 	) {
 		String clientNom = (body != null && body.get("clientNom") != null && !body.get("clientNom").isBlank())
 			? body.get("clientNom")
 			: "Client AVISA";
-		return catalog.convertOfferToTask(id, clientNom)
+		return publicacioService.contractDirect(id, clientNom)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
 }
-

@@ -1,7 +1,8 @@
 package com.avisa.controller;
 
 import com.avisa.model.Avis;
-import com.avisa.service.InMemoryCatalog;
+import com.avisa.service.AvisService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -14,9 +15,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-
 /**
  * Controlador REST per a la gestió d'avisos i notificacions (/api/avisos).
  * Permet consultar la safata d'avisos globals o personals, canviar l'estat de lectura i suprimir alertes.
@@ -27,10 +25,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "Avisos", description = "Safata d'alertes i notificacions personals dels usuaris")
 public class AvisController {
 
-	private final InMemoryCatalog catalog;
+	private final AvisService avisService;
 
-	public AvisController(InMemoryCatalog catalog) {
-		this.catalog = catalog;
+	public AvisController(AvisService avisService) {
+		this.avisService = avisService;
 	}
 
 	/**
@@ -39,7 +37,7 @@ public class AvisController {
 	 */
 	@GetMapping
 	public List<Avis> list() {
-		return catalog.avisos();
+		return avisService.list();
 	}
 
 	// ==========================================
@@ -54,7 +52,10 @@ public class AvisController {
 	 */
 	@PostMapping
 	public Avis create(@RequestBody Avis avis) {
-		return catalog.addAvis(avis.usuariId(), avis.missatge());
+		if (avis.enllac() != null && !avis.enllac().isBlank()) {
+			return avisService.create(avis.usuariId(), avis.missatge(), avis.enllac());
+		}
+		return avisService.create(avis.usuariId(), avis.missatge());
 	}
 
 	/**
@@ -65,7 +66,7 @@ public class AvisController {
 	 */
 	@GetMapping("/usuari/{usuariId}")
 	public List<Avis> listByUsuari(@PathVariable String usuariId) {
-		return catalog.findAvisosByUsuari(usuariId);
+		return avisService.listByUsuari(usuariId);
 	}
 
 	/**
@@ -76,7 +77,7 @@ public class AvisController {
 	 */
 	@PutMapping("/{id}/llegit")
 	public ResponseEntity<Void> markAsRead(@PathVariable String id) {
-		catalog.markAvisAsRead(id);
+		avisService.markAsRead(id);
 		return ResponseEntity.ok().build();
 	}
 
@@ -88,9 +89,7 @@ public class AvisController {
 	 */
 	@DeleteMapping("/{id}")
 	public ResponseEntity<Void> delete(@PathVariable String id) {
-		catalog.deleteAvis(id);
+		avisService.delete(id);
 		return ResponseEntity.noContent().build();
 	}
 }
-
-
