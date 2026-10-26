@@ -22,6 +22,13 @@ public class PressupostService {
 	}
 
 	/**
+	 * Llistar tots els pressupostos registrats a la plataforma (panell d'administració).
+	 */
+	public List<Pressupost> list() {
+		return catalog.pressupostos();
+	}
+
+	/**
 	 * Valida si l'usuari té permís per emetre un pressupost (només professionals o usuaris no-client).
 	 * @param proIdentifier Identificador o nom del professional
 	 * @return true si l'emissor és vàlid

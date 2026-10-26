@@ -1591,6 +1591,21 @@ public class InMemoryCatalog {
 		rs.getTimestamp("data_creacio") != null ? rs.getTimestamp("data_creacio").toLocalDateTime() : LocalDateTime.now()
 	);
 
+	public List<Pressupost> pressupostos() {
+		try {
+			return jdbcTemplate.query(
+				"SELECT pr.id, pr.incidencia_id, COALESCE(p.titol, i.titol, 'Incidència') AS incidencia_titol, pr.professional_id, pr.professional_nom, pr.preu, pr.descripcio, pr.duracio_estimada, pr.data_creacio " +
+				"FROM pressupostos pr " +
+				"LEFT JOIN publicacions p ON p.id = pr.incidencia_id " +
+				"LEFT JOIN incidencies i ON i.id = pr.incidencia_id " +
+				"ORDER BY pr.data_creacio DESC",
+				pressupostRowMapper
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
 	public List<Pressupost> findPressupostosByIncidencia(String incidenciaId) {
 		try {
 			return jdbcTemplate.query(

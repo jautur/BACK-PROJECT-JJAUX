@@ -37,6 +37,18 @@ public class PressupostController {
 		this.pressupostService = pressupostService;
 	}
 
+	@GetMapping
+	@Operation(summary = "Llistar tots els pressupostos", description = "Privilegi d'administrador: permet supervisar i auditar tots els pressupostos de la plataforma")
+	public ResponseEntity<List<Pressupost>> listAll(
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
+	) {
+		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
+		if (!isAdmin) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(List.of());
+		}
+		return ResponseEntity.ok(pressupostService.list());
+	}
+
 	@PostMapping
 	@Operation(summary = "Crear pressupost", description = "Permet a un professional presentar un pressupost per a una incidència oberta")
 	public ResponseEntity<?> create(@Valid @RequestBody CrearPressupostRequest req) {
