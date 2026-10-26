@@ -234,8 +234,19 @@ async function main() {
         data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS blacklist_telefons (
+        id VARCHAR(100) PRIMARY KEY,
+        telefon VARCHAR(50) UNIQUE NOT NULL,
+        motiu TEXT,
+        bloquejat_per VARCHAR(100) DEFAULT 'admin',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100);
       UPDATE usuaris SET percentil = 3 WHERE percentil IS NULL;
+      ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS verificat BOOLEAN DEFAULT FALSE;
+      ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS sollicitud_verificacio BOOLEAN DEFAULT FALSE;
+      ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS foto TEXT;
       ALTER TABLE avisos ADD COLUMN IF NOT EXISTS enllac VARCHAR(255);
       ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS categoria VARCHAR(100);
       ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS incidencia_id VARCHAR(100);
@@ -257,6 +268,7 @@ async function main() {
     try {
       await client.query(`
         TRUNCATE TABLE 
+          blacklist_telefons,
           interessos, 
           pressupostos, 
           ofertes, 
@@ -270,6 +282,7 @@ async function main() {
       `);
     } catch (truncateErr) {
       // Fallback si alguna taula no existís encara en aquest punt
+      try { await client.query('DELETE FROM blacklist_telefons;'); } catch (e) {}
       try { await client.query('DELETE FROM interessos;'); } catch (e) {}
       try { await client.query('DELETE FROM pressupostos;'); } catch (e) {}
       try { await client.query('DELETE FROM ofertes;'); } catch (e) {}

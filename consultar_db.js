@@ -96,7 +96,7 @@ async function run() {
     }
 
     let sql = arg;
-    const knownTables = ['usuaris', 'tasques', 'ofertes', 'propostes', 'avisos', 'resenyes'];
+    const knownTables = ['usuaris', 'tasques', 'ofertes', 'propostes', 'avisos', 'resenyes', 'pressupostos', 'blacklist_telefons', 'publicacions', 'interessos'];
     if (knownTables.includes(arg.toLowerCase())) {
       sql = `SELECT * FROM ${arg.toLowerCase()} LIMIT 50`;
     }

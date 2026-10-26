@@ -6,18 +6,30 @@
 
 # Directoris del projecte a CASA
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -d "${SCRIPT_DIR}/../BACK-PROJECT-JJAUX" ]; then
-    FRONT_DIR="${SCRIPT_DIR}"
-    BACK_DIR="$(cd "${SCRIPT_DIR}/../BACK-PROJECT-JJAUX" && pwd)"
-elif [ -d "${SCRIPT_DIR}/FRONT-PROJECT-JJAUX" ]; then
-    FRONT_DIR="$(cd "${SCRIPT_DIR}/FRONT-PROJECT-JJAUX" && pwd)"
-    BACK_DIR="$(cd "${SCRIPT_DIR}/BACK-PROJECT-JJAUX" && pwd)"
-elif [ -d "${SCRIPT_DIR}/../FRONT-PROJECT-JJAUX" ]; then
-    FRONT_DIR="$(cd "${SCRIPT_DIR}/../FRONT-PROJECT-JJAUX" && pwd)"
+DIR_NAME="$(basename "${SCRIPT_DIR}")"
+
+if [ "$DIR_NAME" = "BACK-PROJECT-JJAUX" ]; then
     BACK_DIR="${SCRIPT_DIR}"
+    if [ -d "${SCRIPT_DIR}/../FRONT-PROJECT-JJAUX" ]; then
+        FRONT_DIR="$(cd "${SCRIPT_DIR}/../FRONT-PROJECT-JJAUX" && pwd)"
+    else
+        FRONT_DIR="/c/Users/User/Desktop/FRONT-PROJECT-JJAUX"
+    fi
+elif [ "$DIR_NAME" = "FRONT-PROJECT-JJAUX" ]; then
+    FRONT_DIR="${SCRIPT_DIR}"
+    if [ -d "${SCRIPT_DIR}/../BACK-PROJECT-JJAUX" ]; then
+        BACK_DIR="$(cd "${SCRIPT_DIR}/../BACK-PROJECT-JJAUX" && pwd)"
+    else
+        BACK_DIR="/c/Users/User/Desktop/BACK-PROJECT-JJAUX"
+    fi
 else
-    FRONT_DIR="/c/Users/User/Desktop/FRONT-PROJECT-JJAUX"
-    BACK_DIR="/c/Users/User/Desktop/BACK-PROJECT-JJAUX"
+    if [ -d "${SCRIPT_DIR}/FRONT-PROJECT-JJAUX" ] && [ -d "${SCRIPT_DIR}/BACK-PROJECT-JJAUX" ]; then
+        FRONT_DIR="$(cd "${SCRIPT_DIR}/FRONT-PROJECT-JJAUX" && pwd)"
+        BACK_DIR="$(cd "${SCRIPT_DIR}/BACK-PROJECT-JJAUX" && pwd)"
+    else
+        FRONT_DIR="/c/Users/User/Desktop/FRONT-PROJECT-JJAUX"
+        BACK_DIR="/c/Users/User/Desktop/BACK-PROJECT-JJAUX"
+    fi
 fi
 
 echo "Aturant serveis de JJAUX a CASA..."
