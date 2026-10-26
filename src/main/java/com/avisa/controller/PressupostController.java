@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -51,15 +52,50 @@ public class PressupostController {
 	}
 
 	@GetMapping("/incidencia/{incidenciaId}")
-	public List<Pressupost> listByIncidencia(@PathVariable String incidenciaId) {
-		return pressupostService.listByIncidencia(incidenciaId);
+	@Operation(summary = "Llistar pressupostos d'una incidència", description = "Privat: només el client titular de la incidència o el professional que ha licitat poden veure els pressupostos")
+	public List<Pressupost> listByIncidencia(
+		@PathVariable String incidenciaId,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Id", required = false) String requesterId,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Nom", required = false) String requesterNom,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
+	) {
+		return pressupostService.listByIncidenciaSecure(incidenciaId, requesterId, requesterNom, requesterRol);
 	}
 
 	@GetMapping("/{id}")
-	public ResponseEntity<Pressupost> getById(@PathVariable String id) {
-		return pressupostService.findById(id)
-			.map(ResponseEntity::ok)
-			.orElse(ResponseEntity.notFound().build());
+	@Operation(summary = "Obtenir pressupost per ID", description = "Privat: només els 2 usuaris implicats o administrador tenen accés")
+	public ResponseEntity<Pressupost> getById(
+		@PathVariable String id,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Id", required = false) String requesterId,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Nom", required = false) String requesterNom,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
+	) {
+		Optional<Pressupost> opt = pressupostService.findById(id);
+		if (opt.isEmpty()) {
+			return ResponseEntity.notFound().build();
+		}
+		Pressupost p = opt.get();
+		if (!pressupostService.isUserInvolved(p, requesterId, requesterNom, requesterRol)) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+		}
+		return ResponseEntity.ok(p);
+	}
+
+	@GetMapping("/professional/{proIdentifier}")
+	@Operation(summary = "Llistar pressupostos enviats pel professional", description = "Retorna exclusivament els pressupostos emesos pel propi professional")
+	public ResponseEntity<List<Pressupost>> listByProfessional(
+		@PathVariable String proIdentifier,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Id", required = false) String requesterId,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Nom", required = false) String requesterNom,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
+	) {
+		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
+		boolean isSelf = (requesterId != null && requesterId.equalsIgnoreCase(proIdentifier))
+			|| (requesterNom != null && requesterNom.equalsIgnoreCase(proIdentifier));
+		if (!isAdmin && !isSelf) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(List.of());
+		}
+		return ResponseEntity.ok(pressupostService.listByProfessional(proIdentifier));
 	}
 
 	@PostMapping("/{id}/acceptar")

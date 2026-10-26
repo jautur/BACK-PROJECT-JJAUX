@@ -51,7 +51,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 			"Més de 15 anys d'experiència en reparació de canonades, descalcificadors, termos i calderes. Servei urgent 24h a València i comarques.",
 			5,
 			true,
-			false
+			false,
+			"https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=800&auto=format&fit=crop&q=80"
 		);
 
 		upsertUser(
@@ -64,7 +65,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 			"Instal·lacions elèctriques autoritzades d'alta i baixa tensió, butlletins oficials, il·luminació LED i panells solars.",
 			4,
 			true,
-			false
+			false,
+			"https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&auto=format&fit=crop&q=80"
 		);
 
 		upsertUser(
@@ -77,7 +79,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 			"Pintor professional d'interiors i exteriors. Allisat de gotelé, pintura plàstica ecològica i impermeabilització de terrasses.",
 			4,
 			true,
-			false
+			false,
+			"https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=800&auto=format&fit=crop&q=80"
 		);
 
 		upsertUser(
@@ -90,7 +93,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 			"Tècnica especialista en climatització, aerotèrmia, càrregues de gas i manteniment d'equips industrials i domèstics.",
 			5,
 			true,
-			false
+			false,
+			"https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=800&auto=format&fit=crop&q=80"
 		);
 
 		// Professional amb sol·licitud de verificació pendent de trucada
@@ -104,7 +108,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 			"Fuster artesà. Fabricació i muntatge de cuines, portes, armaris encastats i terres laminats. Pressupostos sense compromís.",
 			3,
 			false,
-			true
+			true,
+			"https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80"
 		);
 
 		// Clients particulars de la comunitat
@@ -114,6 +119,10 @@ public class DemoDataSeeder implements ApplicationRunner {
 	}
 
 	private void upsertUser(String id, String nom, String email, String password, String rol, String telefon, String bio, int percentil, boolean verificat, boolean sollicitudVerificacio) {
+		upsertUser(id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, null);
+	}
+
+	private void upsertUser(String id, String nom, String email, String password, String rol, String telefon, String bio, int percentil, boolean verificat, boolean sollicitudVerificacio, String foto) {
 		try {
 			Integer exists = jdbcTemplate.queryForObject(
 				"SELECT COUNT(*) FROM usuaris WHERE LOWER(email) = LOWER(?) OR LOWER(nom) = LOWER(?) OR id = ?",
@@ -121,13 +130,13 @@ public class DemoDataSeeder implements ApplicationRunner {
 			);
 			if (exists != null && exists > 0) {
 				jdbcTemplate.update(
-					"UPDATE usuaris SET nom = ?, email = ?, password = ?, rol = ?, telefon = ?, bio = ?, percentil = ?, verificat = ?, sollicitud_verificacio = ? WHERE LOWER(email) = LOWER(?) OR LOWER(nom) = LOWER(?) OR id = ?",
-					nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, email, nom, id
+					"UPDATE usuaris SET nom = ?, email = ?, password = ?, rol = ?, telefon = ?, bio = ?, percentil = ?, verificat = ?, sollicitud_verificacio = ?, foto = COALESCE(?, foto) WHERE LOWER(email) = LOWER(?) OR LOWER(nom) = LOWER(?) OR id = ?",
+					nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, foto, email, nom, id
 				);
 			} else {
 				jdbcTemplate.update(
-					"INSERT INTO usuaris (id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitud_verificacio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-					id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio
+					"INSERT INTO usuaris (id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitud_verificacio, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, foto
 				);
 			}
 		} catch (Exception ignored) {}

@@ -139,6 +139,31 @@ public class UsuariController {
 	}
 
 	/**
+	 * Assignar fotografia de fons a un professional (només administrador).
+	 * Endpoint: PUT /api/users/{id}/foto
+	 */
+	@PutMapping("/{id}/foto")
+	@Operation(summary = "Assignar fotografia al professional", description = "L'administrador assigna una imatge de fons per a la targeta del professional recomanat")
+	public ResponseEntity<?> assignarFoto(
+		@PathVariable String id,
+		@RequestBody java.util.Map<String, String> body,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
+	) {
+		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
+		if (!isAdmin) {
+			return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
+				.body(java.util.Map.of("message", "Només un administrador pot assignar fotografies a professionals."));
+		}
+		String foto = body != null ? body.get("foto") : null;
+		try {
+			Usuari u = usuariService.assignarFoto(id, foto);
+			return ResponseEntity.ok(u);
+		} catch (IllegalArgumentException iae) {
+			return ResponseEntity.badRequest().body(java.util.Map.of("message", iae.getMessage()));
+		}
+	}
+
+	/**
 	 * Donar de baixa o eliminar un usuari de la plataforma.
 	 * Endpoint: DELETE /api/users/{id}
 	 * @param id Identificador de l'usuari

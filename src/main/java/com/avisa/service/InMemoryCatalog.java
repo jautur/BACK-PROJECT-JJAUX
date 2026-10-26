@@ -43,10 +43,13 @@ public class InMemoryCatalog {
 			jdbcTemplate.execute("ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS sollicitud_verificacio BOOLEAN DEFAULT FALSE");
 			jdbcTemplate.execute("UPDATE usuaris SET verificat = FALSE WHERE verificat IS NULL");
 			jdbcTemplate.execute("UPDATE usuaris SET sollicitud_verificacio = FALSE WHERE sollicitud_verificacio IS NULL");
+			jdbcTemplate.execute("ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS foto TEXT");
 			jdbcTemplate.execute("ALTER TABLE avisos ADD COLUMN IF NOT EXISTS enllac VARCHAR(255)");
 			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS categoria VARCHAR(100)");
 			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS incidencia_id VARCHAR(100)");
 			jdbcTemplate.execute("ALTER TABLE ofertes ALTER COLUMN tasca_id DROP NOT NULL");
+			// Assegurar que la taula d'ofertes públiques no continga pressupostos privats d'incidències
+			jdbcTemplate.execute("DELETE FROM ofertes WHERE categoria = 'Pressupost' OR (incidencia_id IS NOT NULL AND incidencia_id <> '')");
 			jdbcTemplate.execute("ALTER TABLE resenyes ALTER COLUMN descripcio DROP NOT NULL");
 			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_inici TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_finalitzacio TIMESTAMP");
@@ -117,6 +120,10 @@ public class InMemoryCatalog {
 				sollicitudVerificacio = rs.getBoolean("sollicitud_verificacio");
 			}
 		} catch (java.sql.SQLException ignored) {}
+		String foto = null;
+		try {
+			foto = rs.getString("foto");
+		} catch (java.sql.SQLException ignored) {}
 		return new Usuari(
 			rs.getString("id"),
 			rs.getString("nom"),
@@ -127,7 +134,8 @@ public class InMemoryCatalog {
 			percentil,
 			null,
 			verificat,
-			sollicitudVerificacio
+			sollicitudVerificacio,
+			foto
 		);
 	}
 
@@ -138,7 +146,7 @@ public class InMemoryCatalog {
 	public List<Usuari> users() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio FROM usuaris ORDER BY created_at",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto FROM usuaris ORDER BY created_at",
 				(rs, rowNum) -> mapUsuari(rs)
 			);
 		} catch (Exception e) {
@@ -154,7 +162,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserById(String id) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio FROM usuaris WHERE id = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto FROM usuaris WHERE id = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
 				(rs, rowNum) -> mapUsuari(rs),
 				id, id, id
 			);
@@ -172,7 +180,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserByEmail(String email) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio FROM usuaris WHERE LOWER(email) = LOWER(?)",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto FROM usuaris WHERE LOWER(email) = LOWER(?)",
 				(rs, rowNum) -> mapUsuari(rs),
 				email
 			);
@@ -191,7 +199,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> authenticate(String email, String password) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
 				(rs, rowNum) -> mapUsuari(rs),
 				email, password, password
 			);
@@ -241,15 +249,29 @@ public class InMemoryCatalog {
 			}
 		}
 
+		String fotoFinal = (nou.foto() != null) ? (nou.foto().trim().isBlank() ? null : nou.foto().trim()) : (actual != null ? actual.foto() : null);
+
 		try {
 			jdbcTemplate.update(
-				"UPDATE usuaris SET nom = ?, telefon = ?, bio = ?, percentil = ? WHERE id = ?",
-				nou.nom(), nou.telefon(), nou.bio(), percentilFinal, id
+				"UPDATE usuaris SET nom = ?, telefon = ?, bio = ?, percentil = ?, foto = ? WHERE id = ?",
+				nou.nom(), nou.telefon(), nou.bio(), percentilFinal, fotoFinal, id
 			);
 			return findUserById(id).orElse(nou);
 		} catch (Exception e) {
 			return nou;
 		}
+	}
+
+	/**
+	 * Assigna o elimina la fotografia d'un professional.
+	 * @param id Identificador de l'usuari
+	 * @param foto URL de la fotografia (o buit per esborrar-la)
+	 * @return Usuari actualitzat
+	 */
+	public Usuari assignarFoto(String id, String foto) {
+		String clean = (foto != null && !foto.trim().isBlank()) ? foto.trim() : null;
+		jdbcTemplate.update("UPDATE usuaris SET foto = ? WHERE id = ?", clean, id);
+		return findUserById(id).orElseThrow(() -> new IllegalArgumentException("Usuari no trobat"));
 	}
 
 	/**
@@ -699,7 +721,7 @@ public class InMemoryCatalog {
 	public List<Oferta> offers() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT o.id, COALESCE(o.tasca_id, o.incidencia_id) AS tasca_id, o.incidencia_id, o.professional, COALESCE(o.categoria, t.categoria, i.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id LEFT JOIN incidencies i ON i.id = COALESCE(o.incidencia_id, o.tasca_id) ORDER BY o.created_at DESC",
+				"SELECT o.id, COALESCE(o.tasca_id, o.incidencia_id) AS tasca_id, o.incidencia_id, o.professional, COALESCE(o.categoria, t.categoria, i.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id LEFT JOIN incidencies i ON i.id = COALESCE(o.incidencia_id, o.tasca_id) WHERE (o.categoria IS NULL OR o.categoria <> 'Pressupost') AND (o.incidencia_id IS NULL OR o.incidencia_id = '') ORDER BY o.created_at DESC",
 				(rs, rowNum) -> new Oferta(
 					rs.getString("id"),
 					rs.getString("tasca_id"),
@@ -724,7 +746,7 @@ public class InMemoryCatalog {
 	public Optional<Oferta> findOfferById(String id) {
 		try {
 			List<Oferta> res = jdbcTemplate.query(
-				"SELECT o.id, COALESCE(o.tasca_id, o.incidencia_id) AS tasca_id, o.incidencia_id, o.professional, COALESCE(o.categoria, t.categoria, i.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id LEFT JOIN incidencies i ON i.id = COALESCE(o.incidencia_id, o.tasca_id) WHERE o.id = ?",
+				"SELECT o.id, COALESCE(o.tasca_id, o.incidencia_id) AS tasca_id, o.incidencia_id, o.professional, COALESCE(o.categoria, t.categoria, i.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id LEFT JOIN incidencies i ON i.id = COALESCE(o.incidencia_id, o.tasca_id) WHERE o.id = ? AND (o.categoria IS NULL OR o.categoria <> 'Pressupost') AND (o.incidencia_id IS NULL OR o.incidencia_id = '')",
 				(rs, rowNum) -> new Oferta(
 					rs.getString("id"),
 					rs.getString("tasca_id"),
@@ -751,7 +773,10 @@ public class InMemoryCatalog {
 	public List<Oferta> findOffersByTasca(String tascaId) {
 		try {
 			return jdbcTemplate.query(
-				"SELECT o.id, COALESCE(o.tasca_id, o.incidencia_id) AS tasca_id, o.incidencia_id, o.professional, COALESCE(o.categoria, t.categoria, i.categoria, '') AS categoria, o.price, o.note, o.estat FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id LEFT JOIN incidencies i ON i.id = COALESCE(o.incidencia_id, o.tasca_id) WHERE o.tasca_id = ? OR o.incidencia_id = ? ORDER BY o.created_at DESC",
+				"SELECT o.id, o.tasca_id, o.incidencia_id, o.professional, COALESCE(o.categoria, t.categoria, '') AS categoria, o.price, o.note, o.estat " +
+				"FROM ofertes o LEFT JOIN tasques t ON t.id = o.tasca_id " +
+				"WHERE (o.tasca_id = ? OR o.id = ?) AND (o.categoria IS NULL OR o.categoria <> 'Pressupost') AND (o.incidencia_id IS NULL OR o.incidencia_id = '') " +
+				"ORDER BY o.created_at DESC",
 				(rs, rowNum) -> new Oferta(
 					rs.getString("id"),
 					rs.getString("tasca_id"),
@@ -782,6 +807,24 @@ public class InMemoryCatalog {
 		String incidenciaId = request.incidenciaId();
 		String categoria = request.categoria();
 
+		// Si la petició s'adreça a una incidència, NO és una oferta de servei sinó un pressupost
+		boolean isIncidencia = (incidenciaId != null && !incidenciaId.isBlank())
+			|| (targetId != null && (targetId.startsWith("I-") || findIncidenciaById(targetId).isPresent()));
+
+		if (isIncidencia) {
+			String incId = (incidenciaId != null && !incidenciaId.isBlank()) ? incidenciaId : targetId;
+			CrearPressupostRequest cpReq = new CrearPressupostRequest(
+				incId,
+				null,
+				request.professional(),
+				request.price(),
+				request.note(),
+				null
+			);
+			Pressupost p = addPressupost(cpReq);
+			return new Oferta(p.id(), null, incId, p.professionalNom(), categoria != null ? categoria : "Altres Serveis", p.preu(), p.descripcio(), "Pendent");
+		}
+
 		// Si és una oferta de servei lliure (no vinculada a una incidència prèvia)
 		if (targetId == null || targetId.isBlank() || "standalone".equalsIgnoreCase(targetId)) {
 			tascaId = null;
@@ -790,18 +833,8 @@ public class InMemoryCatalog {
 				categoria = "Altres Serveis";
 			}
 		} else {
-			// Comprovem si el targetId és una incidència
-			Optional<Incidencia> incOpt = findIncidenciaById(targetId);
-			if (incOpt.isPresent()) {
-				incidenciaId = targetId;
-				tascaId = null;
-				if (categoria == null || categoria.isBlank()) {
-					categoria = incOpt.get().categoria();
-				}
-			} else {
-				if (categoria == null || categoria.isBlank()) {
-					categoria = findTaskById(targetId).map(Tasca::categoria).orElse("Altres Serveis");
-				}
+			if (categoria == null || categoria.isBlank()) {
+				categoria = findTaskById(targetId).map(Tasca::categoria).orElse("Altres Serveis");
 			}
 		}
 
@@ -1592,6 +1625,109 @@ public class InMemoryCatalog {
 		}
 	}
 
+	/**
+	 * Llistar els pressupostos presentats per a una incidència aplicant PRIVADESA ESTRICTA:
+	 * Només els 2 usuaris implicats (el client propietari de la incidència i el professional autor del pressupost)
+	 * o l'administrador poden visualitzar els pressupostos.
+	 * Els professionals només poden veure la seua pròpia oferta, no les dels competidors.
+	 */
+	public List<Pressupost> findPressupostosByIncidenciaSecure(String incidenciaId, String requesterId, String requesterNom, String requesterRol) {
+		List<Pressupost> all = findPressupostosByIncidencia(incidenciaId);
+		if (all.isEmpty()) return List.of();
+
+		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
+		if (isAdmin) return all;
+
+		if ((requesterId == null || requesterId.isBlank()) && (requesterNom == null || requesterNom.isBlank())) {
+			return List.of();
+		}
+
+		boolean isClientOwner = isClientOwnerOfIncidencia(incidenciaId, requesterId, requesterNom);
+		if (isClientOwner) {
+			// El client titular veu tots els pressupostos rebuts per al seu anunci
+			return all;
+		}
+
+		// Si és un professional, només veu el seu propi pressupost
+		final String rId = requesterId != null ? requesterId.trim().toLowerCase() : "";
+		final String rNom = requesterNom != null ? requesterNom.trim().toLowerCase() : "";
+
+		return all.stream()
+			.filter(p -> {
+				String pId = p.professionalId() != null ? p.professionalId().trim().toLowerCase() : "";
+				String pNom = p.professionalNom() != null ? p.professionalNom().trim().toLowerCase() : "";
+				return (!rId.isEmpty() && rId.equals(pId)) || (!rNom.isEmpty() && rNom.equals(pNom));
+			})
+			.toList();
+	}
+
+	/**
+	 * Comprova si l'usuari és el client titular d'una incidència o tasca.
+	 */
+	public boolean isClientOwnerOfIncidencia(String incidenciaId, String requesterId, String requesterNom) {
+		Optional<Publicacio> pubOpt = findPublicacioById(incidenciaId);
+		if (pubOpt.isPresent()) {
+			Publicacio pub = pubOpt.get();
+			if ((requesterId != null && requesterId.equalsIgnoreCase(pub.usuariId())) ||
+			    (requesterNom != null && requesterNom.equalsIgnoreCase(pub.usuariNom()))) {
+				return true;
+			}
+		}
+		Optional<Incidencia> incOpt = findIncidenciaById(incidenciaId);
+		if (incOpt.isPresent()) {
+			Incidencia inc = incOpt.get();
+			if ((requesterId != null && requesterId.equalsIgnoreCase(inc.clientId())) ||
+			    (requesterNom != null && requesterNom.equalsIgnoreCase(inc.clientNom()))) {
+				return true;
+			}
+		}
+		Optional<Tasca> taskOpt = findTaskById(incidenciaId);
+		if (taskOpt.isPresent()) {
+			Tasca t = taskOpt.get();
+			if ((requesterId != null && requesterId.equalsIgnoreCase(t.clientId())) ||
+			    (requesterNom != null && requesterNom.equalsIgnoreCase(t.client()))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Llistar els pressupostos enviats per un professional en concret.
+	 */
+	public List<Pressupost> findPressupostosByProfessional(String proIdentifier) {
+		if (proIdentifier == null || proIdentifier.isBlank()) return List.of();
+		try {
+			return jdbcTemplate.query(
+				"SELECT pr.id, pr.incidencia_id, COALESCE(p.titol, i.titol, 'Incidència') AS incidencia_titol, pr.professional_id, pr.professional_nom, pr.preu, pr.descripcio, pr.duracio_estimada, pr.data_creacio " +
+				"FROM pressupostos pr " +
+				"LEFT JOIN publicacions p ON p.id = pr.incidencia_id " +
+				"LEFT JOIN incidencies i ON i.id = pr.incidencia_id " +
+				"WHERE LOWER(pr.professional_id) = LOWER(?) OR LOWER(pr.professional_nom) = LOWER(?) " +
+				"ORDER BY pr.data_creacio DESC",
+				pressupostRowMapper,
+				proIdentifier, proIdentifier
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	/**
+	 * Comprova si un usuari és un dels 2 implicats en aquest pressupost o administrador.
+	 */
+	public boolean isUserInvolvedInPressupost(Pressupost p, String requesterId, String requesterNom, String requesterRol) {
+		if (requesterRol != null && requesterRol.equalsIgnoreCase("admin")) return true;
+		if (requesterId == null && requesterNom == null) return false;
+
+		// 1. És el professional emissor?
+		if (requesterId != null && requesterId.equalsIgnoreCase(p.professionalId())) return true;
+		if (requesterNom != null && requesterNom.equalsIgnoreCase(p.professionalNom())) return true;
+
+		// 2. És el client titular de la incidència?
+		return isClientOwnerOfIncidencia(p.incidenciaId(), requesterId, requesterNom);
+	}
+
 	public Pressupost addPressupost(CrearPressupostRequest req) {
 		String id = "P-" + String.format("%03d", 200 + offers().size() + 1);
 		String proId = req.professionalId();
@@ -1610,12 +1746,6 @@ public class InMemoryCatalog {
 			jdbcTemplate.update(
 				"INSERT INTO pressupostos (id, incidencia_id, professional_id, professional_nom, preu, descripcio, duracio_estimada) VALUES (?, ?, ?, ?, ?, ?, ?)",
 				id, req.incidenciaId(), proId, proNom, req.preu(), req.descripcio(), req.duracioEstimada()
-			);
-
-			// També sincronitza amb ofertes per a compatibilitat retroactiva
-			jdbcTemplate.update(
-				"INSERT INTO ofertes (id, tasca_id, incidencia_id, professional, price, note, categoria) VALUES (?, ?, ?, ?, ?, ?, ?)",
-				id, req.incidenciaId(), req.incidenciaId(), proNom, req.preu(), req.descripcio(), "Pressupost"
 			);
 
 			final String finalProNom = proNom;
@@ -1658,7 +1788,6 @@ public class InMemoryCatalog {
 
 			// El pressupost acceptat i la resta s'eliminen perquè ja és una tasca en curs
 			jdbcTemplate.update("DELETE FROM pressupostos WHERE incidencia_id = ? OR id = ?", p.incidenciaId(), pressupostId);
-			jdbcTemplate.update("DELETE FROM ofertes WHERE (incidencia_id = ? OR tasca_id = ?) OR id = ?", p.incidenciaId(), p.incidenciaId(), pressupostId);
 
 			if (p.professionalId() != null) {
 				addAvis(p.professionalId(), "Enhorabona! " + t.client() + " ha acceptat el teu pressupost per a '" + t.titol() + "' (" + p.preu() + ")! S'ha generat la tasca en curs.");
@@ -1687,7 +1816,6 @@ public class InMemoryCatalog {
 
 		// 4. Eliminar el pressupost acceptat i la resta de propostes (passa a ser una tasca i s'elimina!)
 		jdbcTemplate.update("DELETE FROM pressupostos WHERE incidencia_id = ? OR id = ?", p.incidenciaId(), pressupostId);
-		jdbcTemplate.update("DELETE FROM ofertes WHERE (incidencia_id = ? OR tasca_id = ?) OR id = ?", p.incidenciaId(), p.incidenciaId(), pressupostId);
 
 		// 5. Notificar al professional seleccionat
 		if (p.professionalId() != null) {
@@ -1699,7 +1827,106 @@ public class InMemoryCatalog {
 
 	public boolean rebutjarPressupost(String pressupostId) {
 		int rows = jdbcTemplate.update("DELETE FROM pressupostos WHERE id = ?", pressupostId);
-		jdbcTemplate.update("DELETE FROM ofertes WHERE id = ?", pressupostId);
 		return rows > 0;
+	}
+
+	// ==========================================
+	// GESTIÓ DE LA LLISTA NEGRA DE TELÈFONS
+	// ==========================================
+
+	/**
+	 * Normalitza un telèfon eliminant espais, guions, parèntesis i prefixos internacionals de l'estat espanyol
+	 * per fer comparacions robustes sense falsos positius o evasions de format.
+	 */
+	public String normalizePhone(String phone) {
+		if (phone == null) return "";
+		String digits = phone.replaceAll("[^0-9]", "");
+		if (digits.startsWith("0034") && digits.length() >= 13) {
+			digits = digits.substring(4);
+		} else if (digits.startsWith("34") && digits.length() >= 11) {
+			digits = digits.substring(2);
+		}
+		return digits;
+	}
+
+	/**
+	 * Comprova si un número de telèfon està inclòs a la llista negra de la plataforma.
+	 */
+	public boolean isPhoneBlacklisted(String telefon) {
+		if (telefon == null || telefon.trim().isBlank()) return false;
+		String cleanInput = telefon.trim();
+		String normalizedInput = normalizePhone(cleanInput);
+
+		try {
+			List<com.avisa.model.BlacklistTelefon> list = blacklistTelefons();
+			for (com.avisa.model.BlacklistTelefon bl : list) {
+				if (bl.telefon() == null) continue;
+				String blClean = bl.telefon().trim();
+				if (blClean.equalsIgnoreCase(cleanInput)) return true;
+				String normalizedBl = normalizePhone(blClean);
+				if (!normalizedBl.isBlank() && normalizedBl.equals(normalizedInput)) return true;
+			}
+		} catch (Exception ignored) {}
+		return false;
+	}
+
+	/**
+	 * Retorna tots els números de telèfon bloquejats a la llista negra.
+	 */
+	public List<com.avisa.model.BlacklistTelefon> blacklistTelefons() {
+		try {
+			return jdbcTemplate.query(
+				"SELECT id, telefon, motiu, bloquejat_per, created_at FROM blacklist_telefons ORDER BY created_at DESC",
+				(rs, rowNum) -> new com.avisa.model.BlacklistTelefon(
+					rs.getString("id"),
+					rs.getString("telefon"),
+					rs.getString("motiu"),
+					rs.getString("bloquejat_per"),
+					rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()
+				)
+			);
+		} catch (Exception e) {
+			return List.of();
+		}
+	}
+
+	/**
+	 * Afegeix un número de telèfon a la llista negra (privilegi exclusiu d'administrador).
+	 */
+	public com.avisa.model.BlacklistTelefon addToBlacklist(String telefon, String motiu, String requesterRol, String requesterNom) {
+		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
+		if (!isAdmin) {
+			throw new SecurityException("Només un administrador té permisos per afegir números de telèfon a la llista negra.");
+		}
+		if (telefon == null || telefon.trim().isBlank()) {
+			throw new IllegalArgumentException("El número de telèfon és obligatori.");
+		}
+		String cleanPhone = telefon.trim();
+		if (isPhoneBlacklisted(cleanPhone)) {
+			throw new IllegalArgumentException("El número de telèfon " + cleanPhone + " ja està registrat a la llista negra.");
+		}
+
+		String id = "BL-" + String.format("%03d", blacklistTelefons().size() + 1);
+		String admin = (requesterNom != null && !requesterNom.isBlank()) ? requesterNom : "admin";
+		String motiuFinal = (motiu != null && !motiu.trim().isBlank()) ? motiu.trim() : "Bloquejat per administració";
+
+		jdbcTemplate.update(
+			"INSERT INTO blacklist_telefons (id, telefon, motiu, bloquejat_per) VALUES (?, ?, ?, ?)",
+			id, cleanPhone, motiuFinal, admin
+		);
+
+		return new com.avisa.model.BlacklistTelefon(id, cleanPhone, motiuFinal, admin, LocalDateTime.now());
+	}
+
+	/**
+	 * Desbloqueja i elimina un telèfon de la llista negra.
+	 */
+	public boolean removeFromBlacklist(String id, String requesterRol) {
+		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
+		if (!isAdmin) {
+			throw new SecurityException("Només un administrador té permisos per desbloquejar telèfons de la llista negra.");
+		}
+		int affected = jdbcTemplate.update("DELETE FROM blacklist_telefons WHERE id = ? OR telefon = ?", id, id);
+		return affected > 0;
 	}
 }
