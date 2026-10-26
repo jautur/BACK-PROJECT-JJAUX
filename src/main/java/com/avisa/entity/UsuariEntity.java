@@ -44,6 +44,9 @@ public class UsuariEntity {
 	@Column(name = "sollicitud_verificacio")
 	private Boolean sollicitudVerificacio = false;
 
+	@Column(name = "foto", columnDefinition = "TEXT")
+	private String foto;
+
 	@Column(name = "created_at")
 	private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -96,6 +99,9 @@ public class UsuariEntity {
 
 	public Boolean getSollicitudVerificacio() { return sollicitudVerificacio; }
 	public void setSollicitudVerificacio(Boolean sollicitudVerificacio) { this.sollicitudVerificacio = sollicitudVerificacio; }
+
+	public String getFoto() { return foto; }
+	public void setFoto(String foto) { this.foto = foto; }
 
 	public LocalDateTime getCreatedAt() { return createdAt; }
 	public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

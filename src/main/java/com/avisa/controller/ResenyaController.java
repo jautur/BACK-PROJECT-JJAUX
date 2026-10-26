@@ -1,7 +1,8 @@
 package com.avisa.controller;
 
 import com.avisa.model.Resenya;
-import com.avisa.service.InMemoryCatalog;
+import com.avisa.service.ResenyaService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -12,12 +13,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-
 /**
  * Controlador REST per a la gestió de ressenyes i valoracions (/api/resenyes).
- * Permet consultar les opinions sobre professionals i registrar noves valoracions.
+ * Permet consultar les opinions sobre professionals i registrar noves valoracions delegant en ResenyaService.
  */
 @RestController
 @RequestMapping("/api/resenyes")
@@ -25,10 +23,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "Ressenyes", description = "Opinions i puntuacions de servei a professionals")
 public class ResenyaController {
 
-	private final InMemoryCatalog catalog;
+	private final ResenyaService resenyaService;
 
-	public ResenyaController(InMemoryCatalog catalog) {
-		this.catalog = catalog;
+	public ResenyaController(ResenyaService resenyaService) {
+		this.resenyaService = resenyaService;
 	}
 
 	/**
@@ -38,7 +36,7 @@ public class ResenyaController {
 	 */
 	@GetMapping
 	public List<Resenya> list() {
-		return catalog.resenyes();
+		return resenyaService.list();
 	}
 
 	/**
@@ -49,7 +47,7 @@ public class ResenyaController {
 	 */
 	@GetMapping("/treballador/{id}")
 	public List<Resenya> getByTreballador(@PathVariable String id) {
-		return catalog.findResenyesByTreballador(id);
+		return resenyaService.listByTreballador(id);
 	}
 
 	/**
@@ -60,7 +58,7 @@ public class ResenyaController {
 	 */
 	@GetMapping("/client/{id}")
 	public List<Resenya> getByClient(@PathVariable String id) {
-		return catalog.findResenyesByClient(id);
+		return resenyaService.listByClient(id);
 	}
 
 	/**
@@ -74,8 +72,7 @@ public class ResenyaController {
 		if (resenya.clientId() == null || resenya.treballadorId() == null) {
 			return ResponseEntity.badRequest().build();
 		}
-		Resenya created = catalog.addResenya(resenya);
+		Resenya created = resenyaService.create(resenya);
 		return ResponseEntity.ok(created);
 	}
 }
-

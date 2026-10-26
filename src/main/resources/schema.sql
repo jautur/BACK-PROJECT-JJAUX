@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS usuaris (
     telefon VARCHAR(50),
     bio TEXT,
     percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100),
+    verificat BOOLEAN DEFAULT FALSE,
+    sollicitud_verificacio BOOLEAN DEFAULT FALSE,
+    foto TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -83,4 +86,25 @@ CREATE TABLE IF NOT EXISTS resenyes (
     puntuacio INTEGER NOT NULL CHECK (puntuacio >= 1 AND puntuacio <= 5),
     descripcio TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. Taula de Blacklist de Telèfons (bloqueig de números per administració)
+CREATE TABLE IF NOT EXISTS blacklist_telefons (
+    id VARCHAR(100) PRIMARY KEY,
+    telefon VARCHAR(50) UNIQUE NOT NULL,
+    motiu TEXT,
+    bloquejat_per VARCHAR(100) DEFAULT 'admin',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. Taula de Pressupostos (privats entre el client que obre la incidència i el professional que pressuposta)
+CREATE TABLE IF NOT EXISTS pressupostos (
+    id VARCHAR(100) PRIMARY KEY,
+    incidencia_id VARCHAR(100) REFERENCES incidencies(id) ON DELETE CASCADE,
+    professional_id VARCHAR(100) REFERENCES usuaris(id) ON DELETE SET NULL,
+    professional_nom VARCHAR(150) NOT NULL,
+    preu VARCHAR(50) NOT NULL,
+    descripcio TEXT,
+    duracio_estimada VARCHAR(100),
+    data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,7 +1,7 @@
 package com.avisa.controller;
 
 import com.avisa.model.Usuari;
-import com.avisa.service.InMemoryCatalog;
+import com.avisa.service.UsuariService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -26,10 +26,10 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Usuaris", description = "Gestió de comptes, perfils, bio i comissió de percentils")
 public class UsuariController {
 
-	private final InMemoryCatalog catalog;
+	private final UsuariService usuariService;
 
-	public UsuariController(InMemoryCatalog catalog) {
-		this.catalog = catalog;
+	public UsuariController(UsuariService usuariService) {
+		this.usuariService = usuariService;
 	}
 
 	/**
@@ -40,7 +40,7 @@ public class UsuariController {
 	@GetMapping
 	@Operation(summary = "Llistar usuaris", description = "Retorna tots els comptes registrats a la plataforma")
 	public List<Usuari> list() {
-		return catalog.users();
+		return usuariService.list();
 	}
 
 	/**
@@ -53,7 +53,7 @@ public class UsuariController {
 	@GetMapping("/{id}")
 	@Operation(summary = "Obtenir perfil d'usuari", description = "Retorna el perfil complet per identificador")
 	public ResponseEntity<Usuari> getById(@PathVariable String id) {
-		return catalog.findUserById(id)
+		return usuariService.findById(id)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -68,7 +68,7 @@ public class UsuariController {
 	@GetMapping("/rol/{rol}")
 	@Operation(summary = "Llistar per rol", description = "Filtra usuaris segons siguin clients, professionals o administradors")
 	public List<Usuari> listByRol(@PathVariable String rol) {
-		return catalog.users().stream()
+		return usuariService.list().stream()
 			.filter(u -> u.rol().equalsIgnoreCase(rol))
 			.toList();
 	}
@@ -90,7 +90,7 @@ public class UsuariController {
 		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Id", required = false) String requesterId
 	) {
 		try {
-			Usuari updated = catalog.updateUser(id, usuari, requesterRol, requesterId);
+			Usuari updated = usuariService.update(id, usuari, requesterRol, requesterId);
 			return ResponseEntity.ok(updated);
 		} catch (SecurityException se) {
 			return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
@@ -109,7 +109,7 @@ public class UsuariController {
 	@Operation(summary = "Sol·licitar verificació", description = "El professional sol·licita ser verificat mitjançant comprovació telefònica per part de l'administrador")
 	public ResponseEntity<?> sollicitarVerificacio(@PathVariable String id) {
 		try {
-			Usuari u = catalog.sollicitarVerificacio(id);
+			Usuari u = usuariService.sollicitarVerificacio(id);
 			return ResponseEntity.ok(u);
 		} catch (IllegalArgumentException iae) {
 			return ResponseEntity.badRequest().body(java.util.Map.of("message", iae.getMessage()));
@@ -128,11 +128,36 @@ public class UsuariController {
 		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
 	) {
 		try {
-			Usuari u = catalog.verificarProfessional(id, estat, requesterRol);
+			Usuari u = usuariService.verificarProfessional(id, estat, requesterRol);
 			return ResponseEntity.ok(u);
 		} catch (SecurityException se) {
 			return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
 				.body(java.util.Map.of("message", se.getMessage()));
+		} catch (IllegalArgumentException iae) {
+			return ResponseEntity.badRequest().body(java.util.Map.of("message", iae.getMessage()));
+		}
+	}
+
+	/**
+	 * Assignar fotografia de fons a un professional (només administrador).
+	 * Endpoint: PUT /api/users/{id}/foto
+	 */
+	@PutMapping("/{id}/foto")
+	@Operation(summary = "Assignar fotografia al professional", description = "L'administrador assigna una imatge de fons per a la targeta del professional recomanat")
+	public ResponseEntity<?> assignarFoto(
+		@PathVariable String id,
+		@RequestBody java.util.Map<String, String> body,
+		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
+	) {
+		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
+		if (!isAdmin) {
+			return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
+				.body(java.util.Map.of("message", "Només un administrador pot assignar fotografies a professionals."));
+		}
+		String foto = body != null ? body.get("foto") : null;
+		try {
+			Usuari u = usuariService.assignarFoto(id, foto);
+			return ResponseEntity.ok(u);
 		} catch (IllegalArgumentException iae) {
 			return ResponseEntity.badRequest().body(java.util.Map.of("message", iae.getMessage()));
 		}
@@ -147,7 +172,7 @@ public class UsuariController {
 	@DeleteMapping("/{id}")
 	@Operation(summary = "Eliminar usuari", description = "Elimina el compte d'usuari de la base de dades")
 	public ResponseEntity<Void> deleteUser(@PathVariable String id) {
-		boolean deleted = catalog.deleteUser(id);
+		boolean deleted = usuariService.delete(id);
 		if (!deleted) {
 			return ResponseEntity.badRequest().build();
 		}

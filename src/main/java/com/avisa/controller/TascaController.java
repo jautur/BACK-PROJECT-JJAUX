@@ -1,9 +1,13 @@
 package com.avisa.controller;
 
+import com.avisa.dto.FinalitzarTascaRequest;
 import com.avisa.dto.TascaRequest;
 import com.avisa.model.Tasca;
-import com.avisa.service.InMemoryCatalog;
+import com.avisa.service.TascaService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,13 +18,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
-
 /**
  * Controlador REST per a la gestió de tasques (/api/tasks).
- * Gestiona el cicle de vida dels projectes en curs i conclosos:
+ * Gestiona el cicle de vida dels projectes en curs i conclosos delegant en TascaService:
  * 1. Les tasques acordades són privades entre el client propietari, el professional assignat i l'administrador.
  * 2. Tant el client com el professional assignat tenen la capacitat de donar la tasca per finalitzada.
  * 3. En finalitzar, el client pot registrar o actualitzar la valoració i opinió del servei rebut.
@@ -31,10 +31,10 @@ import jakarta.validation.Valid;
 @Tag(name = "Tasques", description = "Cicle de vida de tasques privades, seguiment, finalització i avaluacions")
 public class TascaController {
 
-	private final InMemoryCatalog catalog;
+	private final TascaService tascaService;
 
-	public TascaController(InMemoryCatalog catalog) {
-		this.catalog = catalog;
+	public TascaController(TascaService tascaService) {
+		this.tascaService = tascaService;
 	}
 
 	/**
@@ -44,7 +44,7 @@ public class TascaController {
 	 */
 	@GetMapping
 	public List<Tasca> list() {
-		return catalog.tasks();
+		return tascaService.list();
 	}
 
 	/**
@@ -56,7 +56,7 @@ public class TascaController {
 	 */
 	@PostMapping
 	public Tasca create(@RequestBody TascaRequest request) {
-		return catalog.addTask(request);
+		return tascaService.create(request);
 	}
 
 	/**
@@ -67,27 +67,7 @@ public class TascaController {
 	 */
 	@GetMapping("/{id}")
 	public ResponseEntity<Tasca> getById(@PathVariable String id) {
-		java.util.Optional<Tasca> task = catalog.findTaskById(id);
-		if (task.isPresent()) {
-			return ResponseEntity.ok(task.get());
-		}
-		return catalog.findIncidenciaById(id)
-			.map(inc -> new Tasca(
-				inc.id(),
-				inc.titol(),
-				inc.descripcio(),
-				inc.categoria(),
-				inc.clientId(),
-				inc.clientNom(),
-				null,
-				null,
-				null,
-				inc.budget(),
-				inc.estat(),
-				"incidencia",
-				null,
-				null
-			))
+		return tascaService.findTaskOrIncidenciaById(id)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -100,7 +80,7 @@ public class TascaController {
 	 */
 	@GetMapping("/client/{clientNom}")
 	public List<Tasca> listByClient(@PathVariable String clientNom) {
-		return catalog.findTasksByClient(clientNom);
+		return tascaService.listByClient(clientNom);
 	}
 
 	/**
@@ -111,7 +91,7 @@ public class TascaController {
 	 */
 	@GetMapping("/professional/{professionalNom}")
 	public List<Tasca> listByProfessional(@PathVariable String professionalNom) {
-		return catalog.findTasksByProfessional(professionalNom);
+		return tascaService.listByProfessional(professionalNom);
 	}
 
 	/**
@@ -125,11 +105,11 @@ public class TascaController {
 	@PostMapping("/{id}/finalitzar")
 	public ResponseEntity<Tasca> markAsCompleted(
 		@PathVariable String id,
-		@RequestBody(required = false) com.avisa.dto.FinalitzarTascaRequest body
+		@RequestBody(required = false) FinalitzarTascaRequest body
 	) {
 		Integer valoracio = body != null ? body.valoracio() : null;
 		String opinio = body != null ? body.opinio() : null;
-		return catalog.completeTask(id, valoracio, opinio)
+		return tascaService.completeWithReview(id, valoracio, opinio)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -144,9 +124,9 @@ public class TascaController {
 	@PostMapping("/{id}/avaluar")
 	public ResponseEntity<?> evaluateTask(
 		@PathVariable String id,
-		@RequestBody com.avisa.dto.FinalitzarTascaRequest body
+		@RequestBody FinalitzarTascaRequest body
 	) {
-		java.util.Optional<Tasca> taskOpt = catalog.findTaskById(id);
+		Optional<Tasca> taskOpt = tascaService.findById(id);
 		if (taskOpt.isEmpty()) {
 			return ResponseEntity.notFound().build();
 		}
@@ -164,7 +144,7 @@ public class TascaController {
 			return ResponseEntity.badRequest().body("La valoració ha de ser entre 1 i 5 estrelles.");
 		}
 		String opinio = body != null ? body.opinio() : null;
-		return catalog.completeTask(id, valoracio, opinio)
+		return tascaService.completeWithReview(id, valoracio, opinio)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -177,35 +157,7 @@ public class TascaController {
 	 */
 	@GetMapping("/disponibles")
 	public List<Tasca> listAvailable() {
-		List<Tasca> result = new java.util.ArrayList<>();
-		// 1. Incidències obertes creades per clients (demandes pendents de pressupost)
-		catalog.incidencies().stream()
-			.filter(inc -> inc.estat() == null || "Oberta".equalsIgnoreCase(inc.estat()))
-			.map(inc -> new Tasca(
-				inc.id(),
-				inc.titol(),
-				inc.descripcio(),
-				inc.categoria(),
-				inc.clientId(),
-				inc.clientNom(),
-				null,
-				null,
-				null,
-				inc.budget(),
-				inc.estat() != null ? inc.estat() : "Oberta",
-				"incidencia",
-				null,
-				null
-			))
-			.forEach(result::add);
-
-		// 2. Tasques obertes de la taula tasques
-		catalog.tasks().stream()
-			.filter(t -> "Oberta".equalsIgnoreCase(t.estat()))
-			.filter(t -> result.stream().noneMatch(existing -> existing.id().equals(t.id())))
-			.forEach(result::add);
-
-		return result;
+		return tascaService.listAvailable();
 	}
 
 	/**
@@ -216,9 +168,7 @@ public class TascaController {
 	 */
 	@GetMapping("/categoria/{categoria}")
 	public List<Tasca> listByCategory(@PathVariable String categoria) {
-		return catalog.tasks().stream()
-			.filter(t -> t.categoria() != null && t.categoria().equalsIgnoreCase(categoria))
-			.toList();
+		return tascaService.listByCategory(categoria);
 	}
 
 	/**
@@ -229,7 +179,7 @@ public class TascaController {
 	 */
 	@DeleteMapping("/{id}")
 	public ResponseEntity<Void> delete(@PathVariable String id) {
-		catalog.deleteTask(id);
+		tascaService.delete(id);
 		return ResponseEntity.noContent().build();
 	}
 }

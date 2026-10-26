@@ -2,7 +2,7 @@ package com.avisa.controller;
 
 import com.avisa.dto.IncidenciaRequest;
 import com.avisa.model.Incidencia;
-import com.avisa.service.InMemoryCatalog;
+import com.avisa.service.IncidenciaService;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -23,10 +23,10 @@ import org.springframework.web.bind.annotation.RestController;
 @CrossOrigin(originPatterns = "*")
 public class IncidenciaController {
 
-	private final InMemoryCatalog catalog;
+	private final IncidenciaService incidenciaService;
 
-	public IncidenciaController(InMemoryCatalog catalog) {
-		this.catalog = catalog;
+	public IncidenciaController(IncidenciaService incidenciaService) {
+		this.incidenciaService = incidenciaService;
 	}
 
 	/**
@@ -36,7 +36,7 @@ public class IncidenciaController {
 	 */
 	@GetMapping
 	public List<Incidencia> list() {
-		return catalog.incidencies();
+		return incidenciaService.list();
 	}
 
 	/**
@@ -47,7 +47,7 @@ public class IncidenciaController {
 	 */
 	@GetMapping("/{id}")
 	public ResponseEntity<Incidencia> getById(@PathVariable String id) {
-		return catalog.findIncidenciaById(id)
+		return incidenciaService.findById(id)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -60,7 +60,7 @@ public class IncidenciaController {
 	 */
 	@GetMapping("/client/{clientNom}")
 	public List<Incidencia> listByClient(@PathVariable String clientNom) {
-		return catalog.findIncidenciesByClient(clientNom);
+		return incidenciaService.listByClient(clientNom);
 	}
 
 	/**
@@ -71,7 +71,7 @@ public class IncidenciaController {
 	 */
 	@PostMapping
 	public Incidencia create(@RequestBody IncidenciaRequest request) {
-		return catalog.addIncidencia(request);
+		return incidenciaService.create(request);
 	}
 
 	/**
@@ -82,8 +82,7 @@ public class IncidenciaController {
 	 */
 	@DeleteMapping("/{id}")
 	public ResponseEntity<Void> delete(@PathVariable String id) {
-		catalog.deleteIncidencia(id);
+		incidenciaService.delete(id);
 		return ResponseEntity.noContent().build();
 	}
 }
-

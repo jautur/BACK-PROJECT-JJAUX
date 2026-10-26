@@ -15,6 +15,9 @@ import jakarta.validation.constraints.Min;
  * @param bio Biografia o descripció d'habilitats
  * @param percentil Percentil de comissió reservat per a la plataforma (0 a 100, per defecte 3)
  * @param token Token JWT generat per OAuth2 Resource Server
+ * @param verificat Indica si el professional està verificat oficialment per trucada
+ * @param sollicitudVerificacio Indica si hi ha una sol·licitud de verificació pendent
+ * @param foto URL o imatge de fons per a la targeta de recomanació del professional
  */
 public record Usuari(
 	String id,
@@ -28,25 +31,34 @@ public record Usuari(
 	Integer percentil,
 	String token,
 	Boolean verificat,
-	Boolean sollicitudVerificacio
+	Boolean sollicitudVerificacio,
+	String foto
 ) {
+	public Usuari(String id, String nom, String email, String rol, String telefon, String bio, Integer percentil, String token, Boolean verificat, Boolean sollicitudVerificacio) {
+		this(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, null);
+	}
+
 	public Usuari(String id, String nom, String email, String rol, String telefon, String bio, Integer percentil, String token) {
-		this(id, nom, email, rol, telefon, bio, percentil, token, false, false);
+		this(id, nom, email, rol, telefon, bio, percentil, token, false, false, null);
 	}
 
 	public Usuari(String id, String nom, String email, String rol, String telefon, String bio, Integer percentil) {
-		this(id, nom, email, rol, telefon, bio, percentil, null, false, false);
+		this(id, nom, email, rol, telefon, bio, percentil, null, false, false, null);
 	}
 
 	public Usuari(String id, String nom, String email, String rol, String telefon, String bio) {
-		this(id, nom, email, rol, telefon, bio, 3, null, false, false);
+		this(id, nom, email, rol, telefon, bio, 3, null, false, false, null);
 	}
 
 	public Usuari withToken(String token) {
-		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio);
+		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, foto);
 	}
 
 	public Usuari withVerification(Boolean verificat, Boolean sollicitudVerificacio) {
-		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio);
+		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, foto);
+	}
+
+	public Usuari withFoto(String foto) {
+		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, foto);
 	}
 }

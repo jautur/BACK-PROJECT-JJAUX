@@ -3,7 +3,7 @@ package com.avisa.controller;
 import com.avisa.dto.OfertaRequest;
 import com.avisa.model.Oferta;
 import com.avisa.model.Tasca;
-import com.avisa.service.InMemoryCatalog;
+import com.avisa.service.OfertaService;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
@@ -27,10 +27,10 @@ import org.springframework.web.bind.annotation.RestController;
 @CrossOrigin(originPatterns = "*")
 public class OfertaController {
 
-	private final InMemoryCatalog catalog;
+	private final OfertaService ofertaService;
 
-	public OfertaController(InMemoryCatalog catalog) {
-		this.catalog = catalog;
+	public OfertaController(OfertaService ofertaService) {
+		this.ofertaService = ofertaService;
 	}
 
 	/**
@@ -40,7 +40,7 @@ public class OfertaController {
 	 */
 	@GetMapping
 	public List<Oferta> list() {
-		return catalog.offers();
+		return ofertaService.list();
 	}
 
 	/**
@@ -52,7 +52,7 @@ public class OfertaController {
 	 */
 	@PostMapping
 	public Oferta create(@RequestBody OfertaRequest request) {
-		return catalog.addOffer(request);
+		return ofertaService.create(request);
 	}
 
 	/**
@@ -64,7 +64,7 @@ public class OfertaController {
 	 */
 	@GetMapping("/tasca/{tascaId}")
 	public List<Oferta> listByTasca(@PathVariable String tascaId) {
-		return catalog.findOffersByTasca(tascaId);
+		return ofertaService.listByTasca(tascaId);
 	}
 
 	/**
@@ -75,7 +75,7 @@ public class OfertaController {
 	 */
 	@GetMapping("/{id}")
 	public ResponseEntity<Oferta> getById(@PathVariable String id) {
-		return catalog.findOfferById(id)
+		return ofertaService.findById(id)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -89,9 +89,7 @@ public class OfertaController {
 	 */
 	@GetMapping("/professional/{professionalNom}")
 	public List<Oferta> listByProfessional(@PathVariable String professionalNom) {
-		return catalog.offers().stream()
-			.filter(o -> o.professional() != null && o.professional().equalsIgnoreCase(professionalNom))
-			.toList();
+		return ofertaService.listByProfessional(professionalNom);
 	}
 
 	/**
@@ -104,7 +102,7 @@ public class OfertaController {
 	 */
 	@PostMapping("/{id}/acceptar")
 	public ResponseEntity<Oferta> acceptOffer(@PathVariable String id) {
-		return catalog.acceptOffer(id)
+		return ofertaService.accept(id)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -121,7 +119,7 @@ public class OfertaController {
 		String clientNom = (body != null && body.get("clientNom") != null && !body.get("clientNom").isBlank())
 			? body.get("clientNom")
 			: "Client AVISA";
-		return catalog.convertOfferToTask(id, clientNom)
+		return ofertaService.contractDirect(id, clientNom)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -134,7 +132,7 @@ public class OfertaController {
 	 */
 	@PostMapping("/{id}/rebutjar")
 	public ResponseEntity<Void> rejectOffer(@PathVariable String id) {
-		catalog.deleteOffer(id);
+		ofertaService.delete(id);
 		return ResponseEntity.noContent().build();
 	}
 
@@ -146,7 +144,7 @@ public class OfertaController {
 	 */
 	@DeleteMapping("/{id}")
 	public ResponseEntity<Void> deleteOffer(@PathVariable String id) {
-		catalog.deleteOffer(id);
+		ofertaService.delete(id);
 		return ResponseEntity.noContent().build();
 	}
 }

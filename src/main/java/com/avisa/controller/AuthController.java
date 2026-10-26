@@ -1,11 +1,13 @@
 package com.avisa.controller;
 
-import com.avisa.config.JwtService;
+import com.avisa.dto.DemanaRecuperacioRequest;
 import com.avisa.dto.LoginRequest;
 import com.avisa.dto.PasswordChangeRequest;
+import com.avisa.dto.RecuperacioResponse;
 import com.avisa.dto.RegisterRequest;
+import com.avisa.dto.RestablirContrasenyaRequest;
 import com.avisa.model.Usuari;
-import com.avisa.service.InMemoryCatalog;
+import com.avisa.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -19,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Controlador d'Autenticació i Gestió de Sessions (/api/auth).
- * Centralitza el login, registre, sessió actual i canvi de contrasenya.
+ * Centralitza el login, registre, sessió actual i canvi de contrasenya delegant en AuthService.
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -27,12 +29,10 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Autenticació", description = "Endpoints d'inici de sessió, registre, obtenció de JWT i canvi de contrasenya")
 public class AuthController {
 
-	private final InMemoryCatalog catalog;
-	private final JwtService jwtService;
+	private final AuthService authService;
 
-	public AuthController(InMemoryCatalog catalog, JwtService jwtService) {
-		this.catalog = catalog;
-		this.jwtService = jwtService;
+	public AuthController(AuthService authService) {
+		this.authService = authService;
 	}
 
 	/**
@@ -43,7 +43,7 @@ public class AuthController {
 	@GetMapping("/me")
 	@Operation(summary = "Obtenir usuari actual", description = "Retorna l'usuari actiu de la sessió")
 	public ResponseEntity<Usuari> me() {
-		return catalog.users().stream().findFirst()
+		return authService.getActiveUser()
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -58,11 +58,8 @@ public class AuthController {
 	@PostMapping("/login")
 	@Operation(summary = "Iniciar sessió", description = "Autentica les credencials i retorna l'usuari amb el token JWT Bearer")
 	public ResponseEntity<Usuari> login(@Valid @RequestBody LoginRequest request) {
-		return catalog.authenticate(request.email(), request.password())
-			.map(u -> {
-				String token = jwtService.generateToken(u.id(), u.email(), u.rol());
-				return ResponseEntity.ok(u.withToken(token));
-			})
+		return authService.login(request)
+			.map(ResponseEntity::ok)
 			.orElseGet(() -> ResponseEntity.status(401).build());
 	}
 
@@ -76,9 +73,8 @@ public class AuthController {
 	@PostMapping("/register")
 	@Operation(summary = "Registrar nou compte", description = "Crea un nou compte d'usuari i retorna el token JWT")
 	public ResponseEntity<Usuari> register(@Valid @RequestBody RegisterRequest request) {
-		Usuari created = catalog.addUser(request);
-		String token = jwtService.generateToken(created.id(), created.email(), created.rol());
-		return ResponseEntity.ok(created.withToken(token));
+		Usuari created = authService.register(request);
+		return ResponseEntity.ok(created);
 	}
 
 	/**
@@ -106,7 +102,36 @@ public class AuthController {
 		if (request.newPassword() == null || request.newPassword().trim().length() < 6) {
 			return ResponseEntity.badRequest().body("La nova contrasenya ha de tenir com a mínim 6 caràcters.");
 		}
-		catalog.changePassword(request.userId(), request.newPassword().trim());
+		authService.changePassword(request.userId(), request.newPassword().trim());
 		return ResponseEntity.ok("Contrasenya actualitzada correctament.");
+	}
+
+	/**
+	 * Sol·licita la recuperació de contrasenya generant un codi temporal de 6 dígits (OTP).
+	 * Endpoint: POST /api/auth/demanar-recuperacio
+	 * @param request Dades amb el correu o nom d'usuari
+	 * @return Resposta amb l'estat i el missatge
+	 */
+	@PostMapping("/demanar-recuperacio")
+	@Operation(summary = "Demanar recuperació de contrasenya", description = "Genera un codi de recuperació de 6 dígits vàlid durant 15 minuts")
+	public ResponseEntity<RecuperacioResponse> demanarRecuperacio(@Valid @RequestBody DemanaRecuperacioRequest request) {
+		RecuperacioResponse resp = authService.sollicitarRecuperacio(request);
+		return ResponseEntity.ok(resp);
+	}
+
+	/**
+	 * Restableix la contrasenya validant el codi temporal d'un sol ús.
+	 * Endpoint: POST /api/auth/restablir-contrasenya
+	 * @param request Dades amb el correu/usuari, codi i nova contrasenya
+	 * @return Resposta amb l'estat de l'actualització
+	 */
+	@PostMapping("/restablir-contrasenya")
+	@Operation(summary = "Restablir contrasenya amb codi", description = "Valida el codi temporal i assigna la nova contrasenya")
+	public ResponseEntity<RecuperacioResponse> restablirContrasenya(@Valid @RequestBody RestablirContrasenyaRequest request) {
+		RecuperacioResponse resp = authService.restablirContrasenya(request);
+		if (!resp.success()) {
+			return ResponseEntity.badRequest().body(resp);
+		}
+		return ResponseEntity.ok(resp);
 	}
 }
