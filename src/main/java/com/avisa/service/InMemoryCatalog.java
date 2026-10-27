@@ -91,6 +91,14 @@ public class InMemoryCatalog {
 				"duracio_estimada VARCHAR(100), " +
 				"data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
 			);
+			jdbcTemplate.execute(
+				"CREATE TABLE IF NOT EXISTS blacklist_telefons (" +
+				"id VARCHAR(100) PRIMARY KEY, " +
+				"telefon VARCHAR(50) UNIQUE NOT NULL, " +
+				"motiu TEXT, " +
+				"bloquejat_per VARCHAR(100) DEFAULT 'admin', " +
+				"created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+			);
 		} catch (Exception ignored) {}
 	}
 

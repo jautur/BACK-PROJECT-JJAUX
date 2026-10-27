@@ -9,16 +9,37 @@ set -e
 
 export PATH="/c/Program Files/nodejs:/mnt/c/Program Files/nodejs:/c/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot/bin:/mnt/c/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot/bin:/c/Program Files/PostgreSQL/18/bin:/mnt/c/Program Files/PostgreSQL/18/bin:$PATH"
 
+# Suport per a flags de reconstrucció manual
+FORCE_REBUILD=false
+if [ "$1" = "--rebuild" ] || [ "$1" = "-f" ] || [ "$1" = "--force" ]; then
+    FORCE_REBUILD=true
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -d "${SCRIPT_DIR}/../FRONT-PROJECT-JJAUX" ]; then
+DIR_NAME="$(basename "${SCRIPT_DIR}")"
+
+if [ "$DIR_NAME" = "BACK-PROJECT-JJAUX" ]; then
     BACK_DIR="${SCRIPT_DIR}"
-    FRONT_DIR="$(cd "${SCRIPT_DIR}/../FRONT-PROJECT-JJAUX" && pwd)"
-elif [ -d "${SCRIPT_DIR}/BACK-PROJECT-JJAUX" ]; then
-    BACK_DIR="$(cd "${SCRIPT_DIR}/BACK-PROJECT-JJAUX" && pwd)"
-    FRONT_DIR="$(cd "${SCRIPT_DIR}/FRONT-PROJECT-JJAUX" && pwd)"
+    if [ -d "${SCRIPT_DIR}/../FRONT-PROJECT-JJAUX" ]; then
+        FRONT_DIR="$(cd "${SCRIPT_DIR}/../FRONT-PROJECT-JJAUX" && pwd)"
+    else
+        FRONT_DIR="/c/Users/User/Desktop/FRONT-PROJECT-JJAUX"
+    fi
+elif [ "$DIR_NAME" = "FRONT-PROJECT-JJAUX" ]; then
+    FRONT_DIR="${SCRIPT_DIR}"
+    if [ -d "${SCRIPT_DIR}/../BACK-PROJECT-JJAUX" ]; then
+        BACK_DIR="$(cd "${SCRIPT_DIR}/../BACK-PROJECT-JJAUX" && pwd)"
+    else
+        BACK_DIR="/c/Users/User/Desktop/BACK-PROJECT-JJAUX"
+    fi
 else
-    FRONT_DIR="/c/Users/User/Desktop/FRONT-PROJECT-JJAUX"
-    BACK_DIR="/c/Users/User/Desktop/BACK-PROJECT-JJAUX"
+    if [ -d "${SCRIPT_DIR}/FRONT-PROJECT-JJAUX" ] && [ -d "${SCRIPT_DIR}/BACK-PROJECT-JJAUX" ]; then
+        FRONT_DIR="$(cd "${SCRIPT_DIR}/FRONT-PROJECT-JJAUX" && pwd)"
+        BACK_DIR="$(cd "${SCRIPT_DIR}/BACK-PROJECT-JJAUX" && pwd)"
+    else
+        FRONT_DIR="/c/Users/User/Desktop/FRONT-PROJECT-JJAUX"
+        BACK_DIR="/c/Users/User/Desktop/BACK-PROJECT-JJAUX"
+    fi
 fi
 
 to_win_path() {
@@ -39,7 +60,7 @@ echo "=========================================================="
 free_port() {
     local port="$1"
     if command -v netstat >/dev/null 2>&1; then
-        local pids=$(netstat -ano 2>/dev/null | grep ":${port} " | awk '{print $5}' | sort -u | grep -v '^0$' || true)
+        local pids=$(netstat -ano 2>/dev/null | grep ":${port} " | awk '{print $5}' | tr -d '\r' | sort -u | grep -v '^0$' || true)
         for p in $pids; do
             taskkill //F //PID "$p" >/dev/null 2>&1 || true
         done
@@ -67,14 +88,27 @@ fi
 echo -e "\n[2/4] Comprovant Backend Spring Boot..."
 JAR_FILE="${BACK_DIR}/target/jjaux-back-0.0.1-SNAPSHOT.jar"
 WIN_JAR_FILE="${BACK_WIN}\\target\\jjaux-back-0.0.1-SNAPSHOT.jar"
+REBUILD_BACKEND=false
 
-if [ ! -f "${JAR_FILE}" ]; then
-    echo "  -> Compilant el backend amb Maven..."
-    cd "${BACK_DIR}"
-    cmd.exe /c "mvnw.cmd package -DskipTests" || ./mvnw package -DskipTests
+if [ "$FORCE_REBUILD" = "true" ] || [ ! -f "${JAR_FILE}" ]; then
+    REBUILD_BACKEND=true
+elif [ -n "$(cd "${BACK_DIR}" && find src pom.xml -newer "${JAR_FILE}" 2>/dev/null | head -n 1)" ]; then
+    echo "  -> Canvis detectats al codi del Backend."
+    REBUILD_BACKEND=true
 fi
 
-if curl -s -o /dev/null http://localhost:8080/api/dashboard 2>/dev/null; then
+if [ "$REBUILD_BACKEND" = "true" ]; then
+    free_port 8080
+    echo "  -> Compilant el backend amb Maven..."
+    cd "${BACK_DIR}"
+    if [ -f "./mvnw.cmd" ]; then
+        ./mvnw.cmd package -DskipTests
+    else
+        ./mvnw package -DskipTests
+    fi
+fi
+
+if [ "$REBUILD_BACKEND" = "false" ] && curl -s -o /dev/null http://localhost:8080/api/dashboard 2>/dev/null; then
     echo "  -> Backend ja està responent a http://localhost:8080"
 else
     echo "  -> Engegant Spring Boot en segon pla..."
@@ -97,15 +131,30 @@ fi
 
 # 3. Frontend Angular
 echo -e "\n[3/4] Comprovant Frontend Angular (Port 4300)..."
-if curl -s -o /dev/null http://localhost:4300 2>/dev/null; then
+DIST_INDEX="${FRONT_DIR}/dist/front-project-jjaux-1/browser/index.html"
+REBUILD_FRONTEND=false
+
+if [ "$FORCE_REBUILD" = "true" ] || [ ! -f "${DIST_INDEX}" ]; then
+    REBUILD_FRONTEND=true
+elif [ -n "$(cd "${FRONT_DIR}" && find src package.json -newer "${DIST_INDEX}" 2>/dev/null | head -n 1)" ]; then
+    echo "  -> Canvis detectats al codi del Frontend."
+    REBUILD_FRONTEND=true
+fi
+
+if [ "$REBUILD_FRONTEND" = "true" ]; then
+    free_port 4300
+    echo "  -> Compilant aplicació Angular..."
+    cd "${FRONT_DIR}"
+    if command -v npm.cmd >/dev/null 2>&1; then
+        npm.cmd run build
+    else
+        npm run build
+    fi
+fi
+
+if [ "$REBUILD_FRONTEND" = "false" ] && curl -s -o /dev/null http://localhost:4300 2>/dev/null; then
     echo "  -> Frontend ja està servint a 0.0.0.0:4300"
 else
-    if [ ! -d "${FRONT_DIR}/dist/front-project-jjaux-1/browser" ]; then
-        echo "  -> Compilant aplicació Angular..."
-        cd "${FRONT_DIR}"
-        cmd.exe /c "npm run build" || npm run build
-    fi
-
     echo "  -> Engegant servidor web del Frontend (port 4300 per a xarxa local)..."
     free_port 4300
     cd "${FRONT_DIR}"
@@ -132,4 +181,3 @@ echo " Escaneja el codi QR amb la càmera del mòbil."
 echo " Per aturar-los en qualsevol moment: ./casa_aturar.sh"
 echo "=========================================================="
 read -rp " Prem [ENTER] quan hagis escanejat el codi QR per alliberar la terminal..."
-
