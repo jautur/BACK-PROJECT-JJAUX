@@ -47,6 +47,12 @@ public class UsuariEntity {
 	@Column(name = "foto", columnDefinition = "TEXT")
 	private String foto;
 
+	@Column(name = "foto_perfil", columnDefinition = "TEXT")
+	private String fotoPerfil;
+
+	@Column(name = "logo", columnDefinition = "TEXT")
+	private String logo;
+
 	@Column(name = "created_at")
 	private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -102,6 +108,12 @@ public class UsuariEntity {
 
 	public String getFoto() { return foto; }
 	public void setFoto(String foto) { this.foto = foto; }
+
+	public String getFotoPerfil() { return fotoPerfil; }
+	public void setFotoPerfil(String fotoPerfil) { this.fotoPerfil = fotoPerfil; }
+
+	public String getLogo() { return logo; }
+	public void setLogo(String logo) { this.logo = logo; }
 
 	public LocalDateTime getCreatedAt() { return createdAt; }
 	public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

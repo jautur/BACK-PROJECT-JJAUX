@@ -37,79 +37,115 @@ public class DemoDataSeeder implements ApplicationRunner {
 		upsertUser("u-admin", "Administrador General", "admin@admin.es", "adminadmin", "admin", "960000000", "Administrador de la plataforma comunitària AVISA.", 3, true, false);
 
 		// Usuaris base de proves
-		upsertUser("u-cli", "cli", "cli", "clicli", "client", "600111222", "Compte client de proves per a creació d'incidències.", 3, false, false);
-		upsertUser("u-pro", "pro", "pro", "propro", "professional", "000444555", "Compte professional de proves per a pressupostos i ofertes.", 3, true, false);
-
-		// Professionals especialitzats amb distintiu oficial verificat
 		upsertUser(
-			"u-pro-vicent",
-			"Vicent Fontanals (Lampisteria)",
-			"vicent@prof.es",
+			"u-cli", "cli", "cli", "clicli", "client", "600111222",
+			"Compte client de proves per a creació d'incidències.", 3, false, false
+		);
+		upsertUser(
+			"u-pro", "Llevant Reformes & Obres Integrals S.L.", "pro", "propro", "professional", "963778899",
+			"Empresa constructora homologada per a reformes integrals de vivendes i locals comercials. Projectes clau en mà amb direcció facultativa, paletes, enrajolats i coordinació de gremis.",
+			4, true, false,
+			"https://images.unsplash.com/photo-1541888946425-d0fbb186156f?w=800&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1497366216548-37526070297c?w=300&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1541888946425-d0fbb186156f?w=800&auto=format&fit=crop&q=80"
+		);
+
+		// Empreses professionals homologades amb distintiu oficial verificat, foto de perfil (isotip) i logo (fons targeta)
+		upsertUser(
+			"u-pro-fontanals",
+			"Fontanals Lampisteria & Climatització S.L.",
+			"contacte@fontanals.es",
 			"123456",
 			"professional",
-			"611223344",
-			"Més de 15 anys d'experiència en reparació de canonades, descalcificadors, termos i calderes. Servei urgent 24h a València i comarques.",
+			"963112233",
+			"Empresa líder en lampisteria urgent 24h, reparació de canonades, descalcificadors, termos elèctrics i calderes a València i àrea metropolitana. Més de 15 anys de garantia i resposta immediata.",
 			5,
 			true,
 			false,
+			"https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=800&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=300&auto=format&fit=crop&q=80",
 			"https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=800&auto=format&fit=crop&q=80"
 		);
 
 		upsertUser(
-			"u-pro-elena",
-			"Elena Martínez (Electricitat)",
-			"elena@prof.es",
+			"u-pro-electromartinez",
+			"ElectroMartínez Instal·lacions Elèctriques S.L.",
+			"info@electromartinez.es",
 			"123456",
 			"professional",
-			"622334455",
-			"Instal·lacions elèctriques autoritzades d'alta i baixa tensió, butlletins oficials, il·luminació LED i panells solars.",
+			"963223344",
+			"Enginyeria i muntatges elèctrics autoritzats. Quadres industrials, domòtica domèstica, panells solars fotovoltaics, butlletins oficials i punts de recàrrega de vehicles elèctrics.",
 			4,
 			true,
 			false,
+			"https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=300&auto=format&fit=crop&q=80",
 			"https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&auto=format&fit=crop&q=80"
 		);
 
 		upsertUser(
-			"u-pro-marc",
-			"Marc Soler (Pintura i Decoració)",
-			"marc@prof.es",
+			"u-pro-solerpintures",
+			"Soler Pintura & Alta Decoració S.L.",
+			"info@solerpintura.es",
 			"123456",
 			"professional",
-			"633445566",
-			"Pintor professional d'interiors i exteriors. Allisat de gotelé, pintura plàstica ecològica i impermeabilització de terrasses.",
+			"963334455",
+			"Empresa familiar amb 25 anys d'experiència en alta decoració, pintura plàstica ecològica, allisats de parets, microciment continu i impermeabilització de façanes i terrasses.",
 			4,
 			true,
 			false,
+			"https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=800&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1572021335469-31706a17aaef?w=300&auto=format&fit=crop&q=80",
 			"https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=800&auto=format&fit=crop&q=80"
 		);
 
 		upsertUser(
-			"u-pro-laura",
-			"Laura Beneyto (Climatització)",
-			"laura@prof.es",
+			"u-pro-climabeneyto",
+			"ClimaBeneyto Climatització & Aerotèrmia S.L.",
+			"serveis@climabeneyto.es",
 			"123456",
 			"professional",
-			"655667788",
-			"Tècnica especialista en climatització, aerotèrmia, càrregues de gas i manteniment d'equips industrials i domèstics.",
+			"963556677",
+			"Servei tècnic oficial multimarca. Instal·lació i manteniment d'aire condicionat, bombes de calor aerotèrmiques d'alta eficiència A+++, terra radiant i sistemes de ventilació mecànica.",
 			5,
 			true,
 			false,
+			"https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=800&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=300&auto=format&fit=crop&q=80",
 			"https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=800&auto=format&fit=crop&q=80"
 		);
 
-		// Professional amb sol·licitud de verificació pendent de trucada
+		// Empresa professional amb sol·licitud de verificació pendent de trucada
 		upsertUser(
-			"u-pro-carles",
-			"Carles Ribes (Fusteria)",
-			"carles@prof.es",
+			"u-pro-fusteriaribes",
+			"Fusteria Artesana Ribes & Fills S.L.",
+			"tallers@fusteriaribes.es",
 			"123456",
 			"professional",
-			"644556677",
-			"Fuster artesà. Fabricació i muntatge de cuines, portes, armaris encastats i terres laminats. Pressupostos sense compromís.",
+			"963667788",
+			"Fusteria a mida i ebenisteria arquitectònica. Fabricació pròpia de cuines de disseny, portes acústiques, vestidors integrats i restauració de fustes nobles per a vivendes i negocis.",
 			3,
 			false,
 			true,
+			"https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1513694203232-719a280e022f?w=300&auto=format&fit=crop&q=80",
 			"https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80"
+		);
+
+		upsertUser(
+			"u-pro-llevant",
+			"Llevant Reformes & Obres Integrals S.L.",
+			"projectes@llevantreformes.es",
+			"123456",
+			"professional",
+			"963778899",
+			"Empresa constructora homologada per a reformes integrals de vivendes i locals comercials. Projectes clau en mà amb direcció facultativa, paletes, enrajolats i coordinació de gremis.",
+			4,
+			true,
+			false,
+			"https://images.unsplash.com/photo-1541888946425-d0fbb186156f?w=800&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1497366216548-37526070297c?w=300&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1541888946425-d0fbb186156f?w=800&auto=format&fit=crop&q=80"
 		);
 
 		// Clients particulars de la comunitat
@@ -119,10 +155,14 @@ public class DemoDataSeeder implements ApplicationRunner {
 	}
 
 	private void upsertUser(String id, String nom, String email, String password, String rol, String telefon, String bio, int percentil, boolean verificat, boolean sollicitudVerificacio) {
-		upsertUser(id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, null);
+		upsertUser(id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, null, null, null);
 	}
 
 	private void upsertUser(String id, String nom, String email, String password, String rol, String telefon, String bio, int percentil, boolean verificat, boolean sollicitudVerificacio, String foto) {
+		upsertUser(id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, foto, null, foto);
+	}
+
+	private void upsertUser(String id, String nom, String email, String password, String rol, String telefon, String bio, int percentil, boolean verificat, boolean sollicitudVerificacio, String foto, String fotoPerfil, String logo) {
 		try {
 			Integer exists = jdbcTemplate.queryForObject(
 				"SELECT COUNT(*) FROM usuaris WHERE LOWER(email) = LOWER(?) OR LOWER(nom) = LOWER(?) OR id = ?",
@@ -130,13 +170,13 @@ public class DemoDataSeeder implements ApplicationRunner {
 			);
 			if (exists != null && exists > 0) {
 				jdbcTemplate.update(
-					"UPDATE usuaris SET nom = ?, email = ?, password = ?, rol = ?, telefon = ?, bio = ?, percentil = ?, verificat = ?, sollicitud_verificacio = ?, foto = COALESCE(?, foto) WHERE LOWER(email) = LOWER(?) OR LOWER(nom) = LOWER(?) OR id = ?",
-					nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, foto, email, nom, id
+					"UPDATE usuaris SET nom = ?, email = ?, password = ?, rol = ?, telefon = ?, bio = ?, percentil = ?, verificat = ?, sollicitud_verificacio = ?, foto = COALESCE(?, foto), foto_perfil = COALESCE(?, foto_perfil), logo = COALESCE(?, logo) WHERE LOWER(email) = LOWER(?) OR LOWER(nom) = LOWER(?) OR id = ?",
+					nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, foto, fotoPerfil, logo, email, nom, id
 				);
 			} else {
 				jdbcTemplate.update(
-					"INSERT INTO usuaris (id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitud_verificacio, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-					id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, foto
+					"INSERT INTO usuaris (id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitud_verificacio, foto, foto_perfil, logo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					id, nom, email, password, rol, telefon, bio, percentil, verificat, sollicitudVerificacio, foto, fotoPerfil, logo
 				);
 			}
 		} catch (Exception ignored) {}
@@ -148,8 +188,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 	private void seedOfertes() {
 		upsertOferta(
 			"O-101",
-			"u-pro-vicent",
-			"Vicent Fontanals (Lampisteria)",
+			"u-pro-fontanals",
+			"Fontanals Lampisteria & Climatització S.L.",
 			"lampisteria",
 			"45€ / hora",
 			"Reparació urgent de fuites d'aigua, desbussament d'aigüeres, canvi d'aixetes i manteniment de calderes. Arribada en menys de 45 minuts."
@@ -157,8 +197,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 
 		upsertOferta(
 			"O-102",
-			"u-pro-elena",
-			"Elena Martínez (Electricitat)",
+			"u-pro-electromartinez",
+			"ElectroMartínez Instal·lacions Elèctriques S.L.",
 			"electricitat",
 			"60€",
 			"Diagnòstic de curtcircuits, canvi de diferencials i revisió reglamentària del quadre elèctric amb garantia oficial."
@@ -166,8 +206,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 
 		upsertOferta(
 			"O-103",
-			"u-pro-marc",
-			"Marc Soler (Pintura i Decoració)",
+			"u-pro-solerpintures",
+			"Soler Pintura & Alta Decoració S.L.",
 			"pintura",
 			"350€",
 			"Pintura completa de saló o habitació amb pintura rentada d'alta cobertura i protecció total de mobles i sòl."
@@ -175,8 +215,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 
 		upsertOferta(
 			"O-104",
-			"u-pro-carles",
-			"Carles Ribes (Fusteria)",
+			"u-pro-fusteriaribes",
+			"Fusteria Artesana Ribes & Fills S.L.",
 			"fusteria",
 			"120€",
 			"Ajustament de portes que freguen, raspallat, canvi de panys de seguretat i reparació de calaixos encallats."
@@ -184,8 +224,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 
 		upsertOferta(
 			"O-105",
-			"u-pro-laura",
-			"Laura Beneyto (Climatització)",
+			"u-pro-climabeneyto",
+			"ClimaBeneyto Climatització & Aerotèrmia S.L.",
 			"climatitzacio",
 			"85€",
 			"Neteja profunda de filtres, desinfecció antibacteriana i revisió de pressió de gas per a equips domèstics d'aire condicionat."
@@ -193,8 +233,8 @@ public class DemoDataSeeder implements ApplicationRunner {
 
 		upsertOferta(
 			"O-106",
-			"u-pro",
-			"pro",
+			"u-pro-llevant",
+			"Llevant Reformes & Obres Integrals S.L.",
 			"reformes",
 			"95€",
 			"Treballs ràpids d'obra menor, enrajolat de zones humides i petites reparacions de paleta per a la llar."
@@ -319,12 +359,12 @@ public class DemoDataSeeder implements ApplicationRunner {
 			"lampisteria",
 			"u-cli-joan",
 			"Joan Navarro",
-			"u-pro-vicent",
-			"Vicent Fontanals (Lampisteria)",
+			"u-pro-fontanals",
+			"Fontanals Lampisteria & Climatització S.L.",
 			"180€",
 			"Finalitzada",
 			5,
-			"Vicent és puntualíssim i molt polit. Va desmuntar el termo vell i va deixar el nou funcionant impecable en dues hores."
+			"L'equip de Fontanals va ser puntualíssim i molt polit. Van desmuntar el termo vell i van deixar el nou funcionant impecable en dues hores."
 		);
 
 		upsertTasca(
@@ -334,12 +374,12 @@ public class DemoDataSeeder implements ApplicationRunner {
 			"electricitat",
 			"u-cli-marta",
 			"Marta Albiol",
-			"u-pro-elena",
-			"Elena Martínez (Electricitat)",
+			"u-pro-electromartinez",
+			"ElectroMartínez Instal·lacions Elèctriques S.L.",
 			"95€",
 			"Finalitzada",
 			5,
-			"Treball impecable! Elena és una gran professional, ens va explicar tot el quadre i va deixar la cuina perfecta."
+			"Treball impecable! ElectroMartínez és una gran empresa, ens van explicar tot el quadre i van deixar la cuina perfecta."
 		);
 
 		upsertTasca(
@@ -349,12 +389,12 @@ public class DemoDataSeeder implements ApplicationRunner {
 			"pintura",
 			"u-cli-pau",
 			"Pau Ferrandis",
-			"u-pro-marc",
-			"Marc Soler (Pintura i Decoració)",
+			"u-pro-solerpintures",
+			"Soler Pintura & Alta Decoració S.L.",
 			"220€",
 			"Finalitzada",
 			4,
-			"Molt bon acabat i pintura d'alta qualitat. Va protegir el terra a la perfecció i va acabar abans del previst."
+			"Molt bon acabat i pintura d'alta qualitat. Van protegir el terra a la perfecció i van acabar abans del previst."
 		);
 
 		upsertTasca(
@@ -364,12 +404,12 @@ public class DemoDataSeeder implements ApplicationRunner {
 			"climatitzacio",
 			"u-cli-joan",
 			"Joan Navarro",
-			"u-pro-laura",
-			"Laura Beneyto (Climatització)",
+			"u-pro-climabeneyto",
+			"ClimaBeneyto Climatització & Aerotèrmia S.L.",
 			"85€",
 			"Finalitzada",
 			5,
-			"Molt ràpida i eficient. Ara l'equip refreda de meravella i fa molt menys soroll que abans."
+			"Molt ràpids i eficients. Ara l'equip refreda de meravella i fa molt menys soroll que abans."
 		);
 
 		upsertTasca(
@@ -380,7 +420,7 @@ public class DemoDataSeeder implements ApplicationRunner {
 			"u-cli",
 			"cli",
 			"u-pro",
-			"pro",
+			"Llevant Reformes & Obres Integrals S.L.",
 			"60€",
 			"En curs",
 			null,
@@ -409,10 +449,10 @@ public class DemoDataSeeder implements ApplicationRunner {
 	// 5. RESSENYES PÚBLIQUES PER ALS MODALS
 	// ==========================================
 	private void seedResenyes() {
-		upsertResenya("RES-101", "u-cli-joan", "Joan Navarro", "u-pro-vicent", "Vicent Fontanals (Lampisteria)", "T-101", 5, "Vicent és puntualíssim i molt polit. Va desmuntar el termo vell i va deixar el nou funcionant impecable en dues hores.");
-		upsertResenya("RES-102", "u-cli-marta", "Marta Albiol", "u-pro-elena", "Elena Martínez (Electricitat)", "T-102", 5, "Treball impecable! Elena és una gran professional, ens va explicar tot el quadre i va deixar la cuina perfecta.");
-		upsertResenya("RES-103", "u-cli-pau", "Pau Ferrandis", "u-pro-marc", "Marc Soler (Pintura i Decoració)", "T-103", 4, "Molt bon acabat i pintura d'alta qualitat. Va protegir el terra a la perfecció i va acabar abans del previst.");
-		upsertResenya("RES-104", "u-cli-joan", "Joan Navarro", "u-pro-laura", "Laura Beneyto (Climatització)", "T-104", 5, "Molt ràpida i eficient. Ara l'equip refreda de meravella i fa molt menys soroll que abans.");
+		upsertResenya("RES-101", "u-cli-joan", "Joan Navarro", "u-pro-fontanals", "Fontanals Lampisteria & Climatització S.L.", "T-101", 5, "L'equip de Fontanals va ser puntualíssim i molt polit. Van desmuntar el termo vell i van deixar el nou funcionant impecable en dues hores.");
+		upsertResenya("RES-102", "u-cli-marta", "Marta Albiol", "u-pro-electromartinez", "ElectroMartínez Instal·lacions Elèctriques S.L.", "T-102", 5, "Treball impecable! ElectroMartínez és una gran empresa, ens van explicar tot el quadre i va deixar la cuina perfecta.");
+		upsertResenya("RES-103", "u-cli-pau", "Pau Ferrandis", "u-pro-solerpintures", "Soler Pintura & Alta Decoració S.L.", "T-103", 4, "Molt bon acabat i pintura d'alta qualitat. Van protegir el terra a la perfecció i van acabar abans del previst.");
+		upsertResenya("RES-104", "u-cli-joan", "Joan Navarro", "u-pro-climabeneyto", "ClimaBeneyto Climatització & Aerotèrmia S.L.", "T-104", 5, "Molt ràpids i eficients. Ara l'equip refreda de meravella i fa molt menys soroll que abans.");
 	}
 
 	private void upsertResenya(String id, String clientId, String clientNom, String treballadorId, String treballadorNom, String tascaId, int puntuacio, String descripcio) {

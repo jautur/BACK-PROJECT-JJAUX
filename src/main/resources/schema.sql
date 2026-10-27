@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS usuaris (
     verificat BOOLEAN DEFAULT FALSE,
     sollicitud_verificacio BOOLEAN DEFAULT FALSE,
     foto TEXT,
+    foto_perfil TEXT,
+    logo TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

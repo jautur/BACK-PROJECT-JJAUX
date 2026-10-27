@@ -132,6 +132,14 @@ public class InMemoryCatalog {
 		try {
 			foto = rs.getString("foto");
 		} catch (java.sql.SQLException ignored) {}
+		String fotoPerfil = null;
+		try {
+			fotoPerfil = rs.getString("foto_perfil");
+		} catch (java.sql.SQLException ignored) {}
+		String logo = null;
+		try {
+			logo = rs.getString("logo");
+		} catch (java.sql.SQLException ignored) {}
 		return new Usuari(
 			rs.getString("id"),
 			rs.getString("nom"),
@@ -143,7 +151,9 @@ public class InMemoryCatalog {
 			null,
 			verificat,
 			sollicitudVerificacio,
-			foto
+			foto,
+			fotoPerfil,
+			logo
 		);
 	}
 
@@ -154,7 +164,7 @@ public class InMemoryCatalog {
 	public List<Usuari> users() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto FROM usuaris ORDER BY created_at",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris ORDER BY created_at",
 				(rs, rowNum) -> mapUsuari(rs)
 			);
 		} catch (Exception e) {
@@ -170,7 +180,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserById(String id) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto FROM usuaris WHERE id = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE id = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
 				(rs, rowNum) -> mapUsuari(rs),
 				id, id, id
 			);
@@ -188,7 +198,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserByEmail(String email) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto FROM usuaris WHERE LOWER(email) = LOWER(?)",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?)",
 				(rs, rowNum) -> mapUsuari(rs),
 				email
 			);
@@ -207,7 +217,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> authenticate(String email, String password) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
+				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
 				(rs, rowNum) -> mapUsuari(rs),
 				email, password, password
 			);
