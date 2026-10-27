@@ -1,0 +1,29 @@
+name: Backend CI - Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Executar suite de tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositori
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Donar permisos d'execució al Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Executar tests automatitzats
+        run: ./mvnw test
