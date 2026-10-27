@@ -148,10 +148,81 @@ public class DemoDataSeeder implements ApplicationRunner {
 			"https://images.unsplash.com/photo-1541888946425-d0fbb186156f?w=800&auto=format&fit=crop&q=80"
 		);
 
-		// Clients particulars de la comunitat
-		upsertUser("u-cli-joan", "Joan Navarro", "joan@client.es", "123456", "client", "666112233", "Client particular resident a l'Horta Sud.", 3, false, false);
-		upsertUser("u-cli-marta", "Marta Albiol", "marta@client.es", "123456", "client", "677223344", "Clienta particular a Gandia.", 3, false, false);
-		upsertUser("u-cli-pau", "Pau Ferrandis", "pau@client.es", "123456", "client", "688334455", "Client particular resident a València.", 3, false, false);
+		upsertUser(
+			"u-pro-serralleriaval",
+			"Serralleria Seguretat València 24H S.L.",
+			"urgencies@serralleriavalencia.com",
+			"123456",
+			"professional",
+			"963778899",
+			"Obertura de portes sense danys en menys de 25 minuts. Instal·lació de bombins antibumping de màxima seguretat, escuts cuirassats i panys invisibles.",
+			5,
+			true,
+			false,
+			"https://images.unsplash.com/photo-1558002038-1055907df827?w=800&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1558002038-1055907df827?w=800&auto=format&fit=crop&q=80"
+		);
+
+		upsertUser(
+			"u-pro-cristalleriaalvent",
+			"Cristalleria & Finestres Alumini Alvent S.L.",
+			"info@alventcristalls.com",
+			"123456",
+			"professional",
+			"963889900",
+			"Fabricació pròpia de finestres de PVC i alumini amb RPT. Doble acristallament Climalit, mampares de bany de vidre temperat i tancaments.",
+			4,
+			true,
+			false,
+			"https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&auto=format&fit=crop&q=80"
+		);
+
+		upsertUser(
+			"u-pro-ecojardi",
+			"EcoJardí Paisatgisme & Manteniment S.L.",
+			"projectes@ecojardi.es",
+			"123456",
+			"professional",
+			"963990011",
+			"Projectes de xerojardineria mediterrània sostenible, gespa artificial d'alta gamma, reg intel·ligent i poda en alçada.",
+			4,
+			true,
+			false,
+			"https://images.unsplash.com/photo-1558904541-efa8c4a08931?w=800&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1558904541-efa8c4a08931?w=800&auto=format&fit=crop&q=80"
+		);
+
+		upsertUser(
+			"u-pro-netegesmaritima",
+			"Neteges Industrials & Desinfeccions Marítima S.L.",
+			"serveis@netegesmaritima.com",
+			"123456",
+			"professional",
+			"963001122",
+			"Empresa homologada per a neteges finals d'obra, higienització de conductes, neteja de comunitats i poliment de terres.",
+			5,
+			true,
+			false,
+			"https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80",
+			"https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&auto=format&fit=crop&q=80"
+		);
+
+		// 10 Clients particulars de la comunitat
+		upsertUser("u-cli-joan", "Joan Albors i Vidal", "joan.albors@gmail.com", "123456", "client", "611223344", "Client particular resident a Russafa (València).", 3, false, false, "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80");
+		upsertUser("u-cli-marta", "Marta Navarro Beltran", "marta.navarro@gmail.com", "123456", "client", "622334455", "Clienta particular resident a Benimaclet.", 3, false, false, "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&auto=format&fit=crop&q=80");
+		upsertUser("u-cli-pau", "Pau Climent Soler", "pau.climent@outlook.com", "123456", "client", "633445566", "Client particular resident a Torrent (Vedat).", 3, false, false, "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=300&auto=format&fit=crop&q=80");
+		upsertUser("u-cli-laura", "Laura Giménez Ortiz", "laura.gimenez@yahoo.es", "123456", "client", "644556677", "Clienta particular resident al Carme (València).", 3, false, false, "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=300&auto=format&fit=crop&q=80");
+		upsertUser("u-cli-andreu", "Andreu Soriano Puig", "andreu.soriano@gmail.com", "123456", "client", "655667788", "Client particular resident a Gandia.", 3, false, false, "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=300&auto=format&fit=crop&q=80");
+		upsertUser("u-cli-silvia", "Sílvia Fuster Montaner", "silvia.fuster@gmail.com", "123456", "client", "666778899", "Clienta particular resident a Alzira.", 3, false, false, "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&auto=format&fit=crop&q=80");
+		upsertUser("u-cli-marc", "Marc Vila Segarra", "marc.vila@hotmail.com", "123456", "client", "677889900", "Client particular resident a Castelló de la Plana.", 3, false, false, "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300&auto=format&fit=crop&q=80");
+		upsertUser("u-cli-carla", "Carla Revert Llopis", "carla.revert@gmail.com", "123456", "client", "688990011", "Clienta particular resident a Alacant.", 3, false, false, "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80");
+		upsertUser("u-cli-voro", "Vicent Barberà Camps", "voro.barbera@gmail.com", "123456", "client", "699001122", "Client particular resident a Paterna.", 3, false, false, "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80");
+		upsertUser("u-cli-elena", "Elena Domènech Sancho", "elena.domenech@gmail.com", "123456", "client", "610112233", "Clienta particular resident a Sagunt.", 3, false, false, "https://images.unsplash.com/photo-1548142813-c348350df52b?w=300&auto=format&fit=crop&q=80");
 	}
 
 	private void upsertUser(String id, String nom, String email, String password, String rol, String telefon, String bio, int percentil, boolean verificat, boolean sollicitudVerificacio) {
