@@ -401,11 +401,12 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Llistar totes les incidències creades per clients.
-	 * @return Llista completa d'incidències
+	 * Llistar totes les incidències obertes creades per clients.
+	 * Les incidències que ja han passat a ser tasca queden retirades d'aquest llistat.
+	 * @return Llista completa d'incidències obertes
 	 */
 	public List<Incidencia> incidencies() {
-		return jdbcTemplate.query(SELECT_PUBLICACIO + "WHERE p.tipus = 'INCIDENCIA' ORDER BY p.created_at DESC", incidenciaRowMapper);
+		return jdbcTemplate.query(SELECT_PUBLICACIO + "WHERE p.tipus = 'INCIDENCIA' AND p.estat = 'OBERTA' ORDER BY p.created_at DESC", incidenciaRowMapper);
 	}
 
 	/**
@@ -418,13 +419,14 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Llistar incidències d'un client concret.
+	 * Llistar incidències obertes d'un client concret.
+	 * Un cop la incidència passa a ser tasca acordada, ja no apareix com a incidència.
 	 * @param clientNom Nom, correu o ID del client
-	 * @return Llista d'incidències d'aquell client
+	 * @return Llista d'incidències obertes d'aquell client
 	 */
 	public List<Incidencia> findIncidenciesByClient(String clientNom) {
 		return jdbcTemplate.query(
-			SELECT_PUBLICACIO + "WHERE p.tipus = 'INCIDENCIA' AND (p.autor_id::text = ? OR LOWER(u.nom) = LOWER(?) OR LOWER(u.email) = LOWER(?)) ORDER BY p.created_at DESC",
+			SELECT_PUBLICACIO + "WHERE p.tipus = 'INCIDENCIA' AND p.estat = 'OBERTA' AND (p.autor_id::text = ? OR LOWER(u.nom) = LOWER(?) OR LOWER(u.email) = LOWER(?)) ORDER BY p.created_at DESC",
 			incidenciaRowMapper,
 			clientNom, clientNom, clientNom
 		);

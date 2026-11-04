@@ -43,8 +43,12 @@ public class OfertaService {
 	 * @return Llista d'ofertes enviades
 	 */
 	public List<Oferta> listByProfessional(String professionalNom) {
+		if (professionalNom == null || professionalNom.isBlank()) {
+			return List.of();
+		}
 		return catalog.offers().stream()
-			.filter(o -> o.professional() != null && o.professional().equalsIgnoreCase(professionalNom))
+			.filter(o -> (o.professional() != null && o.professional().equalsIgnoreCase(professionalNom))
+				|| (o.professionalId() != null && o.professionalId().equalsIgnoreCase(professionalNom)))
 			.toList();
 	}
 
