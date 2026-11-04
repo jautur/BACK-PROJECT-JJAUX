@@ -29,3 +29,44 @@ jobs:
 
       - name: Executar tests automatitzats
         run: ./mvnw test
+
+  integration:
+    name: Integració sobre PostgreSQL
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_only
+          POSTGRES_DB: jjaux_it
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      IT_DB_URL: jdbc:postgresql://localhost:5432/jjaux_it
+      IT_DB_USER: postgres
+      IT_DB_PASSWORD: ci_only
+
+    steps:
+      - name: Baixar repositori
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Donar permisos d'execució al Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Executar tests d'integració amb Flyway
+        run: ./mvnw -B test -Dtest='*IT'
