@@ -5,7 +5,10 @@
  * Credencials:
  *   - Email:    admin@admin.es
  *   - Password: adminadmin
- *   - Rol:      admin
+ *   - Rol:      ADMIN
+ *
+ * No crea cap taula: l'esquema és de Flyway. Si encara no existeix, no fa res,
+ * perquè crear-la ací impediria arrancar el backend, i el perfil dev ja crearà l'admin.
  */
 
 let pg;
@@ -61,36 +64,18 @@ async function assegurarAdmin() {
   }
 
   try {
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS usuaris (
-        id VARCHAR(100) PRIMARY KEY,
-        nom VARCHAR(150) NOT NULL,
-        email VARCHAR(150) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        rol VARCHAR(50) NOT NULL,
-        telefon VARCHAR(50),
-        bio TEXT,
-        percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100);
-      UPDATE usuaris SET percentil = 3 WHERE percentil IS NULL;
-    `);
-
-    const check = await client.query("SELECT id, nom, email, password, rol, percentil FROM usuaris WHERE LOWER(email) = 'admin@admin.es'");
-    if (check.rows.length === 0) {
-      const checkAdmin = await client.query("SELECT id FROM usuaris WHERE id = 'u-admin'");
-      if (checkAdmin.rows.length > 0) {
-        await client.query("UPDATE usuaris SET email = 'admin@admin.es', password = 'adminadmin', rol = 'admin', percentil = 3 WHERE id = 'u-admin'");
-        console.log('✅ Usuari administrador u-admin actualitzat a: admin@admin.es (password: adminadmin)');
-      } else {
-        await client.query("INSERT INTO usuaris (id, nom, email, password, rol, bio, percentil) VALUES ('u-admin', 'Administrador General', 'admin@admin.es', 'adminadmin', 'admin', 'Administrador de la plataforma AVISA', 3)");
-        console.log('✅ Usuari administrador creat: admin@admin.es (password: adminadmin)');
-      }
-    } else {
-      await client.query("UPDATE usuaris SET password = 'adminadmin', rol = 'admin', percentil = 3 WHERE LOWER(email) = 'admin@admin.es'");
-      console.log('✅ Usuari administrador admin@admin.es verificat i actualitzat (password: adminadmin)');
+    const esquema = await client.query("SELECT to_regclass('public.usuaris') AS taula");
+    if (!esquema.rows[0].taula) {
+      console.log('ℹ️  Encara no hi ha esquema: Flyway el crearà i el perfil dev afegirà l\'administrador.');
+      return;
     }
+
+    await client.query(`
+      INSERT INTO usuaris (nom, email, password, rol, telefon, bio, verificat)
+      VALUES ('Administrador General', 'admin@admin.es', 'adminadmin', 'ADMIN', '960000000', 'Administrador de la plataforma AVISA', TRUE)
+      ON CONFLICT (LOWER(email)) DO UPDATE SET password = 'adminadmin', rol = 'ADMIN'
+    `);
+    console.log('✅ Usuari administrador admin@admin.es verificat (password: adminadmin)');
 
     const resFinal = await client.query("SELECT id, nom, email, password, rol FROM usuaris WHERE LOWER(email) = 'admin@admin.es'");
     console.table(resFinal.rows);

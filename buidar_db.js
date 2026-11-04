@@ -34,6 +34,8 @@ try {
   }
 }
 const { Client } = pg;
+const fs = require('fs');
+const path = require('path');
 
 const mode = (process.argv[2] || '').toLowerCase();
 const isCasa = mode === 'casa';
@@ -124,185 +126,16 @@ async function main() {
   }
 
   try {
-    // 1. Assegurar que les taules existeixen
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS usuaris (
-        id VARCHAR(100) PRIMARY KEY,
-        nom VARCHAR(150) NOT NULL,
-        email VARCHAR(150) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        rol VARCHAR(50) NOT NULL,
-        telefon VARCHAR(50),
-        bio TEXT,
-        percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS incidencies (
-        id VARCHAR(100) PRIMARY KEY,
-        client_id VARCHAR(100),
-        client_nom VARCHAR(150) NOT NULL,
-        titol VARCHAR(255) NOT NULL,
-        descripcio TEXT,
-        categoria VARCHAR(100),
-        budget VARCHAR(50),
-        estat VARCHAR(50) DEFAULT 'Oberta',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS ofertes (
-        id VARCHAR(100) PRIMARY KEY,
-        tasca_id VARCHAR(100),
-        incidencia_id VARCHAR(100),
-        professional VARCHAR(150) NOT NULL,
-        price VARCHAR(50),
-        note TEXT,
-        categoria VARCHAR(100),
-        estat VARCHAR(50) DEFAULT 'Pendent',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS tasques (
-        id VARCHAR(100) PRIMARY KEY,
-        titol VARCHAR(255) NOT NULL,
-        descripcio TEXT,
-        categoria VARCHAR(100),
-        client_id VARCHAR(100),
-        client_nom VARCHAR(150),
-        professional_id VARCHAR(100),
-        professional_nom VARCHAR(150),
-        origen_id VARCHAR(100),
-        budget VARCHAR(50),
-        estat VARCHAR(50) DEFAULT 'En curs',
-        tipus VARCHAR(50) DEFAULT 'tasca',
-        valoracio INTEGER,
-        opinio TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS avisos (
-        id VARCHAR(100) PRIMARY KEY,
-        usuari_id VARCHAR(100),
-        missatge TEXT NOT NULL,
-        llegit BOOLEAN DEFAULT FALSE,
-        data DATE DEFAULT CURRENT_DATE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS resenyes (
-        id VARCHAR(100) PRIMARY KEY,
-        client_id VARCHAR(100),
-        client_nom VARCHAR(150),
-        treballador_id VARCHAR(100),
-        treballador_nom VARCHAR(150),
-        tasca_id VARCHAR(100),
-        puntuacio INTEGER NOT NULL,
-        descripcio TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS publicacions (
-        id VARCHAR(100) PRIMARY KEY,
-        usuari_id VARCHAR(100),
-        usuari_nom VARCHAR(150) NOT NULL,
-        tipus VARCHAR(50) NOT NULL,
-        titol VARCHAR(255) NOT NULL,
-        descripcio TEXT,
-        categoria VARCHAR(100),
-        preu_o_pressupost VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS interessos (
-        id VARCHAR(100) PRIMARY KEY,
-        publicacio_id VARCHAR(100),
-        client_id VARCHAR(100),
-        client_nom VARCHAR(150) NOT NULL,
-        missatge TEXT,
-        tasca_id VARCHAR(100),
-        data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS pressupostos (
-        id VARCHAR(100) PRIMARY KEY,
-        incidencia_id VARCHAR(100),
-        professional_id VARCHAR(100),
-        professional_nom VARCHAR(150) NOT NULL,
-        preu VARCHAR(50) NOT NULL,
-        descripcio TEXT,
-        duracio_estimada VARCHAR(100),
-        data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS blacklist_telefons (
-        id VARCHAR(100) PRIMARY KEY,
-        telefon VARCHAR(50) UNIQUE NOT NULL,
-        motiu TEXT,
-        bloquejat_per VARCHAR(100) DEFAULT 'admin',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100);
-      UPDATE usuaris SET percentil = 3 WHERE percentil IS NULL;
-      ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS verificat BOOLEAN DEFAULT FALSE;
-      ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS sollicitud_verificacio BOOLEAN DEFAULT FALSE;
-      ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS foto TEXT;
-      ALTER TABLE avisos ADD COLUMN IF NOT EXISTS enllac VARCHAR(255);
-      ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS categoria VARCHAR(100);
-      ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS incidencia_id VARCHAR(100);
-      ALTER TABLE ofertes ALTER COLUMN tasca_id DROP NOT NULL;
-      ALTER TABLE resenyes ADD COLUMN IF NOT EXISTS comentari TEXT;
-      ALTER TABLE resenyes ADD COLUMN IF NOT EXISTS professional_nom VARCHAR(150);
-      ALTER TABLE resenyes ALTER COLUMN descripcio DROP NOT NULL;
-      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_inici TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_finalitzacio TIMESTAMP;
-      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_valoracio TIMESTAMP;
-      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS interes_id VARCHAR(100);
-      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS pressupost_id VARCHAR(100);
-      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS preu_acordat VARCHAR(50);
-      ALTER TABLE tasques ADD COLUMN IF NOT EXISTS publicacio_id VARCHAR(100);
-    `);
-
-    // 2. Buidar totes les taules d'activitat i usuaris respectant dependències i claus foranes (FK)
-    console.log('🧹 Buidant taules d\'activitat (publicacions, interessos, pressupostos, tasques, incidències, ofertes, avisos, resenyes) respectant claus foranes...');
-    try {
-      await client.query(`
-        TRUNCATE TABLE 
-          blacklist_telefons,
-          interessos, 
-          pressupostos, 
-          ofertes, 
-          resenyes, 
-          avisos, 
-          tasques, 
-          incidencies, 
-          publicacions, 
-          usuaris 
-        RESTART IDENTITY CASCADE;
-      `);
-    } catch (truncateErr) {
-      // Fallback si alguna taula no existís encara en aquest punt
-      try { await client.query('DELETE FROM blacklist_telefons;'); } catch (e) {}
-      try { await client.query('DELETE FROM interessos;'); } catch (e) {}
-      try { await client.query('DELETE FROM pressupostos;'); } catch (e) {}
-      try { await client.query('DELETE FROM ofertes;'); } catch (e) {}
-      try { await client.query('DELETE FROM resenyes;'); } catch (e) {}
-      try { await client.query('DELETE FROM avisos;'); } catch (e) {}
-      try { await client.query('DELETE FROM tasques;'); } catch (e) {}
-      try { await client.query('DELETE FROM incidencies;'); } catch (e) {}
-      try { await client.query('DELETE FROM publicacions;'); } catch (e) {}
-      try { await client.query('DELETE FROM usuaris;'); } catch (e) {}
+    // 1. L'esquema és de Flyway: sense esquema no hi ha res a buidar
+    const esquema = await client.query("SELECT to_regclass('public.usuaris') AS taula");
+    if (!esquema.rows[0].taula) {
+      console.log('ℹ️  Encara no hi ha esquema: arranca el backend perquè Flyway el cree.');
+      return;
     }
 
-    // 3. Reiniciar als 3 usuaris base amb tots els camps complets (incloent percentil)
-    console.log('👤 Reiniciant usuaris: deixant exclusivament admin, cli i pro...');
-    await client.query(`
-      INSERT INTO usuaris (id, nom, email, password, rol, telefon, bio, percentil)
-      VALUES 
-        ('u-admin', 'Administrador General', 'admin@admin.es', 'adminadmin', 'admin', NULL, 'Administrador de la plataforma AVISA', 3),
-        ('u-cli', 'cli', 'cli', 'clicli', 'client', '600111222', 'Compte client de proves per a creació d''incidències.', 3),
-        ('u-pro', 'pro', 'pro', 'propro', 'professional', '000444555', 'Compte professional de proves per a pressupostos i ofertes.', 3);
-    `);
+    // 2 i 3. Buidar les taules i deixar els 3 usuaris base, en una sola transacció
+    console.log('🧹 Buidant les taules i deixant exclusivament admin, cli i pro...');
+    await client.query(fs.readFileSync(path.join(__dirname, 'buidar_db.sql'), 'utf8'));
 
     console.log('✅ Base de dades buidada i reiniciada correctament!\n');
 

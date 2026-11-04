@@ -11,6 +11,10 @@
 
 set -e
 
+# Perfil del backend: dev crea els usuaris de prova (admin, cli i pro) si no existeixen.
+# Per a les dades de demostració: SPRING_PROFILES_ACTIVE=demo ./desplegar.sh
+export SPRING_PROFILES_ACTIVE="${SPRING_PROFILES_ACTIVE:-dev}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -d "${SCRIPT_DIR}/../BACK-PROJECT-JJAUX" ]; then
     FRONT_DIR="${SCRIPT_DIR}"

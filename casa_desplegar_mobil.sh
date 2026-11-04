@@ -7,6 +7,10 @@
 
 set -e
 
+# Perfil del backend: dev crea els usuaris de prova (admin, cli i pro) si no existeixen.
+# Per a les dades de demostració: SPRING_PROFILES_ACTIVE=demo ./casa_desplegar_mobil.sh
+export SPRING_PROFILES_ACTIVE="${SPRING_PROFILES_ACTIVE:-dev}"
+
 export PATH="/c/Program Files/nodejs:/mnt/c/Program Files/nodejs:/c/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot/bin:/mnt/c/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot/bin:/c/Program Files/PostgreSQL/18/bin:/mnt/c/Program Files/PostgreSQL/18/bin:$PATH"
 
 # Suport per a flags de reconstrucció manual

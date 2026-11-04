@@ -10,6 +10,10 @@
 
 set -e
 
+# Perfil del backend: dev crea els usuaris de prova (admin, cli i pro) si no existeixen.
+# Per a les dades de demostració: SPRING_PROFILES_ACTIVE=demo ./casa_desplegar.sh
+export SPRING_PROFILES_ACTIVE="${SPRING_PROFILES_ACTIVE:-dev}"
+
 # Assegurar accés a binaris en entorns Windows/Git Bash/WSL
 export PATH="/c/Program Files/nodejs:/c/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot/bin:/c/Program Files/PostgreSQL/18/bin:$PATH"
 
