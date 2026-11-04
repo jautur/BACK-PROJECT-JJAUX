@@ -1,6 +1,5 @@
 package com.avisa.service;
 
-import com.avisa.dto.TascaRequest;
 import com.avisa.model.Tasca;
 import java.util.ArrayList;
 import java.util.List;
@@ -129,15 +128,6 @@ public class TascaService {
 		return catalog.tasks().stream()
 			.filter(t -> t.categoria() != null && t.categoria().equalsIgnoreCase(categoria))
 			.toList();
-	}
-
-	/**
-	 * Crear i donar d'alta una nova tasca.
-	 * @param request Dades de la tasca
-	 * @return La tasca creada
-	 */
-	public Tasca create(TascaRequest request) {
-		return catalog.addTask(request);
 	}
 
 	/**

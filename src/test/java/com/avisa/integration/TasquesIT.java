@@ -192,17 +192,6 @@ class TasquesIT extends MercatIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("POST /api/tasks sense professional crea una incidència; amb un professional i sense oferta, res")
-	void crearPerTasks() throws Exception {
-		String id = cos(mvc.perform(postCom(client, "/api/tasks", "{\"titol\":\"Persiana\",\"categoria\":\"c\",\"budget\":\"5\"}"))
-			.andExpect(status().isOk()).andExpect(jsonPath("$.estat").value("Oberta"))).get("id").asText();
-		assertThat(estatPublicacio(id)).isEqualTo("OBERTA");
-
-		mvc.perform(postCom(client, "/api/tasks", "{\"titol\":\"x\",\"professional\":\"" + professional + "\"}")).andExpect(status().isBadRequest());
-		assertThat(files("tasques")).isZero();
-	}
-
-	@Test
 	@DisplayName("El panell resumeix les dades reals")
 	void dashboard() throws Exception {
 		tascaEnCurs();

@@ -1,6 +1,5 @@
 package com.avisa.service;
 
-import com.avisa.dto.CrearInteresRequest;
 import com.avisa.model.Interes;
 import com.avisa.model.Tasca;
 import java.util.List;
@@ -21,15 +20,6 @@ public class InteresService {
 	}
 
 	/**
-	 * Registrar un nou interés expressat per un client sobre una oferta.
-	 * @param req Dades de la sol·licitud d'interés
-	 * @return L'interés creat
-	 */
-	public Interes create(CrearInteresRequest req) {
-		return catalog.addInteres(req);
-	}
-
-	/**
 	 * Llistar interessos rebuts per un professional.
 	 * @param proNomOrId Nom o ID del professional
 	 * @return Llista d'interessos adreçats al professional
@@ -45,15 +35,6 @@ public class InteresService {
 	 */
 	public List<Interes> listByClient(String clientNomOrId) {
 		return catalog.findInteressosByClient(clientNomOrId);
-	}
-
-	/**
-	 * Troba un interés pel seu identificador.
-	 * @param id Identificador de l'interés
-	 * @return L'interés si existeix
-	 */
-	public Optional<Interes> findById(String id) {
-		return catalog.findInteresById(id);
 	}
 
 	/**

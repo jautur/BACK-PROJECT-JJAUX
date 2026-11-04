@@ -55,18 +55,6 @@ public class OfertaController {
 	}
 
 	/**
-	 * Llistar totes les ofertes rebudes per a una tasca concreta.
-	 * Endpoint: GET /api/offers/tasca/{tascaId}
-	 * Acció: El client consulta i compara les ofertes abans d'acceptar-ne una.
-	 * @param tascaId Identificador de la tasca
-	 * @return Llista d'ofertes associades
-	 */
-	@GetMapping("/tasca/{tascaId}")
-	public List<Oferta> listByTasca(@PathVariable String tascaId) {
-		return ofertaService.listByTasca(tascaId);
-	}
-
-	/**
 	 * Obtenir el detall d'una oferta concreta pel seu ID.
 	 * Endpoint: GET /api/offers/{id}
 	 * @param id Identificador de l'oferta
@@ -92,19 +80,6 @@ public class OfertaController {
 	}
 
 	/**
-	 * Ruta antiga d'acceptar: si l'identificador és un pressupost, l'accepta; si és una oferta, la sol·licita.
-	 * Endpoint: POST /api/offers/{id}/acceptar
-	 * @param id Identificador de l'oferta o del pressupost
-	 * @return L'oferta afectada
-	 */
-	@PostMapping("/{id}/acceptar")
-	public ResponseEntity<Oferta> acceptOffer(@PathVariable String id, Principal principal) {
-		return ofertaService.accept(id, Sollicitant.id(principal))
-			.map(ResponseEntity::ok)
-			.orElse(ResponseEntity.notFound().build());
-	}
-
-	/**
 	 * "M'interessa": crea una sol·licitud que el professional ha d'acceptar. El client és l'usuari del token.
 	 * Endpoint: POST /api/offers/{id}/contractar
 	 * @param id Identificador de l'oferta
@@ -115,17 +90,6 @@ public class OfertaController {
 		return ofertaService.contractDirect(id, Sollicitant.id(principal))
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
-	}
-
-	/**
-	 * Descartar una oferta: la retira del mercat, igual que DELETE.
-	 * Endpoint: POST /api/offers/{id}/rebutjar
-	 * @param id Identificador de l'oferta
-	 * @return 204 No Content, o 404 si no existeix
-	 */
-	@PostMapping("/{id}/rebutjar")
-	public ResponseEntity<Void> rejectOffer(@PathVariable String id, Principal principal) {
-		return deleteOffer(id, principal);
 	}
 
 	/**

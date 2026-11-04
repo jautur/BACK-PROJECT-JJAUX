@@ -1,7 +1,6 @@
 package com.avisa.controller;
 
 import com.avisa.dto.FinalitzarTascaRequest;
-import com.avisa.dto.TascaRequest;
 import com.avisa.model.Tasca;
 import com.avisa.service.TascaService;
 import com.fasterxml.jackson.databind.ObjectMapper;

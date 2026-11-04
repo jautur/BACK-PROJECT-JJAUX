@@ -113,26 +113,10 @@ class PublicacionsIT extends MercatIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("/api/publicacions crea i consulta sobre la mateixa taula, amb l'estat")
-	void facanaPublicacions() throws Exception {
-		String oferta = cos(mvc.perform(postCom(professional, "/api/publicacions",
-				"{\"tipus\":\"oferta\",\"titol\":\"Pintura\",\"categoria\":\"Pintura\",\"preuOPressupost\":\"20€\"}"))
-			.andExpect(status().isCreated())).get("id").asText();
-
-		mvc.perform(get("/api/publicacions").param("tipus", "OFERTA"))
-			.andExpect(jsonPath("$[0].id").value(oferta))
-			.andExpect(jsonPath("$[0].estat").value("Pendent"))
-			.andExpect(jsonPath("$[0].price").value("20€"));
-		mvc.perform(deleteCom(professional, "/api/publicacions/" + oferta)).andExpect(status().isNoContent());
-		assertThat(estatPublicacio(oferta)).isEqualTo("RETIRADA");
-	}
-
-	@Test
 	@DisplayName("Un identificador que no és UUID dona 404, no un error del servidor")
 	void identificadorAntic() throws Exception {
 		mvc.perform(get("/api/incidencies/I-101")).andExpect(status().isNotFound());
 		mvc.perform(get("/api/offers/O-201")).andExpect(status().isNotFound());
-		mvc.perform(get("/api/publicacions/pub-1")).andExpect(status().isNotFound());
 	}
 
 	private String crearIncidencia(UUID autor) throws Exception {

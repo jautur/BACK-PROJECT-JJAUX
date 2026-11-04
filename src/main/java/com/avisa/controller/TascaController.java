@@ -1,7 +1,6 @@
 package com.avisa.controller;
 
 import com.avisa.dto.FinalitzarTascaRequest;
-import com.avisa.dto.TascaRequest;
 import com.avisa.model.Tasca;
 import com.avisa.service.TascaService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -44,18 +43,6 @@ public class TascaController {
 	@GetMapping
 	public List<Tasca> list() {
 		return tascaService.list();
-	}
-
-	/**
-	 * Crear i publicar una nova tasca.
-	 * Endpoint: POST /api/tasks
-	 * Acció realitzada per usuaris amb rol de Client.
-	 * @param request Dades de la tasca (títol, descripció, categoria, client, pressupost)
-	 * @return La tasca creada
-	 */
-	@PostMapping
-	public Tasca create(@RequestBody TascaRequest request, Principal principal) {
-		return tascaService.create(principal != null ? request.ambClient(principal.getName()) : request);
 	}
 
 	/**

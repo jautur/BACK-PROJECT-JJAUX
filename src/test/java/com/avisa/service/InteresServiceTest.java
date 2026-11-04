@@ -1,6 +1,5 @@
 package com.avisa.service;
 
-import com.avisa.dto.CrearInteresRequest;
 import com.avisa.model.Interes;
 import com.avisa.model.Tasca;
 import java.time.LocalDateTime;
@@ -25,18 +24,6 @@ class InteresServiceTest {
 
     @InjectMocks
     private InteresService interesService;
-
-    @Test
-    @DisplayName("Crear interès nou")
-    void haDeCrearInteres() {
-        CrearInteresRequest req = new CrearInteresRequest("PUB-1", "u-client", "Client A", "Estic interessat");
-        Interes interes = new Interes("INT-1", "PUB-1", "u-client", "Client A", "Estic interessat", null, LocalDateTime.now());
-        when(catalog.addInteres(req)).thenReturn(interes);
-
-        Interes result = interesService.create(req);
-        assertThat(result).isNotNull();
-        assertThat(result.missatge()).isEqualTo("Estic interessat");
-    }
 
     @Test
     @DisplayName("Llistar interessos per professional")

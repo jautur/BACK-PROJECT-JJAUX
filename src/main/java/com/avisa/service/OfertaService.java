@@ -38,15 +38,6 @@ public class OfertaService {
 	}
 
 	/**
-	 * Llistar totes les ofertes associades a una tasca concreta.
-	 * @param tascaId Identificador de la tasca
-	 * @return Llista d'ofertes vinculades
-	 */
-	public List<Oferta> listByTasca(String tascaId) {
-		return catalog.findOffersByTasca(tascaId);
-	}
-
-	/**
 	 * Llistar les ofertes presentades per un professional concret.
 	 * @param professionalNom Nom del professional
 	 * @return Llista d'ofertes enviades
@@ -64,16 +55,6 @@ public class OfertaService {
 	 */
 	public Oferta create(OfertaRequest request) {
 		return catalog.addOffer(request);
-	}
-
-	/**
-	 * Accepta un pressupost o sol·licita una oferta, segons l'identificador rebut.
-	 * @param offerId Identificador de l'oferta o del pressupost
-	 * @param actorId Usuari que fa l'acció
-	 * @return Oferta afectada
-	 */
-	public Optional<Oferta> accept(String offerId, String actorId) {
-		return catalog.acceptOffer(offerId, actorId);
 	}
 
 	/**

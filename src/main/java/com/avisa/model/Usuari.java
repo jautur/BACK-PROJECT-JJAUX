@@ -62,11 +62,4 @@ public record Usuari(
 		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, foto, fotoPerfil, logo);
 	}
 
-	public Usuari withVerification(Boolean verificat, Boolean sollicitudVerificacio) {
-		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, foto, fotoPerfil, logo);
-	}
-
-	public Usuari withFoto(String foto) {
-		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, foto, fotoPerfil, foto);
-	}
 }

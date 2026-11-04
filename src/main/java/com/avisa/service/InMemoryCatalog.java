@@ -1,12 +1,10 @@
 package com.avisa.service;
 
-import com.avisa.dto.CrearInteresRequest;
 import com.avisa.dto.CrearPressupostRequest;
 import com.avisa.dto.DashboardResponse;
 import com.avisa.dto.IncidenciaRequest;
 import com.avisa.dto.OfertaRequest;
 import com.avisa.dto.RegisterRequest;
-import com.avisa.dto.TascaRequest;
 import com.avisa.model.Avis;
 import com.avisa.model.Incidencia;
 import com.avisa.model.Interes;
@@ -599,23 +597,6 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Les tasques naixen d'un pressupost o d'una sol·licitud. Aquesta ruta, sense professional,
-	 * publica una incidència; amb professional, sol·licita l'oferta indicada a origenId.
-	 * @param request Dades de la petició
-	 * @return La incidència adaptada o la sol·licitud desada
-	 */
-	@Transactional
-	public Tasca addTask(TascaRequest request) {
-		String professional = request.resolveProfessional();
-		if (professional == null || professional.isBlank()) {
-			Incidencia inc = addIncidencia(new IncidenciaRequest(null, null, request.resolveClient(), request.titol(), request.descripcio(), request.categoria(), request.budget(), null));
-			return new Tasca(inc.id(), inc.titol(), inc.descripcio(), inc.categoria(), inc.clientId(), inc.clientNom(), null, null, null, inc.budget(), inc.estat(), "incidencia", null, null);
-		}
-		return convertOfferToTask(request.origenId(), request.resolveClient())
-			.orElseThrow(() -> new IllegalArgumentException("Una tasca només pot nàixer d'un pressupost o d'una oferta existent."));
-	}
-
-	/**
 	 * Finalitza una tasca en curs. Ho pot fer el client, el professional o un administrador, sense confirmació
 	 * de l'altra part. Si ve d'una incidència, la tanca. Només el client hi pot afegir la valoració.
 	 * @param id Identificador de la tasca
@@ -749,15 +730,6 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Les ofertes ja no pengen d'una tasca o incidència: les propostes sobre incidències són pressupostos.
-	 * @param tascaId Identificador de la tasca o incidència
-	 * @return Llista buida; es manté mentre el front consumisca aquesta ruta
-	 */
-	public List<Oferta> findOffersByTasca(String tascaId) {
-		return List.of();
-	}
-
-	/**
 	 * Publica una oferta de servei. Si la petició s'adreça a una incidència, és un pressupost.
 	 * @param request Dades de l'oferta
 	 * @return L'oferta desada
@@ -777,28 +749,6 @@ public class InMemoryCatalog {
 			: "Servei de " + categoria;
 		String id = inserirPublicacio("OFERTA", professional, titol, request.note(), categoria, request.price(), "ACTIVA");
 		return findOfferById(id).orElseThrow();
-	}
-
-	/**
-	 * Ruta antiga d'acceptar del front: si l'identificador és un pressupost, l'accepta;
-	 * si és una oferta, la sol·licita.
-	 * @param id Identificador del pressupost o de l'oferta
-	 * @param actorId Usuari que fa l'acció
-	 * @return Optional amb l'oferta, buit si no existeix
-	 */
-	@Transactional
-	public Optional<Oferta> acceptOffer(String id, String actorId) {
-		Optional<Pressupost> pressupost = findPressupostById(id);
-		if (pressupost.isPresent()) {
-			Pressupost p = pressupost.get();
-			return acceptarPressupost(id, actorId).map(tasca ->
-				new Oferta(p.id(), tasca.id(), p.incidenciaId(), p.professionalNom(), tasca.categoria(), p.preu(), p.descripcio(), "Acceptada"));
-		}
-		Optional<Oferta> oferta = findOfferById(id);
-		if (oferta.isPresent()) {
-			convertOfferToTask(id, actorId);
-		}
-		return oferta;
 	}
 
 	/**
@@ -1053,45 +1003,6 @@ public class InMemoryCatalog {
 	// GESTIÓ DE PUBLICACIONS (OFERTES / INCIDÈNCIES)
 	// ==========================================
 
-	public List<Publicacio> publicacions() {
-		return jdbcTemplate.query(SELECT_PUBLICACIO + "ORDER BY p.created_at DESC", publicacioRowMapper);
-	}
-
-	public List<Publicacio> publicacionsByTipus(String tipus) {
-		return jdbcTemplate.query(SELECT_PUBLICACIO + "WHERE p.tipus = UPPER(?) ORDER BY p.created_at DESC", publicacioRowMapper, tipus);
-	}
-
-	public Optional<Publicacio> findPublicacioById(String id) {
-		Optional<UUID> uuid = uuid(id);
-		if (uuid.isEmpty()) {
-			return Optional.empty();
-		}
-		return jdbcTemplate.query(SELECT_PUBLICACIO + "WHERE p.id = ?", publicacioRowMapper, uuid.get()).stream().findFirst();
-	}
-
-	public Publicacio addPublicacio(Publicacio pub) {
-		String tipus = pub.tipus() != null ? pub.tipus().trim().toUpperCase(Locale.ROOT) : "INCIDENCIA";
-		if (!"OFERTA".equals(tipus) && !"INCIDENCIA".equals(tipus)) {
-			throw new IllegalArgumentException("El tipus de publicació ha de ser OFERTA o INCIDENCIA.");
-		}
-		String identificador = pub.autorId() != null ? pub.autorId() : pub.autorNom();
-		Usuari autor = autorDe(identificador, tipus);
-		String estat = "OFERTA".equals(tipus) ? "ACTIVA" : "OBERTA";
-		String id = inserirPublicacio(tipus, autor, pub.titol(), pub.descripcio(), pub.categoria(), pub.preuOPressupost(), estat);
-		return findPublicacioById(id).orElseThrow();
-	}
-
-	/**
-	 * Una oferta es retira; una incidència només s'elimina si no té historial.
-	 * @return true si la publicació existia
-	 */
-	@Transactional
-	public boolean deletePublicacio(String id, String actorId) {
-		return findPublicacioById(id)
-			.map(pub -> "OFERTA".equals(pub.tipus()) ? deleteOffer(id, actorId) : deleteIncidencia(id, actorId))
-			.orElse(false);
-	}
-
 	// ==========================================
 	// SOL·LICITUDS D'OFERTES ("M'INTERESSA")
 	// /api/interessos és una vista de les tasques nascudes d'una oferta. L'interés i la tasca són la mateixa fila.
@@ -1126,22 +1037,6 @@ public class InMemoryCatalog {
 			interesRowMapper,
 			clientNomOrId, clientNomOrId, clientNomOrId
 		);
-	}
-
-	public Optional<Interes> findInteresById(String id) {
-		Optional<UUID> uuid = uuid(id);
-		if (uuid.isEmpty()) {
-			return Optional.empty();
-		}
-		return jdbcTemplate.query(SELECT_TASCA + "WHERE t.id = ? AND t.pressupost_id IS NULL", interesRowMapper, uuid.get()).stream().findFirst();
-	}
-
-	@Transactional
-	public Interes addInteres(CrearInteresRequest req) {
-		String client = req.clientId() != null ? req.clientId() : req.clientNom();
-		Tasca sollicitud = convertOfferToTask(req.publicacioId(), client)
-			.orElseThrow(() -> new IllegalArgumentException("L'oferta no existeix."));
-		return findInteresById(sollicitud.id()).orElseThrow();
 	}
 
 	/**

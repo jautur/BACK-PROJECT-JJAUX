@@ -1,6 +1,5 @@
 package com.avisa.controller;
 
-import com.avisa.dto.CrearInteresRequest;
 import com.avisa.model.Interes;
 import com.avisa.model.Tasca;
 import com.avisa.service.InteresService;
@@ -15,11 +14,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -42,20 +39,6 @@ class InteresControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(interesController).build();
-    }
-
-    @Test
-    @DisplayName("POST /api/interessos crea un interès amb 201")
-    void haDeCrearInteres() throws Exception {
-        CrearInteresRequest req = new CrearInteresRequest("PUB-1", "u-1", "Client A", "Vull el servei");
-        Interes created = new Interes("INT-1", "PUB-1", "u-1", "Client A", "Vull el servei", null, LocalDateTime.now());
-        when(interesService.create(any())).thenReturn(created);
-
-        mockMvc.perform(post("/api/interessos").principal(() -> "u-1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.missatge").value("Vull el servei"));
     }
 
     @Test

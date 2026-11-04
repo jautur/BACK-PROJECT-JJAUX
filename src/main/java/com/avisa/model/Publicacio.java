@@ -25,10 +25,6 @@ public record Publicacio(
         this(id, autorId, autorNom, tipus, titol, descripcio, categoria, preuOPressupost, createdAt, null);
     }
 
-    public Publicacio ambAutor(String autorId) {
-        return new Publicacio(id, autorId, null, tipus, titol, descripcio, categoria, preuOPressupost, createdAt, estat);
-    }
-
     @JsonProperty("professional")
     public String professional() {
         return "OFERTA".equalsIgnoreCase(tipus) ? autorNom : null;
