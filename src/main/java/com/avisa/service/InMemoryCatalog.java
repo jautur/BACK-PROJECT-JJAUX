@@ -990,9 +990,7 @@ public class InMemoryCatalog {
 	 * @param id Identificador de l'avís
 	 */
 	public void markAvisAsRead(String id) {
-		try {
-			jdbcTemplate.update("UPDATE avisos SET llegit = true WHERE id::text = ?", id);
-		} catch (Exception ignored) {}
+		jdbcTemplate.update("UPDATE avisos SET llegit = true WHERE id::text = ?", id);
 	}
 
 	/**
@@ -1000,9 +998,7 @@ public class InMemoryCatalog {
 	 * @param id Identificador de l'avís
 	 */
 	public void deleteAvis(String id) {
-		try {
-			jdbcTemplate.update("DELETE FROM avisos WHERE id::text = ?", id);
-		} catch (Exception ignored) {}
+		jdbcTemplate.update("DELETE FROM avisos WHERE id::text = ?", id);
 	}
 
 	/**
@@ -1677,16 +1673,13 @@ public class InMemoryCatalog {
 		String cleanInput = telefon.trim();
 		String normalizedInput = normalizePhone(cleanInput);
 
-		try {
-			List<com.avisa.model.BlacklistTelefon> list = blacklistTelefons();
-			for (com.avisa.model.BlacklistTelefon bl : list) {
-				if (bl.telefon() == null) continue;
-				String blClean = bl.telefon().trim();
-				if (blClean.equalsIgnoreCase(cleanInput)) return true;
-				String normalizedBl = normalizePhone(blClean);
-				if (!normalizedBl.isBlank() && normalizedBl.equals(normalizedInput)) return true;
-			}
-		} catch (Exception ignored) {}
+		for (com.avisa.model.BlacklistTelefon bl : blacklistTelefons()) {
+			if (bl.telefon() == null) continue;
+			String blClean = bl.telefon().trim();
+			if (blClean.equalsIgnoreCase(cleanInput)) return true;
+			String normalizedBl = normalizePhone(blClean);
+			if (!normalizedBl.isBlank() && normalizedBl.equals(normalizedInput)) return true;
+		}
 		return false;
 	}
 
@@ -1694,20 +1687,16 @@ public class InMemoryCatalog {
 	 * Retorna tots els números de telèfon bloquejats a la llista negra.
 	 */
 	public List<com.avisa.model.BlacklistTelefon> blacklistTelefons() {
-		try {
-			return jdbcTemplate.query(
-				"SELECT id::text AS id, telefon, motiu, bloquejat_per, created_at FROM blacklist_telefons ORDER BY created_at DESC",
-				(rs, rowNum) -> new com.avisa.model.BlacklistTelefon(
-					rs.getString("id"),
-					rs.getString("telefon"),
-					rs.getString("motiu"),
-					rs.getString("bloquejat_per"),
-					rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()
-				)
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(
+			"SELECT id::text AS id, telefon, motiu, bloquejat_per, created_at FROM blacklist_telefons ORDER BY created_at DESC",
+			(rs, rowNum) -> new com.avisa.model.BlacklistTelefon(
+				rs.getString("id"),
+				rs.getString("telefon"),
+				rs.getString("motiu"),
+				rs.getString("bloquejat_per"),
+				rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()
+			)
+		);
 	}
 
 	/**

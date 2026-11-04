@@ -154,6 +154,19 @@ class UsuarisIT extends PostgresIntegrationTest {
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM avisos", Integer.class)).isZero();
 	}
 
+	@Test
+	@DisplayName("Si no es pot consultar la llista negra, el registre falla en lloc de deixar passar el telèfon")
+	void llistaNegraInaccessible() throws Exception {
+		jdbc.execute("ALTER TABLE blacklist_telefons RENAME TO blacklist_amagada");
+		try {
+			mvc.perform(registre("nou@test.es", "client", "600999888")).andExpect(status().isInternalServerError());
+		} finally {
+			jdbc.execute("ALTER TABLE blacklist_amagada RENAME TO blacklist_telefons");
+		}
+
+		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM usuaris", Integer.class)).isZero();
+	}
+
 	private UUID usuari(String rol, String email, String telefon) {
 		UUID id = UUID.randomUUID();
 		jdbc.update("INSERT INTO usuaris (id, nom, email, password, rol, telefon) VALUES (?, ?, ?, 'secreta', ?, ?)",
