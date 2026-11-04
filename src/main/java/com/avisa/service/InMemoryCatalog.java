@@ -14,6 +14,7 @@ import com.avisa.model.Oferta;
 import com.avisa.model.Pressupost;
 import com.avisa.model.Publicacio;
 import com.avisa.model.Resenya;
+import com.avisa.model.SollicitudCancellacio;
 import com.avisa.model.Tasca;
 import com.avisa.model.Usuari;
 import java.time.LocalDate;
@@ -1483,6 +1484,170 @@ public class InMemoryCatalog {
 		}
 		addAvis(p.professionalId(), "El teu pressupost per a la incidència '" + incidencia.titol() + "' ha estat rebutjat.");
 		return true;
+	}
+
+	// ==========================================
+	// CANCEL·LACIÓ DE TASQUES
+	// ==========================================
+
+	private static final String SELECT_CANCELLACIO =
+		"SELECT s.id::text AS id, s.tasca_id::text AS tasca_id, p.titol AS tasca_titol, s.sollicitant_id::text AS sollicitant_id, so.nom AS sollicitant_nom, s.motiu, s.resolucio, "
+		+ "s.responsable_id::text AS responsable_id, re.nom AS responsable_nom, s.admin_id::text AS admin_id, s.data_resolucio, s.created_at "
+		+ "FROM sollicituds_cancellacio s JOIN tasques t ON t.id = s.tasca_id JOIN publicacions p ON p.id = t.publicacio_id "
+		+ "JOIN usuaris so ON so.id = s.sollicitant_id LEFT JOIN usuaris re ON re.id = s.responsable_id ";
+
+	private final org.springframework.jdbc.core.RowMapper<SollicitudCancellacio> cancellacioRowMapper = (rs, rowNum) -> new SollicitudCancellacio(
+		rs.getString("id"),
+		rs.getString("tasca_id"),
+		rs.getString("tasca_titol"),
+		rs.getString("sollicitant_id"),
+		rs.getString("sollicitant_nom"),
+		rs.getString("motiu"),
+		rs.getString("resolucio"),
+		rs.getString("responsable_id"),
+		rs.getString("responsable_nom"),
+		rs.getString("admin_id"),
+		dataOpcional(rs, "data_resolucio"),
+		rs.getTimestamp("created_at").toLocalDateTime()
+	);
+
+	private void exigirAdmin(String actorId) {
+		if (!esAdmin(usuariActor(actorId))) {
+			throw new SecurityException("Només un administrador pot gestionar les cancel·lacions.");
+		}
+	}
+
+	/**
+	 * El client o el professional sol·liciten cancel·lar una tasca en curs. La tasca queda en revisió,
+	 * sense poder-se finalitzar, i s'avisa l'altra part i tots els administradors.
+	 * @param tascaId Identificador de la tasca
+	 * @param actorId Usuari que fa l'acció
+	 * @param motiu Motiu de la sol·licitud
+	 * @return Optional amb la tasca en revisió, buit si no existeix
+	 */
+	@Transactional
+	public Optional<Tasca> sollicitarCancellacio(String tascaId, String actorId, String motiu) {
+		Optional<Tasca> trobada = findTaskById(tascaId);
+		if (trobada.isEmpty()) {
+			return Optional.empty();
+		}
+		Tasca tasca = trobada.get();
+		Usuari actor = usuariActor(actorId);
+		boolean esClient = actor.id().equals(tasca.clientId());
+		if (!esClient && !actor.id().equals(tasca.professionalId())) {
+			throw new SecurityException("Només el client o el professional de la tasca poden sol·licitar la cancel·lació.");
+		}
+		if (motiu == null || motiu.isBlank()) {
+			throw new IllegalArgumentException("El motiu de la cancel·lació és obligatori.");
+		}
+		UUID uuid = UUID.fromString(tasca.id());
+		int files = jdbcTemplate.update("UPDATE tasques SET estat = 'EN_REVISIO' WHERE id = ? AND estat = 'EN_CURS'", uuid);
+		if (files == 0) {
+			throw new IllegalStateException("Només es pot sol·licitar la cancel·lació d'una tasca en curs.");
+		}
+		jdbcTemplate.update("INSERT INTO sollicituds_cancellacio (tasca_id, sollicitant_id, motiu) VALUES (?, ?::uuid, ?)", uuid, actor.id(), motiu.trim());
+		addAvis(esClient ? tasca.professionalId() : tasca.clientId(),
+			actor.nom() + " ha sol·licitat cancel·lar la tasca '" + tasca.titol() + "'. Motiu: " + motiu.trim(), "/tasques-ofertes");
+		notificarAdmins("Nova sol·licitud de cancel·lació de la tasca '" + tasca.titol() + "' per part de " + actor.nom() + ". Motiu: " + motiu.trim());
+		return findTaskById(tascaId);
+	}
+
+	/**
+	 * L'administrador resol una sol·licitud: sense conseqüències o per negligència cancel·la la tasca;
+	 * rebutjada torna la tasca a en curs. Les parts no reben el detall d'una negligència, que només veu l'administrador.
+	 * @param id Identificador de la sol·licitud
+	 * @param actorId Usuari que fa l'acció, que ha de ser administrador
+	 * @param resolucio SENSE_CONSEQUENCIES, NEGLIGENCIA o REBUTJADA
+	 * @param responsableId Client o professional de la tasca, només en cas de negligència
+	 * @return Optional amb la sol·licitud resolta, buit si no existeix
+	 */
+	@Transactional
+	public Optional<SollicitudCancellacio> resoldreCancellacio(String id, String actorId, String resolucio, String responsableId) {
+		exigirAdmin(actorId);
+		Optional<UUID> uuid = uuid(id);
+		if (uuid.isEmpty()) {
+			return Optional.empty();
+		}
+		List<SollicitudCancellacio> bloquejada = jdbcTemplate.query(
+			"SELECT id::text AS id, tasca_id::text AS tasca_id, NULL AS tasca_titol, sollicitant_id::text AS sollicitant_id, NULL AS sollicitant_nom, motiu, resolucio, "
+			+ "responsable_id::text AS responsable_id, NULL AS responsable_nom, admin_id::text AS admin_id, data_resolucio, created_at FROM sollicituds_cancellacio WHERE id = ? FOR UPDATE",
+			cancellacioRowMapper, uuid.get());
+		if (bloquejada.isEmpty()) {
+			return Optional.empty();
+		}
+		if (bloquejada.get(0).resolucio() != null) {
+			throw new IllegalStateException("Aquesta sol·licitud ja s'ha resolt.");
+		}
+		Tasca tasca = tascaExistent(bloquejada.get(0).tascaId());
+		String resolucioFinal = resolucio != null ? resolucio.trim().toUpperCase(Locale.ROOT) : "";
+		if (!List.of("SENSE_CONSEQUENCIES", "NEGLIGENCIA", "REBUTJADA").contains(resolucioFinal)) {
+			throw new IllegalArgumentException("La resolució ha de ser SENSE_CONSEQUENCIES, NEGLIGENCIA o REBUTJADA.");
+		}
+		boolean negligencia = "NEGLIGENCIA".equals(resolucioFinal);
+		if (negligencia && !tasca.clientId().equalsIgnoreCase(responsableId) && !tasca.professionalId().equalsIgnoreCase(responsableId)) {
+			throw new IllegalArgumentException("El responsable d'una negligència ha de ser el client o el professional de la tasca.");
+		}
+		if (!negligencia && responsableId != null && !responsableId.isBlank()) {
+			throw new IllegalArgumentException("Només una negligència té responsable.");
+		}
+
+		String admin = usuariActor(actorId).id();
+		jdbcTemplate.update(
+			"UPDATE sollicituds_cancellacio SET resolucio = ?, responsable_id = ?::uuid, admin_id = ?::uuid, data_resolucio = CURRENT_TIMESTAMP WHERE id = ?",
+			resolucioFinal, negligencia ? responsableId : null, admin, uuid.get());
+
+		String missatge;
+		if ("REBUTJADA".equals(resolucioFinal)) {
+			jdbcTemplate.update("UPDATE tasques SET estat = 'EN_CURS' WHERE id = ?::uuid", tasca.id());
+			missatge = "L'administrador ha rebutjat la cancel·lació de la tasca '" + tasca.titol() + "', que continua en curs.";
+		} else {
+			jdbcTemplate.update("UPDATE tasques SET estat = 'CANCELLADA' WHERE id = ?::uuid", tasca.id());
+			if (tasca.pressupostId() != null) {
+				reobrirIncidencia(tasca);
+			}
+			missatge = "L'administrador ha cancel·lat la tasca '" + tasca.titol() + "'.";
+		}
+		addAvis(tasca.clientId(), missatge, "/tasques-ofertes");
+		addAvis(tasca.professionalId(), missatge, "/tasques-ofertes");
+		return jdbcTemplate.query(SELECT_CANCELLACIO + "WHERE s.id = ?", cancellacioRowMapper, uuid.get()).stream().findFirst();
+	}
+
+	/**
+	 * La incidència torna a estar oberta: el pressupost de la tasca cancel·lada queda rebutjat i
+	 * tornen a pendent els que es van rebutjar automàticament en acceptar-lo, no els rebutjats a mà.
+	 */
+	private void reobrirIncidencia(Tasca tasca) {
+		UUID incidencia = UUID.fromString(tasca.publicacioId());
+		jdbcTemplate.update("UPDATE publicacions SET estat = 'OBERTA' WHERE id = ?", incidencia);
+		jdbcTemplate.update("UPDATE pressupostos SET estat = 'REBUTJAT' WHERE id = ?::uuid", tasca.pressupostId());
+		List<String> professionals = jdbcTemplate.queryForList(
+			"UPDATE pressupostos SET estat = 'PENDENT', rebutjat_automaticament = FALSE WHERE publicacio_id = ? AND rebutjat_automaticament RETURNING professional_id::text",
+			String.class, incidencia);
+		professionals.forEach(professionalId -> addAvis(professionalId,
+			"La incidència '" + tasca.titol() + "' torna a estar oberta i el teu pressupost torna a estar pendent.", "/tasques-ofertes"));
+	}
+
+	/**
+	 * Sol·licituds de cancel·lació, per a l'administrador.
+	 * @param actorId Usuari que fa l'acció
+	 * @param nomesPendents Si només cal retornar les que falten per resoldre
+	 */
+	public List<SollicitudCancellacio> cancellacions(String actorId, boolean nomesPendents) {
+		exigirAdmin(actorId);
+		String filtre = nomesPendents ? "WHERE s.resolucio IS NULL " : "";
+		return jdbcTemplate.query(SELECT_CANCELLACIO + filtre + "ORDER BY s.created_at DESC", cancellacioRowMapper);
+	}
+
+	/**
+	 * Historial de negligències d'un usuari, visible només per a l'administrador.
+	 * @param usuariId Identificador de l'usuari
+	 * @param actorId Usuari que fa l'acció
+	 */
+	public List<SollicitudCancellacio> negligenciesDe(String usuariId, String actorId) {
+		exigirAdmin(actorId);
+		return jdbcTemplate.query(
+			SELECT_CANCELLACIO + "WHERE s.resolucio = 'NEGLIGENCIA' AND s.responsable_id::text = LOWER(?) ORDER BY s.data_resolucio DESC",
+			cancellacioRowMapper, usuariId);
 	}
 
 	// ==========================================
