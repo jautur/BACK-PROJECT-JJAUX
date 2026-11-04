@@ -94,19 +94,21 @@ public class PressupostService {
 	 * Acceptació transaccional d'un pressupost per part del client:
 	 * Converteix la incidència i el pressupost en una tasca en curs acordada.
 	 * @param pressupostId Identificador del pressupost acceptat
+	 * @param actorId Usuari que fa l'acció
 	 * @return La tasca en curs generada
 	 */
-	public Optional<Tasca> accept(String pressupostId) {
-		return catalog.acceptarPressupost(pressupostId);
+	public Optional<Tasca> accept(String pressupostId, String actorId) {
+		return catalog.acceptarPressupost(pressupostId, actorId);
 	}
 
 	/**
 	 * Rebutja un pressupost presentat.
 	 * @param pressupostId Identificador del pressupost
+	 * @param actorId Usuari que fa l'acció
 	 * @return true si s'ha rebutjat correctament
 	 */
-	public boolean reject(String pressupostId) {
-		return catalog.rebutjarPressupost(pressupostId);
+	public boolean reject(String pressupostId, String actorId) {
+		return catalog.rebutjarPressupost(pressupostId, actorId);
 	}
 }
 

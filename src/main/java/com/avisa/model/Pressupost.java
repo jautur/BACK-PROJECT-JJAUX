@@ -17,8 +17,23 @@ public record Pressupost(
     String preu,
     String descripcio,
     String duracioEstimada,
-    LocalDateTime dataCreacio
+    LocalDateTime dataCreacio,
+    String estat
 ) {
+    public Pressupost(
+        String id,
+        String incidenciaId,
+        String incidenciaTitol,
+        String professionalId,
+        String professionalNom,
+        String preu,
+        String descripcio,
+        String duracioEstimada,
+        LocalDateTime dataCreacio
+    ) {
+        this(id, incidenciaId, incidenciaTitol, professionalId, professionalNom, preu, descripcio, duracioEstimada, dataCreacio, "Pendent");
+    }
+
     public Pressupost(
         String id,
         String incidenciaId,

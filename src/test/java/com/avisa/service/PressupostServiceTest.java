@@ -55,9 +55,9 @@ class PressupostServiceTest {
     @DisplayName("Acceptar pressupost crea la tasca acordada")
     void haDAcceptarPressupost() {
         Tasca tasca = new Tasca("T-1", "Pintura", "Desc", "Pintura", "u-client", "Joan", "u-pro", "Manolo", null, null, null, "120€", LocalDateTime.now(), null, null, null, null);
-        when(catalog.acceptarPressupost("P-1")).thenReturn(Optional.of(tasca));
+        when(catalog.acceptarPressupost("P-1", "u-client")).thenReturn(Optional.of(tasca));
 
-        Optional<Tasca> result = pressupostService.accept("P-1");
+        Optional<Tasca> result = pressupostService.accept("P-1", "u-client");
         assertThat(result).isPresent();
         assertThat(result.get().id()).isEqualTo("T-1");
     }
@@ -65,11 +65,11 @@ class PressupostServiceTest {
     @Test
     @DisplayName("Rebutjar pressupost")
     void haDeRebutjarPressupost() {
-        when(catalog.rebutjarPressupost("P-1")).thenReturn(true);
+        when(catalog.rebutjarPressupost("P-1", "u-client")).thenReturn(true);
 
-        boolean rebutjat = pressupostService.reject("P-1");
+        boolean rebutjat = pressupostService.reject("P-1", "u-client");
         assertThat(rebutjat).isTrue();
-        verify(catalog).rebutjarPressupost("P-1");
+        verify(catalog).rebutjarPressupost("P-1", "u-client");
     }
 
     @Test

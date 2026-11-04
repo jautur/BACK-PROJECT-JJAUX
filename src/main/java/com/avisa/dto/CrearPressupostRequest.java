@@ -25,4 +25,7 @@ public record CrearPressupostRequest(
     @Schema(description = "Duració estimada de la feina", example = "2 dies")
     String duracioEstimada
 ) {
+    public CrearPressupostRequest ambProfessional(String id) {
+        return new CrearPressupostRequest(incidenciaId, id, null, preu, descripcio, duracioEstimada);
+    }
 }

@@ -519,6 +519,32 @@ public class InMemoryCatalog {
 	// GESTIÓ DE TASQUES
 	// ==========================================
 
+	private static final String SELECT_TASCA =
+		"SELECT t.id::text AS id, p.titol, p.descripcio, p.categoria, t.client_id::text AS client_id, c.nom AS client_nom, "
+		+ "t.professional_id::text AS professional_id, pr.nom AS professional_nom, t.publicacio_id::text AS publicacio_id, "
+		+ "t.pressupost_id::text AS pressupost_id, t.preu_acordat, t.estat, COALESCE(t.data_inici, t.created_at) AS data_inici, "
+		+ "t.data_finalitzacio, t.valoracio, t.comentari, t.data_valoracio, t.created_at "
+		+ "FROM tasques t JOIN publicacions p ON p.id = t.publicacio_id "
+		+ "JOIN usuaris c ON c.id = t.client_id JOIN usuaris pr ON pr.id = t.professional_id ";
+
+	/** Una sol·licitud no acceptada encara no és treball acordat: es consulta a /api/interessos. */
+	private static final String TASCA_ACORDADA = "t.estat NOT IN ('SOLLICITADA', 'REBUTJADA', 'RETIRADA') ";
+
+	private static final Map<String, String> ETIQUETES_TASCA = Map.of(
+		"SOLLICITADA", "Sol·licitada",
+		"REBUTJADA", "Rebutjada",
+		"RETIRADA", "Retirada",
+		"EN_CURS", "En curs",
+		"EN_REVISIO", "En revisió",
+		"FINALITZADA", "Finalitzada",
+		"CANCELLADA", "Cancel·lada"
+	);
+
+	private static LocalDateTime dataOpcional(java.sql.ResultSet rs, String columna) throws java.sql.SQLException {
+		java.sql.Timestamp data = rs.getTimestamp(columna);
+		return data != null ? data.toLocalDateTime() : null;
+	}
+
 	private final org.springframework.jdbc.core.RowMapper<Tasca> tascaRowMapper = (rs, rowNum) -> new Tasca(
 		rs.getString("id"),
 		rs.getString("titol"),
@@ -529,81 +555,62 @@ public class InMemoryCatalog {
 		rs.getString("professional_id"),
 		rs.getString("professional_nom"),
 		rs.getString("publicacio_id"),
-		rs.getString("interes_id"),
+		null,
 		rs.getString("pressupost_id"),
-		rs.getString("preu_acordat") != null ? rs.getString("preu_acordat") : rs.getString("budget"),
-		rs.getTimestamp("data_inici") != null ? rs.getTimestamp("data_inici").toLocalDateTime() : (rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()),
-		rs.getTimestamp("data_finalitzacio") != null ? rs.getTimestamp("data_finalitzacio").toLocalDateTime() : ("Finalitzada".equalsIgnoreCase(rs.getString("estat")) ? LocalDateTime.now() : null),
+		rs.getString("preu_acordat"),
+		dataOpcional(rs, "data_inici"),
+		dataOpcional(rs, "data_finalitzacio"),
 		rs.getObject("valoracio") != null ? rs.getInt("valoracio") : null,
-		rs.getString("opinio"),
-		rs.getTimestamp("data_valoracio") != null ? rs.getTimestamp("data_valoracio").toLocalDateTime() : null
+		rs.getString("comentari"),
+		dataOpcional(rs, "data_valoracio"),
+		ETIQUETES_TASCA.get(rs.getString("estat"))
 	);
 
 	/**
-	 * Obté totes les tasques registrades a PostgreSQL.
+	 * Obté tot el treball acordat, en curs o acabat.
 	 * @return Llista de tasques
 	 */
 	public List<Tasca> tasks() {
-		try {
-			return jdbcTemplate.query(
-				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, publicacio_id, interes_id, pressupost_id, preu_acordat, budget, estat, data_inici, data_finalitzacio, valoracio, opinio, data_valoracio, created_at FROM tasques ORDER BY created_at DESC",
-				tascaRowMapper
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(SELECT_TASCA + "WHERE " + TASCA_ACORDADA + "ORDER BY t.created_at DESC", tascaRowMapper);
 	}
 
 	/**
-	 * Cerca una tasca pel seu identificador únic (ex: 'T-101').
+	 * Cerca una tasca pel seu identificador, siga quin siga el seu estat.
 	 * @param id Identificador de la tasca
 	 * @return Optional amb la tasca
 	 */
 	public Optional<Tasca> findTaskById(String id) {
-		try {
-			List<Tasca> res = jdbcTemplate.query(
-				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, publicacio_id, interes_id, pressupost_id, preu_acordat, budget, estat, data_inici, data_finalitzacio, valoracio, opinio, data_valoracio, created_at FROM tasques WHERE id = ?",
-				tascaRowMapper,
-				id
-			);
-			return res.stream().findFirst();
-		} catch (Exception e) {
+		Optional<UUID> uuid = uuid(id);
+		if (uuid.isEmpty()) {
 			return Optional.empty();
 		}
+		return jdbcTemplate.query(SELECT_TASCA + "WHERE t.id = ?", tascaRowMapper, uuid.get()).stream().findFirst();
 	}
 
 	/**
-	 * Llista les tasques publicades per un client concret.
-	 * @param clientNom Nom o ID del client
+	 * Llista el treball acordat d'un client concret.
+	 * @param clientNom Nom, correu o ID del client
 	 * @return Llista de tasques d'aquell client
 	 */
 	public List<Tasca> findTasksByClient(String clientNom) {
-		try {
-			return jdbcTemplate.query(
-				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, publicacio_id, interes_id, pressupost_id, preu_acordat, budget, estat, data_inici, data_finalitzacio, valoracio, opinio, data_valoracio, created_at FROM tasques WHERE LOWER(client_nom) = LOWER(?) OR client_id = ? ORDER BY created_at DESC",
-				tascaRowMapper,
-				clientNom, clientNom
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(
+			SELECT_TASCA + "WHERE " + TASCA_ACORDADA + "AND (t.client_id::text = ? OR LOWER(c.nom) = LOWER(?) OR LOWER(c.email) = LOWER(?)) ORDER BY t.created_at DESC",
+			tascaRowMapper,
+			clientNom, clientNom, clientNom
+		);
 	}
 
 	/**
-	 * Llista les tasques on el professional ha estat assignat (ja convergeixen client i professional).
-	 * @param professionalNom Nom o ID del professional
+	 * Llista el treball acordat d'un professional concret.
+	 * @param professionalNom Nom, correu o ID del professional
 	 * @return Llista de tasques assignades a aquell professional
 	 */
 	public List<Tasca> findTasksByProfessional(String professionalNom) {
-		try {
-			return jdbcTemplate.query(
-				"SELECT id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, publicacio_id, interes_id, pressupost_id, preu_acordat, budget, estat, data_inici, data_finalitzacio, valoracio, opinio, data_valoracio, created_at FROM tasques WHERE LOWER(professional_nom) = LOWER(?) OR professional_id = ? ORDER BY created_at DESC",
-				tascaRowMapper,
-				professionalNom, professionalNom
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(
+			SELECT_TASCA + "WHERE " + TASCA_ACORDADA + "AND (t.professional_id::text = ? OR LOWER(pr.nom) = LOWER(?) OR LOWER(pr.email) = LOWER(?)) ORDER BY t.created_at DESC",
+			tascaRowMapper,
+			professionalNom, professionalNom, professionalNom
+		);
 	}
 
 	/**
@@ -1446,6 +1453,17 @@ public class InMemoryCatalog {
 	// GESTIÓ DE PRESSUPOSTOS PER A INCIDÈNCIES
 	// ==========================================
 
+	private static final String SELECT_PRESSUPOST =
+		"SELECT pr.id::text AS id, pr.publicacio_id::text AS incidencia_id, p.titol AS incidencia_titol, pr.professional_id::text AS professional_id, "
+		+ "u.nom AS professional_nom, pr.preu, pr.descripcio, pr.duracio_estimada, pr.estat, pr.created_at "
+		+ "FROM pressupostos pr JOIN publicacions p ON p.id = pr.publicacio_id JOIN usuaris u ON u.id = pr.professional_id ";
+
+	private static final Map<String, String> ETIQUETES_PRESSUPOST = Map.of(
+		"PENDENT", "Pendent",
+		"ACCEPTAT", "Acceptat",
+		"REBUTJAT", "Rebutjat"
+	);
+
 	private final org.springframework.jdbc.core.RowMapper<Pressupost> pressupostRowMapper = (rs, rowNum) -> new Pressupost(
 		rs.getString("id"),
 		rs.getString("incidencia_id"),
@@ -1455,56 +1473,35 @@ public class InMemoryCatalog {
 		rs.getString("preu"),
 		rs.getString("descripcio"),
 		rs.getString("duracio_estimada"),
-		rs.getTimestamp("data_creacio") != null ? rs.getTimestamp("data_creacio").toLocalDateTime() : LocalDateTime.now()
+		rs.getTimestamp("created_at").toLocalDateTime(),
+		ETIQUETES_PRESSUPOST.get(rs.getString("estat"))
 	);
 
 	public List<Pressupost> pressupostos() {
-		try {
-			return jdbcTemplate.query(
-				"SELECT pr.id, pr.incidencia_id, COALESCE(p.titol, i.titol, 'Incidència') AS incidencia_titol, pr.professional_id, pr.professional_nom, pr.preu, pr.descripcio, pr.duracio_estimada, pr.data_creacio " +
-				"FROM pressupostos pr " +
-				"LEFT JOIN publicacions p ON p.id = pr.incidencia_id " +
-				"LEFT JOIN incidencies i ON i.id = pr.incidencia_id " +
-				"ORDER BY pr.data_creacio DESC",
-				pressupostRowMapper
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(SELECT_PRESSUPOST + "ORDER BY pr.created_at DESC", pressupostRowMapper);
 	}
 
+	/**
+	 * Els pressupostos vigents d'una incidència. Els rebutjats es consulten per professional.
+	 */
 	public List<Pressupost> findPressupostosByIncidencia(String incidenciaId) {
-		try {
-			return jdbcTemplate.query(
-				"SELECT pr.id, pr.incidencia_id, COALESCE(p.titol, i.titol, 'Incidència') AS incidencia_titol, pr.professional_id, pr.professional_nom, pr.preu, pr.descripcio, pr.duracio_estimada, pr.data_creacio " +
-				"FROM pressupostos pr " +
-				"LEFT JOIN publicacions p ON p.id = pr.incidencia_id " +
-				"LEFT JOIN incidencies i ON i.id = pr.incidencia_id " +
-				"WHERE pr.incidencia_id = ? " +
-				"ORDER BY pr.data_creacio DESC",
-				pressupostRowMapper,
-				incidenciaId
-			);
-		} catch (Exception e) {
+		Optional<UUID> uuid = uuid(incidenciaId);
+		if (uuid.isEmpty()) {
 			return List.of();
 		}
+		return jdbcTemplate.query(
+			SELECT_PRESSUPOST + "WHERE pr.publicacio_id = ? AND pr.estat <> 'REBUTJAT' ORDER BY pr.created_at DESC",
+			pressupostRowMapper,
+			uuid.get()
+		);
 	}
 
 	public Optional<Pressupost> findPressupostById(String id) {
-		try {
-			List<Pressupost> res = jdbcTemplate.query(
-				"SELECT pr.id, pr.incidencia_id, COALESCE(p.titol, i.titol, 'Incidència') AS incidencia_titol, pr.professional_id, pr.professional_nom, pr.preu, pr.descripcio, pr.duracio_estimada, pr.data_creacio " +
-				"FROM pressupostos pr " +
-				"LEFT JOIN publicacions p ON p.id = pr.incidencia_id " +
-				"LEFT JOIN incidencies i ON i.id = pr.incidencia_id " +
-				"WHERE pr.id = ?",
-				pressupostRowMapper,
-				id
-			);
-			return res.stream().findFirst();
-		} catch (Exception e) {
+		Optional<UUID> uuid = uuid(id);
+		if (uuid.isEmpty()) {
 			return Optional.empty();
 		}
+		return jdbcTemplate.query(SELECT_PRESSUPOST + "WHERE pr.id = ?", pressupostRowMapper, uuid.get()).stream().findFirst();
 	}
 
 	/**
@@ -1544,55 +1541,25 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Comprova si l'usuari és el client titular d'una incidència o tasca.
+	 * Comprova si l'usuari és el client titular d'una incidència.
 	 */
 	public boolean isClientOwnerOfIncidencia(String incidenciaId, String requesterId, String requesterNom) {
-		Optional<Publicacio> pubOpt = findPublicacioById(incidenciaId);
-		if (pubOpt.isPresent()) {
-			Publicacio pub = pubOpt.get();
-			if ((requesterId != null && requesterId.equalsIgnoreCase(pub.usuariId())) ||
-			    (requesterNom != null && requesterNom.equalsIgnoreCase(pub.usuariNom()))) {
-				return true;
-			}
-		}
-		Optional<Incidencia> incOpt = findIncidenciaById(incidenciaId);
-		if (incOpt.isPresent()) {
-			Incidencia inc = incOpt.get();
-			if ((requesterId != null && requesterId.equalsIgnoreCase(inc.clientId())) ||
-			    (requesterNom != null && requesterNom.equalsIgnoreCase(inc.clientNom()))) {
-				return true;
-			}
-		}
-		Optional<Tasca> taskOpt = findTaskById(incidenciaId);
-		if (taskOpt.isPresent()) {
-			Tasca t = taskOpt.get();
-			if ((requesterId != null && requesterId.equalsIgnoreCase(t.clientId())) ||
-			    (requesterNom != null && requesterNom.equalsIgnoreCase(t.client()))) {
-				return true;
-			}
-		}
-		return false;
+		return findIncidenciaById(incidenciaId)
+			.map(inc -> (requesterId != null && requesterId.equalsIgnoreCase(inc.clientId()))
+				|| (requesterNom != null && requesterNom.equalsIgnoreCase(inc.clientNom())))
+			.orElse(false);
 	}
 
 	/**
-	 * Llistar els pressupostos enviats per un professional en concret.
+	 * Llistar tots els pressupostos enviats per un professional, també els rebutjats.
 	 */
 	public List<Pressupost> findPressupostosByProfessional(String proIdentifier) {
 		if (proIdentifier == null || proIdentifier.isBlank()) return List.of();
-		try {
-			return jdbcTemplate.query(
-				"SELECT pr.id, pr.incidencia_id, COALESCE(p.titol, i.titol, 'Incidència') AS incidencia_titol, pr.professional_id, pr.professional_nom, pr.preu, pr.descripcio, pr.duracio_estimada, pr.data_creacio " +
-				"FROM pressupostos pr " +
-				"LEFT JOIN publicacions p ON p.id = pr.incidencia_id " +
-				"LEFT JOIN incidencies i ON i.id = pr.incidencia_id " +
-				"WHERE LOWER(pr.professional_id) = LOWER(?) OR LOWER(pr.professional_nom) = LOWER(?) " +
-				"ORDER BY pr.data_creacio DESC",
-				pressupostRowMapper,
-				proIdentifier, proIdentifier
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(
+			SELECT_PRESSUPOST + "WHERE pr.professional_id::text = LOWER(?) OR LOWER(u.nom) = LOWER(?) OR LOWER(u.email) = LOWER(?) ORDER BY pr.created_at DESC",
+			pressupostRowMapper,
+			proIdentifier, proIdentifier, proIdentifier
+		);
 	}
 
 	/**
@@ -1610,106 +1577,113 @@ public class InMemoryCatalog {
 		return isClientOwnerOfIncidencia(p.incidenciaId(), requesterId, requesterNom);
 	}
 
-	public Pressupost addPressupost(CrearPressupostRequest req) {
-		String id = "P-" + String.format("%03d", 200 + offers().size() + 1);
-		String proId = req.professionalId();
-		String proNom = req.professionalNom();
-		if (proNom != null) {
-			for (Usuari u : users()) {
-				if (u.nom().equalsIgnoreCase(proNom) || u.id().equalsIgnoreCase(proNom)) {
-					proId = u.id();
-					proNom = u.nom();
-					break;
-				}
-			}
-		}
-
-		try {
-			jdbcTemplate.update(
-				"INSERT INTO pressupostos (id, incidencia_id, professional_id, professional_nom, preu, descripcio, duracio_estimada) VALUES (?, ?, ?, ?, ?, ?, ?)",
-				id, req.incidenciaId(), proId, proNom, req.preu(), req.descripcio(), req.duracioEstimada()
-			);
-
-			final String finalProNom = proNom;
-			// Notifica al client titular de la incidència
-			findPublicacioById(req.incidenciaId()).ifPresent(inc -> {
-				if (inc.usuariId() != null) {
-					addAvis(inc.usuariId(), "Nova proposta de pressupost de " + finalProNom + " (" + req.preu() + ") per a la teva incidència '" + inc.titol() + "'.");
-				}
-			});
-			findIncidenciaById(req.incidenciaId()).ifPresent(inc -> {
-				if (inc.clientId() != null) {
-					addAvis(inc.clientId(), "Nova proposta de pressupost de " + finalProNom + " (" + req.preu() + ") per a la teva incidència '" + inc.titol() + "'.");
-				}
-			});
-		} catch (Exception ignored) {}
-
-		return new Pressupost(id, req.incidenciaId(), null, proId, proNom, req.preu(), req.descripcio(), req.duracioEstimada(), LocalDateTime.now());
+	/**
+	 * Bloqueja la incidència mentre dura la transacció.
+	 * Diversos professionals poden pressupostar alhora, però cap mentre el client n'accepta un.
+	 */
+	private Optional<String> estatIncidenciaBloquejada(UUID incidencia, String bloqueig) {
+		return jdbcTemplate.queryForList(
+			"SELECT estat FROM publicacions WHERE id = ? AND tipus = 'INCIDENCIA' " + bloqueig, String.class, incidencia
+		).stream().findFirst();
 	}
 
+	/**
+	 * Desa el pressupost d'un professional per a una incidència oberta i n'avisa el client.
+	 * @param req Dades del pressupost
+	 * @return El pressupost desat
+	 */
 	@Transactional
-	public Optional<Tasca> acceptarPressupost(String pressupostId) {
-		Optional<Pressupost> pOpt = findPressupostById(pressupostId);
-		if (pOpt.isEmpty()) return Optional.empty();
-		Pressupost p = pOpt.get();
+	public Pressupost addPressupost(CrearPressupostRequest req) {
+		String identificador = req.professionalId() != null ? req.professionalId() : req.professionalNom();
+		Usuari professional = findUserById(identificador)
+			.orElseThrow(() -> new IllegalArgumentException("El professional no existeix."));
+		if (!"professional".equalsIgnoreCase(professional.rol())) {
+			throw new SecurityException("Només els professionals poden enviar pressupostos a les incidències.");
+		}
+		Incidencia incidencia = findIncidenciaById(req.incidenciaId())
+			.orElseThrow(() -> new IllegalArgumentException("La incidència no existeix."));
+		UUID incidenciaId = UUID.fromString(incidencia.id());
+		if (!estatIncidenciaBloquejada(incidenciaId, "FOR SHARE").filter("OBERTA"::equals).isPresent()) {
+			throw new IllegalStateException("La incidència ja no admet pressupostos.");
+		}
 
-		// 1. Validar que la incidència o tasca existeix
-		Optional<Publicacio> pubOpt = findPublicacioById(p.incidenciaId());
-		Optional<Incidencia> incOpt = findIncidenciaById(p.incidenciaId());
-		Optional<Tasca> taskOpt = findTaskById(p.incidenciaId());
-		if (pubOpt.isEmpty() && incOpt.isEmpty() && taskOpt.isEmpty()) {
+		String id;
+		try {
+			id = jdbcTemplate.queryForObject(
+				"INSERT INTO pressupostos (publicacio_id, professional_id, preu, descripcio, duracio_estimada) VALUES (?, ?::uuid, ?, ?, ?) RETURNING id::text",
+				String.class,
+				incidenciaId, professional.id(), req.preu(), req.descripcio(), req.duracioEstimada()
+			);
+		} catch (DuplicateKeyException e) {
+			throw new IllegalStateException("Ja has enviat un pressupost per a aquesta incidència.");
+		}
+		addAvis(incidencia.clientId(), "Nova proposta de pressupost de " + professional.nom() + " (" + req.preu() + ") per a la teva incidència '" + incidencia.titol() + "'.");
+		return findPressupostById(id).orElseThrow();
+	}
+
+	/**
+	 * El client accepta un pressupost: la resta de pendents es rebutgen avisant els seus professionals,
+	 * la incidència queda assignada i naix la tasca en curs. O tot o res.
+	 * @param pressupostId Identificador del pressupost
+	 * @param actorId Usuari que fa l'acció, que ha de ser el client de la incidència
+	 * @return La tasca en curs, o buit si el pressupost no existeix
+	 */
+	@Transactional
+	public Optional<Tasca> acceptarPressupost(String pressupostId, String actorId) {
+		Optional<Pressupost> trobat = findPressupostById(pressupostId);
+		if (trobat.isEmpty()) {
 			return Optional.empty();
 		}
-
-		if (taskOpt.isPresent()) {
-			Tasca t = taskOpt.get();
-			jdbcTemplate.update(
-				"UPDATE tasques SET estat = 'En curs', tipus = 'tasca', professional_id = ?, professional_nom = ?, pressupost_id = ?, preu_acordat = ?, budget = ? WHERE id = ?",
-				p.professionalId(), p.professionalNom(), pressupostId, p.preu(), p.preu(), t.id()
-			);
-
-			// El pressupost acceptat i la resta s'eliminen perquè ja és una tasca en curs
-			jdbcTemplate.update("DELETE FROM pressupostos WHERE incidencia_id = ? OR id = ?", p.incidenciaId(), pressupostId);
-
-			if (p.professionalId() != null) {
-				addAvis(p.professionalId(), "Enhorabona! " + t.client() + " ha acceptat el teu pressupost per a '" + t.titol() + "' (" + p.preu() + ")! S'ha generat la tasca en curs.");
-			}
-			return findTaskById(t.id());
+		UUID incidenciaId = UUID.fromString(trobat.get().incidenciaId());
+		String estatIncidencia = estatIncidenciaBloquejada(incidenciaId, "FOR UPDATE").orElseThrow();
+		Pressupost p = findPressupostById(pressupostId).orElseThrow();
+		Incidencia incidencia = findIncidenciaById(p.incidenciaId()).orElseThrow();
+		if (!usuariActor(actorId).id().equals(incidencia.clientId())) {
+			throw new SecurityException("Només el client de la incidència pot acceptar un pressupost.");
+		}
+		if (!"OBERTA".equals(estatIncidencia) || !"Pendent".equals(p.estat())) {
+			throw new IllegalStateException("Aquest pressupost ja no es pot acceptar.");
 		}
 
-		String titol = pubOpt.map(Publicacio::titol).orElse(incOpt.map(Incidencia::titol).orElse("Treball acordat"));
-		String desc = pubOpt.map(Publicacio::descripcio).orElse(incOpt.map(Incidencia::descripcio).orElse(p.descripcio()));
-		String cat = pubOpt.map(Publicacio::categoria).orElse(incOpt.map(Incidencia::categoria).orElse("Altres Serveis"));
-		String clientId = pubOpt.map(Publicacio::usuariId).orElse(incOpt.map(Incidencia::clientId).orElse(null));
-		String clientNom = pubOpt.map(Publicacio::usuariNom).orElse(incOpt.map(Incidencia::clientNom).orElse("Client AVISA"));
-
-		String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
-
-		// 2. Crear la Tasca
-		jdbcTemplate.update(
-			"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, pressupost_id, preu_acordat, data_inici, estat, tipus) " +
-			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'En curs', 'tasca')",
-			newTaskId, titol, desc, cat, clientId, clientNom, p.professionalId(), p.professionalNom(), pressupostId, p.preu()
+		UUID id = UUID.fromString(p.id());
+		List<String> rebutjats = jdbcTemplate.queryForList(
+			"UPDATE pressupostos SET estat = 'REBUTJAT', rebutjat_automaticament = TRUE WHERE publicacio_id = ? AND estat = 'PENDENT' AND id <> ? RETURNING professional_id::text",
+			String.class, incidenciaId, id
+		);
+		jdbcTemplate.update("UPDATE pressupostos SET estat = 'ACCEPTAT' WHERE id = ?", id);
+		jdbcTemplate.update("UPDATE publicacions SET estat = 'ASSIGNADA' WHERE id = ?", incidenciaId);
+		String tascaId = jdbcTemplate.queryForObject(
+			"INSERT INTO tasques (publicacio_id, client_id, professional_id, pressupost_id, preu_acordat, estat, data_inici) VALUES (?, ?::uuid, ?::uuid, ?, ?, 'EN_CURS', CURRENT_TIMESTAMP) RETURNING id::text",
+			String.class,
+			incidenciaId, incidencia.clientId(), p.professionalId(), id, p.preu()
 		);
 
-		// 3. Eliminar la incidència de PUBLICACIONS i INCIDENCIES (ja contractada!)
-		jdbcTemplate.update("DELETE FROM publicacions WHERE id = ?", p.incidenciaId());
-		jdbcTemplate.update("DELETE FROM incidencies WHERE id = ?", p.incidenciaId());
-
-		// 4. Eliminar el pressupost acceptat i la resta de propostes (passa a ser una tasca i s'elimina!)
-		jdbcTemplate.update("DELETE FROM pressupostos WHERE incidencia_id = ? OR id = ?", p.incidenciaId(), pressupostId);
-
-		// 5. Notificar al professional seleccionat
-		if (p.professionalId() != null) {
-			addAvis(p.professionalId(), "Enhorabona! " + clientNom + " ha acceptat el teu pressupost per a '" + titol + "' (" + p.preu() + ")! S'ha generat la tasca en curs.");
-		}
-
-		return findTaskById(newTaskId);
+		addAvis(p.professionalId(), "Enhorabona! " + incidencia.clientNom() + " ha acceptat el teu pressupost per a '" + incidencia.titol() + "' (" + p.preu() + ")! S'ha generat la tasca en curs.");
+		rebutjats.forEach(professionalId -> addAvis(professionalId, "El client ha triat un altre pressupost per a la incidència '" + incidencia.titol() + "'."));
+		return findTaskById(tascaId);
 	}
 
-	public boolean rebutjarPressupost(String pressupostId) {
-		int rows = jdbcTemplate.update("DELETE FROM pressupostos WHERE id = ?", pressupostId);
-		return rows > 0;
+	/**
+	 * Rebuig manual d'un pressupost pendent. No es recupera encara que es cancel·le la tasca d'un altre.
+	 * @param pressupostId Identificador del pressupost
+	 * @param actorId Usuari que fa l'acció: el client de la incidència o un administrador
+	 * @return true si s'ha rebutjat, false si no existeix
+	 */
+	@Transactional
+	public boolean rebutjarPressupost(String pressupostId, String actorId) {
+		Optional<Pressupost> trobat = findPressupostById(pressupostId);
+		if (trobat.isEmpty()) {
+			return false;
+		}
+		Pressupost p = trobat.get();
+		Incidencia incidencia = findIncidenciaById(p.incidenciaId()).orElseThrow();
+		exigirAutorOAdmin(incidencia.clientId(), actorId);
+		int files = jdbcTemplate.update("UPDATE pressupostos SET estat = 'REBUTJAT' WHERE id = ? AND estat = 'PENDENT'", UUID.fromString(p.id()));
+		if (files == 0) {
+			throw new IllegalStateException("Només es pot rebutjar un pressupost pendent.");
+		}
+		addAvis(p.professionalId(), "El teu pressupost per a la incidència '" + incidencia.titol() + "' ha estat rebutjat.");
+		return true;
 	}
 
 	// ==========================================
