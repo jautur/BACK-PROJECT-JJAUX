@@ -32,7 +32,8 @@ class PublicacionsIT extends MercatIntegrationTest {
 
 		assertThat(jdbc.queryForObject("SELECT autor_id::text FROM publicacions WHERE id = ?::uuid AND tipus = 'OFERTA' AND estat = 'ACTIVA' AND preu = '30€'",
 			String.class, id)).isEqualTo(professional.toString());
-		mvc.perform(get("/api/offers")).andExpect(jsonPath("$[0].id").value(id)).andExpect(jsonPath("$[0].estat").value("Pendent"));
+		mvc.perform(get("/api/offers")).andExpect(jsonPath("$[0].id").value(id)).andExpect(jsonPath("$[0].estat").value("Pendent"))
+			.andExpect(jsonPath("$[0].professionalId").value(professional.toString()));
 	}
 
 	@Test

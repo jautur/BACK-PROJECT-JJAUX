@@ -388,7 +388,8 @@ public class InMemoryCatalog {
 		rs.getString("categoria"),
 		rs.getString("preu"),
 		rs.getString("descripcio"),
-		ETIQUETES_PUBLICACIO.get(rs.getString("estat"))
+		ETIQUETES_PUBLICACIO.get(rs.getString("estat")),
+		rs.getString("autor_id")
 	);
 
 	/** Un identificador que no és un UUID no correspon a cap fila. */
