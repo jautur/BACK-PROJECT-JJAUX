@@ -67,20 +67,21 @@ public class OfertaService {
 	}
 
 	/**
-	 * Accepta una oferta vinculada a una tasca existent.
-	 * @param offerId Identificador de l'oferta
-	 * @return Oferta acceptada
+	 * Accepta un pressupost o sol·licita una oferta, segons l'identificador rebut.
+	 * @param offerId Identificador de l'oferta o del pressupost
+	 * @param actorId Usuari que fa l'acció
+	 * @return Oferta afectada
 	 */
-	public Optional<Oferta> accept(String offerId) {
-		return catalog.acceptOffer(offerId);
+	public Optional<Oferta> accept(String offerId, String actorId) {
+		return catalog.acceptOffer(offerId, actorId);
 	}
 
 	/**
-	 * Contractació directa d'una oferta pública per part d'un client:
-	 * Genera una tasca en curs privada mantenint l'oferta activa al mercat per a futurs clients.
-	 * @param offerId Identificador de l'oferta contractada
-	 * @param clientNom Nom o identificador del client contractant
-	 * @return La tasca en curs creada
+	 * Sol·licitud d'una oferta per part d'un client ("M'interessa"):
+	 * queda pendent del professional i l'oferta continua activa per a altres clients.
+	 * @param offerId Identificador de l'oferta
+	 * @param clientNom Identificador del client
+	 * @return La sol·licitud creada
 	 */
 	public Optional<Tasca> contractDirect(String offerId, String clientNom) {
 		return catalog.convertOfferToTask(offerId, clientNom);

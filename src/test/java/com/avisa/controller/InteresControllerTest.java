@@ -51,7 +51,7 @@ class InteresControllerTest {
         Interes created = new Interes("INT-1", "PUB-1", "u-1", "Client A", "Vull el servei", null, LocalDateTime.now());
         when(interesService.create(any())).thenReturn(created);
 
-        mockMvc.perform(post("/api/interessos")
+        mockMvc.perform(post("/api/interessos").principal(() -> "u-1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
@@ -73,9 +73,9 @@ class InteresControllerTest {
     @DisplayName("POST /api/interessos/{id}/acceptar accepta l'interès")
     void haDAcceptarInteres() throws Exception {
         Tasca t = new Tasca("T-1", "Servei", "Desc", "Cat", "u-client", "Client A", "u-pro", "Pro 1", null, null, null, "50€", LocalDateTime.now(), null, null, null, null);
-        when(interesService.accept("INT-1")).thenReturn(Optional.of(t));
+        when(interesService.accept("INT-1", "u-pro")).thenReturn(Optional.of(t));
 
-        mockMvc.perform(post("/api/interessos/INT-1/acceptar"))
+        mockMvc.perform(post("/api/interessos/INT-1/acceptar").principal(() -> "u-pro"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("T-1"));
     }

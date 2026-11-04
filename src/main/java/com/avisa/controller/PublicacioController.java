@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.security.Principal;
 import java.util.List;
-import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -68,19 +67,12 @@ public class PublicacioController {
 	}
 
 	/**
-	 * Contractar directament una oferta d'un professional ('OFERTA to TAREA').
-	 * L'oferta roman persistent a publicacions i es crea directament la tasca en curs.
+	 * "M'interessa": crea una sol·licitud que el professional ha d'acceptar. El client és l'usuari del token.
 	 * Endpoint: POST /api/publicacions/{id}/contractar
 	 */
 	@PostMapping("/{id}/contractar")
-	public ResponseEntity<Tasca> hireOffer(
-		@PathVariable String id,
-		@RequestBody(required = false) Map<String, String> body
-	) {
-		String clientNom = (body != null && body.get("clientNom") != null && !body.get("clientNom").isBlank())
-			? body.get("clientNom")
-			: "Client AVISA";
-		return publicacioService.contractDirect(id, clientNom)
+	public ResponseEntity<Tasca> hireOffer(@PathVariable String id, Principal principal) {
+		return publicacioService.contractDirect(id, Sollicitant.id(principal))
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}

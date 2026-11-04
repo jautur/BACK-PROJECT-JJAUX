@@ -613,130 +613,137 @@ public class InMemoryCatalog {
 		);
 	}
 
+	private Tasca tascaExistent(String id) {
+		return findTaskById(id).orElseThrow(() -> new IllegalArgumentException("La tasca no existeix."));
+	}
+
 	/**
-	 * Afegeix una nova petició o incidència creada per un client a la base de dades.
-	 * @param request Dades de la petició a publicar
-	 * @return La tasca/incidència creada
+	 * Les tasques naixen d'un pressupost o d'una sol·licitud. Aquesta ruta, sense professional,
+	 * publica una incidència; amb professional, sol·licita l'oferta indicada a origenId.
+	 * @param request Dades de la petició
+	 * @return La incidència adaptada o la sol·licitud desada
 	 */
+	@Transactional
 	public Tasca addTask(TascaRequest request) {
-		String id = "T-" + String.format("%03d", 100 + tasks().size() + 1);
-		String estat = request.estat() != null ? request.estat() : "Oberta";
-		String client = request.resolveClient();
 		String professional = request.resolveProfessional();
-		String tipus = (request.tipus() != null && !request.tipus().isBlank())
-			? request.tipus()
-			: (professional != null && !professional.isBlank() ? "tasca" : "incidencia");
-
-		String clientId = request.clientId();
-		String clientNom = client;
-		if (client != null) {
-			for (Usuari u : users()) {
-				if (u.nom().equalsIgnoreCase(client) || u.id().equalsIgnoreCase(client)) {
-					clientId = u.id();
-					clientNom = u.nom();
-					break;
-				}
-			}
+		if (professional == null || professional.isBlank()) {
+			Incidencia inc = addIncidencia(new IncidenciaRequest(null, null, request.resolveClient(), request.titol(), request.descripcio(), request.categoria(), request.budget(), null));
+			return new Tasca(inc.id(), inc.titol(), inc.descripcio(), inc.categoria(), inc.clientId(), inc.clientNom(), null, null, null, inc.budget(), inc.estat(), "incidencia", null, null);
 		}
-
-		String professionalId = request.professionalId();
-		String professionalNom = professional;
-		if (professional != null) {
-			for (Usuari u : users()) {
-				if (u.nom().equalsIgnoreCase(professional) || u.id().equalsIgnoreCase(professional)) {
-					professionalId = u.id();
-					professionalNom = u.nom();
-					break;
-				}
-			}
-		}
-
-		try {
-			jdbcTemplate.update(
-				"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus, valoracio, opinio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-				id, request.titol(), request.descripcio(), request.categoria(), clientId, clientNom, professionalId, professionalNom, request.origenId(), request.budget(), estat, tipus, request.valoracio(), request.opinio()
-			);
-			if (professional == null || professional.isBlank() || "incidencia".equalsIgnoreCase(tipus)) {
-				jdbcTemplate.update(
-					"INSERT INTO incidencies (id, client_id, client_nom, titol, descripcio, categoria, budget, estat) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING",
-					id, clientId, clientNom, request.titol(), request.descripcio(), request.categoria(), request.budget(), estat
-				);
-			}
-		} catch (Exception ignored) {}
-		return new Tasca(id, request.titol(), request.descripcio(), request.categoria(), clientId, clientNom, professionalId, professionalNom, request.origenId(), request.budget(), estat, tipus, request.valoracio(), request.opinio());
+		return convertOfferToTask(request.origenId(), request.resolveClient())
+			.orElseThrow(() -> new IllegalArgumentException("Una tasca només pot nàixer d'un pressupost o d'una oferta existent."));
 	}
 
 	/**
-	 * Finalitza una tasca canviant el seu estat a 'Finalitzada' i enviant avisos pertinents.
+	 * Finalitza una tasca en curs. Ho pot fer el client, el professional o un administrador, sense confirmació
+	 * de l'altra part. Si ve d'una incidència, la tanca. Només el client hi pot afegir la valoració.
 	 * @param id Identificador de la tasca
-	 * @return Optional amb la tasca actualitzada
+	 * @param actorId Usuari que fa l'acció
+	 * @param valoracio Puntuació opcional (1 a 5 estrelles)
+	 * @param opinio Comentari opcional del client
+	 * @return Optional amb la tasca actualitzada, buit si no existeix
 	 */
-	public Optional<Tasca> completeTask(String id) {
-		return completeTask(id, null, null);
-	}
-
-	/**
-	 * Finalitza una tasca canviant el seu estat a 'Finalitzada', enregistrant directament la valoració i opinió del client.
-	 * @param id Identificador de la tasca
-	 * @param valoracio Puntuació del servei (1 a 5 estrelles)
-	 * @param opinio Opinió o comentari del client
-	 * @return Optional amb la tasca actualitzada
-	 */
-	public Optional<Tasca> completeTask(String id, Integer valoracio, String opinio) {
-		try {
-			if (valoracio != null) {
-				jdbcTemplate.update(
-					"UPDATE tasques SET estat = 'Finalitzada', valoracio = ?, opinio = ? WHERE id = ?",
-					valoracio, opinio, id
-				);
-			} else {
-				jdbcTemplate.update("UPDATE tasques SET estat = 'Finalitzada' WHERE id = ?", id);
-			}
-
-			Optional<Tasca> tascaOpt = findTaskById(id);
-			tascaOpt.ifPresent(task -> {
-				// Notifica al client
-				if (task.clientId() != null) {
-					addAvis(task.clientId(), "Has finalitzat amb èxit la tasca '" + task.titol() + "'.");
-				} else if (task.clientNom() != null) {
-					users().stream()
-						.filter(u -> u.nom().equalsIgnoreCase(task.clientNom()))
-						.findFirst()
-						.ifPresent(clientUser -> addAvis(clientUser.id(), "Has finalitzat amb èxit la tasca '" + task.titol() + "'."));
-				}
-
-				// Notifica al professional
-				String proId = task.professionalId();
-				if (proId == null && task.professionalNom() != null) {
-					proId = users().stream()
-						.filter(u -> u.nom().equalsIgnoreCase(task.professionalNom()))
-						.findFirst()
-						.map(Usuari::id)
-						.orElse(null);
-				}
-				if (proId != null) {
-					if (valoracio != null) {
-						String opDesc = (opinio != null && !opinio.isBlank()) ? " amb l'opinió: \"" + opinio + "\"" : "";
-						addAvis(proId, "La tasca '" + task.titol() + "' ha estat finalitzada per " + (task.clientNom() != null ? task.clientNom() : "el client") + " i has rebut una valoració de " + valoracio + "/5 estrelles" + opDesc + "!");
-					} else {
-						addAvis(proId, "La tasca '" + task.titol() + "' ha estat marcada com a finalitzada pel client!");
-					}
-				}
-			});
-			return tascaOpt;
-		} catch (Exception e) {
+	@Transactional
+	public Optional<Tasca> completeTask(String id, String actorId, Integer valoracio, String opinio) {
+		Optional<Tasca> trobada = findTaskById(id);
+		if (trobada.isEmpty()) {
 			return Optional.empty();
 		}
+		Tasca tasca = trobada.get();
+		Usuari actor = usuariActor(actorId);
+		boolean esClient = actor.id().equals(tasca.clientId());
+		if (!esClient && !actor.id().equals(tasca.professionalId()) && !esAdmin(actor)) {
+			throw new SecurityException("Només el client, el professional o un administrador poden finalitzar la tasca.");
+		}
+		if (valoracio != null) {
+			validarValoracio(valoracio);
+			if (!esClient) {
+				throw new SecurityException("Només el client pot valorar la tasca.");
+			}
+		}
+		UUID uuid = UUID.fromString(tasca.id());
+		int files = jdbcTemplate.update("UPDATE tasques SET estat = 'FINALITZADA', data_finalitzacio = CURRENT_TIMESTAMP WHERE id = ? AND estat = 'EN_CURS'", uuid);
+		if (files == 0) {
+			throw new IllegalStateException("Només es pot finalitzar una tasca en curs.");
+		}
+		jdbcTemplate.update("UPDATE publicacions SET estat = 'TANCADA' WHERE id = ?::uuid AND tipus = 'INCIDENCIA'", tasca.publicacioId());
+		if (valoracio != null) {
+			guardarValoracio(uuid, valoracio, opinio);
+		}
+		String missatge = "La tasca '" + tasca.titol() + "' ha estat finalitzada.";
+		if (!actor.id().equals(tasca.clientId())) {
+			addAvis(tasca.clientId(), missatge);
+		}
+		if (!actor.id().equals(tasca.professionalId())) {
+			addAvis(tasca.professionalId(), valoracio != null ? textValoracio(tasca, valoracio, opinio) : missatge);
+		}
+		return findTaskById(id);
 	}
 
 	/**
-	 * Elimina una tasca de la base de dades.
+	 * Valora una tasca finalitzada. Només el client pot fer-ho, encara que l'haja finalitzat una altra persona.
 	 * @param id Identificador de la tasca
+	 * @param actorId Usuari que fa l'acció
+	 * @param valoracio Puntuació (1 a 5 estrelles)
+	 * @param opinio Comentari opcional
+	 * @return Optional amb la tasca valorada, buit si no existeix
 	 */
-	public void deleteTask(String id) {
-		try {
-			jdbcTemplate.update("DELETE FROM tasques WHERE id = ?", id);
-		} catch (Exception ignored) {}
+	@Transactional
+	public Optional<Tasca> valorarTasca(String id, String actorId, Integer valoracio, String opinio) {
+		Optional<Tasca> trobada = findTaskById(id);
+		if (trobada.isEmpty()) {
+			return Optional.empty();
+		}
+		Tasca tasca = trobada.get();
+		if (!usuariActor(actorId).id().equals(tasca.clientId())) {
+			throw new SecurityException("Només el client pot valorar la tasca.");
+		}
+		validarValoracio(valoracio);
+		if (!guardarValoracio(UUID.fromString(tasca.id()), valoracio, opinio)) {
+			throw new IllegalStateException("Només es pot valorar una vegada una tasca finalitzada.");
+		}
+		addAvis(tasca.professionalId(), textValoracio(tasca, valoracio, opinio));
+		return findTaskById(id);
+	}
+
+	private static void validarValoracio(Integer valoracio) {
+		if (valoracio == null || valoracio < 1 || valoracio > 5) {
+			throw new IllegalArgumentException("La valoració ha de ser entre 1 i 5 estrelles.");
+		}
+	}
+
+	private boolean guardarValoracio(UUID tasca, int valoracio, String opinio) {
+		return jdbcTemplate.update(
+			"UPDATE tasques SET valoracio = ?, comentari = ?, data_valoracio = CURRENT_TIMESTAMP WHERE id = ? AND estat = 'FINALITZADA' AND valoracio IS NULL",
+			valoracio, opinio, tasca
+		) > 0;
+	}
+
+	private static String textValoracio(Tasca tasca, int valoracio, String opinio) {
+		String text = (opinio != null && !opinio.isBlank()) ? ": \"" + opinio + "\"" : "";
+		return tasca.clientNom() + " t'ha puntuat amb " + valoracio + " estrelles per a la tasca '" + tasca.titol() + "'" + text;
+	}
+
+	/**
+	 * Les tasques són historial i no s'esborren. Es mantenen dos casos que el front envia a aquesta ruta:
+	 * l'identificador d'una incidència, i la retirada d'una sol·licitud pròpia.
+	 * @param id Identificador de la tasca o incidència
+	 * @param actorId Usuari que fa l'acció
+	 * @return true si s'ha fet l'acció, false si no existeix
+	 */
+	@Transactional
+	public boolean deleteTask(String id, String actorId) {
+		if (findIncidenciaById(id).isPresent()) {
+			return deleteIncidencia(id, actorId);
+		}
+		Optional<Tasca> tasca = findTaskById(id);
+		if (tasca.isEmpty()) {
+			return false;
+		}
+		if ("Sol·licitada".equals(tasca.get().estat())) {
+			return retirarInteres(id, actorId);
+		}
+		throw new IllegalArgumentException("Una tasca acordada no es pot esborrar: forma part de l'historial.");
 	}
 
 	// ==========================================
@@ -774,6 +781,7 @@ public class InMemoryCatalog {
 	 * @param request Dades de l'oferta
 	 * @return L'oferta desada
 	 */
+	@Transactional
 	public Oferta addOffer(OfertaRequest request) {
 		Optional<Incidencia> incidencia = findIncidenciaById(request.resolveTargetId());
 		if (incidencia.isPresent()) {
@@ -791,192 +799,63 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Accepta una oferta:
-	 * - Marca l'oferta seleccionada com 'Acceptada'
-	 * - Rebutja automàticament les altres ofertes d'aquella mateixa incidència
-	 * - Converteix la incidència en TASCA (ara ja convergeixen client i professional obligatoris!)
-	 * - Enregistra professional_id, origen_id (offerId o incidenciaId) i passa l'estat de la tasca a 'En curs'
-	 * - Envia una notificació d'enhorabona al professional
-	 * @param offerId Identificador de l'oferta a acceptar
-	 * @return Optional amb l'oferta acceptada
+	 * Ruta antiga d'acceptar del front: si l'identificador és un pressupost, l'accepta;
+	 * si és una oferta, la sol·licita.
+	 * @param id Identificador del pressupost o de l'oferta
+	 * @param actorId Usuari que fa l'acció
+	 * @return Optional amb l'oferta, buit si no existeix
 	 */
-	public Optional<Oferta> acceptOffer(String offerId) {
-		try {
-			Optional<Oferta> opt = findOfferById(offerId);
-			if (opt.isPresent()) {
-				Oferta of = opt.get();
-				String targetId = of.tascaId() != null ? of.tascaId() : of.incidenciaId();
-
-				String proId = null;
-				for (Usuari u : users()) {
-					if (u.nom().equalsIgnoreCase(of.professional()) || u.id().equalsIgnoreCase(of.professional())) {
-						proId = u.id();
-						break;
-					}
-				}
-
-				// Comprovem si el destí prové de la taula incidencies
-				Optional<Incidencia> incOpt = findIncidenciaById(targetId);
-				if (incOpt.isPresent()) {
-					Incidencia inc = incOpt.get();
-					jdbcTemplate.update("UPDATE incidencies SET estat = 'Assignada' WHERE id = ?", targetId);
-
-					// Creem la nova TASCA on convergeixen client i professional obligatoris!
-					String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
-					jdbcTemplate.update(
-						"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En curs', 'tasca')",
-						newTaskId, inc.titol(), inc.descripcio(), inc.categoria(), inc.clientId(), inc.clientNom(), proId, of.professional(), inc.id(), of.price()
-					);
-
-					// Eliminar la incidència i el pressupost acceptat (passa a ser tasca i s'elimina!)
-					jdbcTemplate.update("DELETE FROM publicacions WHERE id = ?", targetId);
-					jdbcTemplate.update("DELETE FROM incidencies WHERE id = ?", targetId);
-					jdbcTemplate.update("DELETE FROM ofertes WHERE id = ? OR tasca_id = ? OR incidencia_id = ?", offerId, targetId, targetId);
-					jdbcTemplate.update("DELETE FROM pressupostos WHERE id = ? OR incidencia_id = ?", offerId, targetId);
-
-					final String finalProId = proId;
-					if (finalProId != null) {
-						addAvis(finalProId, "Enhorabona! La teva oferta per a '" + inc.titol() + "' ha estat ACCEPTADA per " + inc.clientNom() + "! S'ha generat la TASCA en curs.");
-					}
-					return Optional.of(of);
-				}
-
-				// Si ja era una tasca existent:
-				Optional<Tasca> taskOpt = findTaskById(targetId);
-				if (taskOpt.isPresent()) {
-					Tasca t = taskOpt.get();
-					if (t.client() != null && !"AVISA".equalsIgnoreCase(t.client())) {
-						jdbcTemplate.update(
-							"UPDATE tasques SET estat = 'En curs', tipus = 'tasca', professional_id = ?, professional_nom = ?, origen_id = ?, budget = ? WHERE id = ?",
-							proId, of.professional(), offerId, of.price(), targetId
-						);
-					} else {
-						String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
-						jdbcTemplate.update(
-							"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En curs', 'tasca')",
-							newTaskId, t.titol(), t.descripcio(), t.categoria(), t.clientId(), t.clientNom(), proId, of.professional(), offerId, of.price()
-						);
-					}
-
-					// Eliminar el pressupost/oferta acceptat i la resta per a aquesta tasca
-					jdbcTemplate.update("DELETE FROM ofertes WHERE id = ? OR tasca_id = ?", offerId, targetId);
-					jdbcTemplate.update("DELETE FROM pressupostos WHERE id = ? OR incidencia_id = ?", offerId, targetId);
-
-					findTaskById(targetId).ifPresent(task -> {
-						users().stream()
-							.filter(u -> u.nom().equalsIgnoreCase(of.professional()) || u.id().equalsIgnoreCase(of.professional()))
-							.findFirst()
-							.ifPresent(proUser -> addAvis(proUser.id(), "Enhorabona! La teva oferta per a '" + task.titol() + "' ha estat ACCEPTADA per " + task.client() + "! S'ha generat la TASCA en curs."));
-					});
-				}
-
-				return Optional.of(of);
-			}
-			return Optional.empty();
-		} catch (Exception e) {
-			return Optional.empty();
+	@Transactional
+	public Optional<Oferta> acceptOffer(String id, String actorId) {
+		Optional<Pressupost> pressupost = findPressupostById(id);
+		if (pressupost.isPresent()) {
+			Pressupost p = pressupost.get();
+			return acceptarPressupost(id, actorId).map(tasca ->
+				new Oferta(p.id(), tasca.id(), p.incidenciaId(), p.professionalNom(), tasca.categoria(), p.preu(), p.descripcio(), "Acceptada"));
 		}
+		Optional<Oferta> oferta = findOfferById(id);
+		if (oferta.isPresent()) {
+			convertOfferToTask(id, actorId);
+		}
+		return oferta;
 	}
 
 	/**
-	 * Converteix una oferta d'un professional en una TASCA directa per a un client ('OFERTA to TAREA').
-	 * Es crea una nova TASCA 'En curs' on convergeixen client i professional obligatoris.
-	 * IMPORTANT: Les ofertes no desapareixen al crear-se una tasca, ja que més d'un client es pot
-	 * interessar pel mateix servei del professional. L'oferta original roman activa i disponible.
-	 *
+	 * "M'interessa": crea una sol·licitud pendent que el professional ha d'acceptar.
+	 * L'oferta continua activa perquè més clients la puguen sol·licitar.
 	 * @param offerId Identificador de l'oferta
-	 * @param clientNom Nom de l'usuari client que contracta
-	 * @return Optional amb la Tasca creada
+	 * @param clientIdentificador Identificador del client que sol·licita
+	 * @return Optional amb la sol·licitud creada, buit si l'oferta no existeix
 	 */
-	public Optional<Tasca> convertOfferToTask(String offerId, String clientNom) {
-		try {
-			Optional<Oferta> opt = findOfferById(offerId);
-			String proNom = null;
-			String categoria = "Altres Serveis";
-			String titol = "Servei contractat";
-			String descripcio = "Servei contractat a través de l'oferta directa.";
-			String preu = "A convenir";
-
-			if (opt.isPresent()) {
-				Oferta of = opt.get();
-				proNom = of.professional();
-				if (of.categoria() != null && !of.categoria().isBlank()) categoria = of.categoria();
-				if (of.price() != null && !of.price().isBlank()) preu = of.price();
-				if (of.note() != null && !of.note().isBlank()) {
-					titol = (of.note().length() > 60) ? of.note().substring(0, 57) + "..." : of.note();
-					descripcio = of.note();
-				} else {
-					titol = "Servei de " + categoria + " (" + proNom + ")";
-				}
-			} else {
-				Optional<Publicacio> pubOpt = findPublicacioById(offerId);
-				if (pubOpt.isPresent()) {
-					Publicacio pub = pubOpt.get();
-					proNom = pub.usuariNom();
-					if (pub.categoria() != null && !pub.categoria().isBlank()) categoria = pub.categoria();
-					if (pub.preuOPressupost() != null && !pub.preuOPressupost().isBlank()) preu = pub.preuOPressupost();
-					if (pub.titol() != null && !pub.titol().isBlank()) titol = pub.titol();
-					if (pub.descripcio() != null && !pub.descripcio().isBlank()) descripcio = pub.descripcio();
-				} else {
-					return Optional.empty();
-				}
-			}
-
-			// Creació d'una nova TASCA directa en curs on convergeixen client i professional!
-			String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
-
-			String clientId = null;
-			String resolvedClientNom = clientNom;
-			for (Usuari u : users()) {
-				if (u.nom().equalsIgnoreCase(clientNom) || u.id().equalsIgnoreCase(clientNom)) {
-					clientId = u.id();
-					resolvedClientNom = u.nom();
-					break;
-				}
-			}
-
-			String proId = null;
-			for (Usuari u : users()) {
-				if (u.nom().equalsIgnoreCase(proNom) || u.id().equalsIgnoreCase(proNom)) {
-					proId = u.id();
-					break;
-				}
-			}
-
-			jdbcTemplate.update(
-				"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, origen_id, budget, estat, tipus, data_inici, preu_acordat, publicacio_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En curs', 'tasca', CURRENT_TIMESTAMP, ?, ?)",
-				newTaskId, titol, descripcio, categoria, clientId, resolvedClientNom, proId, proNom, offerId, preu, preu, offerId
-			);
-
-			// L'oferta original roman persistent a publicacions/ofertes per a altres clients!
-
-			// Avisos en temps real
-			final String finalTitol = titol;
-			final String finalClientNom = resolvedClientNom;
-			final String finalProNom = proNom;
-			final String finalPreu = preu;
-			if (proId != null) {
-				addAvis(proId, "El client " + finalClientNom + " ha contractat la teva oferta per a '" + finalTitol + "' (" + finalPreu + "). S'ha generat una nova TASCA en curs!");
-			} else {
-				users().stream()
-					.filter(u -> u.nom().equalsIgnoreCase(finalProNom))
-					.findFirst()
-					.ifPresent(proUser -> addAvis(proUser.id(), "El client " + finalClientNom + " ha contractat la teva oferta per a '" + finalTitol + "' (" + finalPreu + "). S'ha generat una nova TASCA en curs!"));
-			}
-
-			if (clientId != null) {
-				addAvis(clientId, "Has contractat amb èxit el servei de " + finalProNom + " (" + finalPreu + "). La tasca '" + finalTitol + "' ja està en curs!");
-			} else {
-				users().stream()
-					.filter(u -> u.nom().equalsIgnoreCase(clientNom))
-					.findFirst()
-					.ifPresent(clientUser -> addAvis(clientUser.id(), "Has contractat amb èxit el servei de " + finalProNom + " (" + finalPreu + "). La tasca '" + finalTitol + "' ja està en curs!"));
-			}
-
-			return findTaskById(newTaskId);
-		} catch (Exception e) {
+	@Transactional
+	public Optional<Tasca> convertOfferToTask(String offerId, String clientIdentificador) {
+		Optional<Publicacio> trobada = publicacioPerId(offerId, "OFERTA", publicacioRowMapper);
+		if (trobada.isEmpty()) {
 			return Optional.empty();
 		}
+		Publicacio oferta = trobada.get();
+		Usuari client = findUserById(clientIdentificador).orElseThrow(() -> new SecurityException("Usuari no reconegut."));
+		if (!"client".equalsIgnoreCase(client.rol())) {
+			throw new SecurityException("Només els clients poden sol·licitar una oferta.");
+		}
+		UUID uuid = UUID.fromString(oferta.id());
+		String estat = jdbcTemplate.queryForObject("SELECT estat FROM publicacions WHERE id = ? FOR SHARE", String.class, uuid);
+		if (!"ACTIVA".equals(estat)) {
+			throw new IllegalStateException("Aquesta oferta ja no està disponible.");
+		}
+		String preu = (oferta.preuOPressupost() != null && !oferta.preuOPressupost().isBlank()) ? oferta.preuOPressupost() : "A convenir";
+		String id;
+		try {
+			id = jdbcTemplate.queryForObject(
+				"INSERT INTO tasques (publicacio_id, client_id, professional_id, preu_acordat, estat) VALUES (?, ?::uuid, ?::uuid, ?, 'SOLLICITADA') RETURNING id::text",
+				String.class,
+				uuid, client.id(), oferta.usuariId(), preu
+			);
+		} catch (DuplicateKeyException e) {
+			throw new IllegalStateException("Ja tens una sol·licitud pendent per a aquesta oferta.");
+		}
+		addAvis(oferta.usuariId(), "El client " + client.nom() + " ha mostrat interés en la teva oferta '" + oferta.titol() + "'. Pots acceptar o rebutjar la sol·licitud.");
+		return findTaskById(id);
 	}
 
 	/**
@@ -1142,8 +1021,7 @@ public class InMemoryCatalog {
 
 	// ==========================================
 	// GESTIÓ DE RESSENYES I VALORACIONS
-	// Ara s'obtenen directament de la taula TASQUES
-	// on el client ha valorat la feina en finalitzar-la!
+	// Una ressenya és la valoració que el client deixa a la tasca finalitzada.
 	// ==========================================
 
 	private final org.springframework.jdbc.core.RowMapper<Resenya> resenyaRowMapper = (rs, rowNum) -> new Resenya(
@@ -1154,8 +1032,8 @@ public class InMemoryCatalog {
 		rs.getString("professional_nom"),
 		rs.getString("id"),
 		rs.getInt("valoracio"),
-		rs.getString("opinio"),
-		rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : LocalDateTime.now()
+		rs.getString("comentari"),
+		rs.getTimestamp("created_at").toLocalDateTime()
 	);
 
 	/**
@@ -1163,82 +1041,47 @@ public class InMemoryCatalog {
 	 * @return Llista completa de valoracions
 	 */
 	public List<Resenya> resenyes() {
-		try {
-			return jdbcTemplate.query(
-				"SELECT id, client_id, client_nom, professional_id, professional_nom, valoracio, opinio, created_at FROM tasques WHERE valoracio IS NOT NULL ORDER BY created_at DESC",
-				resenyaRowMapper
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(SELECT_TASCA + "WHERE t.valoracio IS NOT NULL ORDER BY t.data_valoracio DESC", resenyaRowMapper);
 	}
 
 	/**
-	 * Obté les ressenyes i valoracions rebudes per un professional concret a partir de les seves tasques completades.
-	 * @param treballadorIdOIdNom ID o Nom del professional
+	 * Obté les valoracions rebudes per un professional.
+	 * @param treballadorIdOIdNom ID, nom o correu del professional
 	 * @return Llista de valoracions dirigides a aquest professional
 	 */
 	public List<Resenya> findResenyesByTreballador(String treballadorIdOIdNom) {
-		try {
-			return jdbcTemplate.query(
-				"SELECT id, client_id, client_nom, professional_id, professional_nom, valoracio, opinio, created_at FROM tasques WHERE valoracio IS NOT NULL AND (professional_id = ? OR LOWER(professional_nom) = LOWER(?)) ORDER BY created_at DESC",
-				resenyaRowMapper,
-				treballadorIdOIdNom, treballadorIdOIdNom
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(
+			SELECT_TASCA + "WHERE t.valoracio IS NOT NULL AND (t.professional_id::text = ? OR LOWER(pr.nom) = LOWER(?) OR LOWER(pr.email) = LOWER(?)) ORDER BY t.data_valoracio DESC",
+			resenyaRowMapper,
+			treballadorIdOIdNom, treballadorIdOIdNom, treballadorIdOIdNom
+		);
 	}
 
 	/**
-	 * Obté les ressenyes emeses per un client concret a partir de les seves tasques completades.
-	 * @param clientId Identificador o nom de l'usuari client
+	 * Obté les valoracions emeses per un client.
+	 * @param clientId ID, nom o correu del client
 	 * @return Llista de valoracions emeses pel client
 	 */
 	public List<Resenya> findResenyesByClient(String clientId) {
-		try {
-			return jdbcTemplate.query(
-				"SELECT id, client_id, client_nom, professional_id, professional_nom, valoracio, opinio, created_at FROM tasques WHERE valoracio IS NOT NULL AND (client_id = ? OR LOWER(client_nom) = LOWER(?)) ORDER BY created_at DESC",
-				resenyaRowMapper,
-				clientId, clientId
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(
+			SELECT_TASCA + "WHERE t.valoracio IS NOT NULL AND (t.client_id::text = ? OR LOWER(c.nom) = LOWER(?) OR LOWER(c.email) = LOWER(?)) ORDER BY t.data_valoracio DESC",
+			resenyaRowMapper,
+			clientId, clientId, clientId
+		);
 	}
 
 	/**
-	 * Desa una valoració directament sobre la taula TASQUES i envia avís en temps real al professional.
+	 * Desa una valoració sobre la seua tasca, amb les mateixes regles que valorar la tasca directament.
 	 * @param resenya Dades de la valoració
-	 * @return Valoració processada
+	 * @param actorId Usuari que fa l'acció
+	 * @return Valoració desada
 	 */
-	public Resenya addResenya(Resenya resenya) {
-		String tascaId = resenya.tascaId();
-		if (tascaId != null && !tascaId.isBlank()) {
-			try {
-				jdbcTemplate.update(
-					"UPDATE tasques SET valoracio = ?, opinio = ? WHERE id = ?",
-					resenya.puntuacio(), resenya.descripcio(), tascaId
-				);
-
-				findTaskById(tascaId).ifPresent(task -> {
-					String proId = task.professionalId();
-					if (proId == null && task.professionalNom() != null) {
-						proId = users().stream()
-							.filter(u -> u.nom().equalsIgnoreCase(task.professionalNom()))
-							.findFirst()
-							.map(Usuari::id)
-							.orElse(null);
-					}
-					if (proId != null) {
-						String clientNom = task.clientNom() != null ? task.clientNom() : "Un client";
-						String desc = resenya.descripcio() != null ? resenya.descripcio() : "";
-						addAvis(proId, clientNom + " t'ha puntuat amb " + resenya.puntuacio() + " estrelles per a la tasca '" + task.titol() + "': \"" + desc + "\"");
-					}
-				});
-			} catch (Exception ignored) {}
-		}
-		return resenya;
+	@Transactional
+	public Resenya addResenya(Resenya resenya, String actorId) {
+		Tasca tasca = valorarTasca(resenya.tascaId(), actorId, resenya.puntuacio(), resenya.descripcio())
+			.orElseThrow(() -> new IllegalArgumentException("La tasca no existeix."));
+		return new Resenya("R-" + tasca.id(), tasca.clientId(), tasca.clientNom(), tasca.professionalId(), tasca.professionalNom(),
+			tasca.id(), tasca.valoracio(), tasca.opinio(), tasca.dataValoracio());
 	}
 
 	// ==========================================
@@ -1285,168 +1128,124 @@ public class InMemoryCatalog {
 	}
 
 	// ==========================================
-	// GESTIÓ D'INTERESSOS EN OFERTES
+	// SOL·LICITUDS D'OFERTES ("M'INTERESSA")
+	// /api/interessos és una vista de les tasques nascudes d'una oferta. L'interés i la tasca són la mateixa fila.
 	// ==========================================
+
+	private static final String SOLLICITUD_VIGENT = "t.pressupost_id IS NULL AND t.estat NOT IN ('REBUTJADA', 'RETIRADA') ";
 
 	private final org.springframework.jdbc.core.RowMapper<Interes> interesRowMapper = (rs, rowNum) -> new Interes(
 		rs.getString("id"),
 		rs.getString("publicacio_id"),
-		rs.getString("publicacio_titol"),
+		rs.getString("titol"),
 		rs.getString("client_id"),
 		rs.getString("client_nom"),
 		rs.getString("professional_id"),
 		rs.getString("professional_nom"),
-		rs.getString("missatge"),
-		rs.getString("tasca_id"),
-		rs.getTimestamp("data_creacio") != null ? rs.getTimestamp("data_creacio").toLocalDateTime() : LocalDateTime.now()
+		null,
+		"SOLLICITADA".equals(rs.getString("estat")) ? null : rs.getString("id"),
+		rs.getTimestamp("created_at").toLocalDateTime()
 	);
 
 	public List<Interes> findInteressosByProfessional(String proNomOrId) {
-		try {
-			return jdbcTemplate.query(
-				"SELECT i.id, i.publicacio_id, COALESCE(p.titol, o.categoria, 'Servei Professional') AS publicacio_titol, i.client_id, i.client_nom, COALESCE(p.usuari_id, u.id) AS professional_id, COALESCE(p.usuari_nom, o.professional) AS professional_nom, i.missatge, i.tasca_id, i.data_creacio " +
-				"FROM interessos i " +
-				"LEFT JOIN publicacions p ON p.id = i.publicacio_id " +
-				"LEFT JOIN ofertes o ON o.id = i.publicacio_id " +
-				"LEFT JOIN usuaris u ON LOWER(u.nom) = LOWER(COALESCE(p.usuari_nom, o.professional)) " +
-				"WHERE LOWER(COALESCE(p.usuari_nom, o.professional)) = LOWER(?) OR COALESCE(p.usuari_id, u.id) = ? " +
-				"ORDER BY i.data_creacio DESC",
-				interesRowMapper,
-				proNomOrId, proNomOrId
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(
+			SELECT_TASCA + "WHERE " + SOLLICITUD_VIGENT + "AND (t.professional_id::text = ? OR LOWER(pr.nom) = LOWER(?) OR LOWER(pr.email) = LOWER(?)) ORDER BY t.created_at DESC",
+			interesRowMapper,
+			proNomOrId, proNomOrId, proNomOrId
+		);
 	}
 
 	public List<Interes> findInteressosByClient(String clientNomOrId) {
-		try {
-			return jdbcTemplate.query(
-				"SELECT i.id, i.publicacio_id, COALESCE(p.titol, o.categoria, 'Servei Professional') AS publicacio_titol, i.client_id, i.client_nom, COALESCE(p.usuari_id, u.id) AS professional_id, COALESCE(p.usuari_nom, o.professional) AS professional_nom, i.missatge, i.tasca_id, i.data_creacio " +
-				"FROM interessos i " +
-				"LEFT JOIN publicacions p ON p.id = i.publicacio_id " +
-				"LEFT JOIN ofertes o ON o.id = i.publicacio_id " +
-				"LEFT JOIN usuaris u ON LOWER(u.nom) = LOWER(COALESCE(p.usuari_nom, o.professional)) " +
-				"WHERE LOWER(i.client_nom) = LOWER(?) OR i.client_id = ? " +
-				"ORDER BY i.data_creacio DESC",
-				interesRowMapper,
-				clientNomOrId, clientNomOrId
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(
+			SELECT_TASCA + "WHERE " + SOLLICITUD_VIGENT + "AND (t.client_id::text = ? OR LOWER(c.nom) = LOWER(?) OR LOWER(c.email) = LOWER(?)) ORDER BY t.created_at DESC",
+			interesRowMapper,
+			clientNomOrId, clientNomOrId, clientNomOrId
+		);
 	}
 
 	public Optional<Interes> findInteresById(String id) {
-		try {
-			List<Interes> res = jdbcTemplate.query(
-				"SELECT i.id, i.publicacio_id, COALESCE(p.titol, o.categoria, 'Servei Professional') AS publicacio_titol, i.client_id, i.client_nom, COALESCE(p.usuari_id, u.id) AS professional_id, COALESCE(p.usuari_nom, o.professional) AS professional_nom, i.missatge, i.tasca_id, i.data_creacio " +
-				"FROM interessos i " +
-				"LEFT JOIN publicacions p ON p.id = i.publicacio_id " +
-				"LEFT JOIN ofertes o ON o.id = i.publicacio_id " +
-				"LEFT JOIN usuaris u ON LOWER(u.nom) = LOWER(COALESCE(p.usuari_nom, o.professional)) " +
-				"WHERE i.id = ?",
-				interesRowMapper,
-				id
-			);
-			return res.stream().findFirst();
-		} catch (Exception e) {
+		Optional<UUID> uuid = uuid(id);
+		if (uuid.isEmpty()) {
 			return Optional.empty();
 		}
-	}
-
-	public Interes addInteres(CrearInteresRequest req) {
-		String id = "INT-" + UUID.randomUUID().toString().substring(0, 8);
-		String clientId = req.clientId();
-		String clientNom = req.clientNom();
-		if (clientNom != null) {
-			for (Usuari u : users()) {
-				if (u.nom().equalsIgnoreCase(clientNom) || u.id().equalsIgnoreCase(clientNom)) {
-					clientId = u.id();
-					clientNom = u.nom();
-					break;
-				}
-			}
-		}
-
-		final String finalClientNom = clientNom;
-		try {
-			jdbcTemplate.update(
-				"INSERT INTO interessos (id, publicacio_id, client_id, client_nom, missatge) VALUES (?, ?, ?, ?, ?)",
-				id, req.publicacioId(), clientId, finalClientNom, req.missatge()
-			);
-
-			// Avís al professional propietari de l'oferta
-			findPublicacioById(req.publicacioId()).ifPresent(pub -> {
-				if (pub.usuariId() != null) {
-					addAvis(pub.usuariId(), "El client " + finalClientNom + " ha mostrat interés en la teva oferta '" + pub.titol() + "'!");
-				} else if (pub.usuariNom() != null) {
-					users().stream()
-						.filter(u -> u.nom().equalsIgnoreCase(pub.usuariNom()))
-						.findFirst()
-						.ifPresent(pro -> addAvis(pro.id(), "El client " + finalClientNom + " ha mostrat interés en la teva oferta '" + pub.titol() + "'!"));
-				}
-			});
-		} catch (Exception ignored) {}
-
-		return new Interes(id, req.publicacioId(), clientId, finalClientNom, req.missatge(), null, LocalDateTime.now());
+		return jdbcTemplate.query(SELECT_TASCA + "WHERE t.id = ? AND t.pressupost_id IS NULL", interesRowMapper, uuid.get()).stream().findFirst();
 	}
 
 	@Transactional
-	public Optional<Tasca> acceptarInteres(String interesId) {
-		Optional<Interes> intOpt = findInteresById(interesId);
-		if (intOpt.isEmpty()) return Optional.empty();
-		Interes interes = intOpt.get();
-
-		// Si ja té una tasca vinculada, no en creem una segona
-		if (interes.tascaId() != null && !interes.tascaId().isBlank()) {
-			return findTaskById(interes.tascaId());
-		}
-
-		Optional<Publicacio> pubOpt = findPublicacioById(interes.publicacioId());
-		Optional<Oferta> ofOpt = findOfferById(interes.publicacioId());
-
-		String titol = pubOpt.map(Publicacio::titol).orElse(ofOpt.map(o -> "Servei de " + o.categoria()).orElse("Servei acordat"));
-		String desc = pubOpt.map(Publicacio::descripcio).orElse(ofOpt.map(Oferta::note).orElse(interes.missatge()));
-		String cat = pubOpt.map(Publicacio::categoria).orElse(ofOpt.map(Oferta::categoria).orElse("Altres Serveis"));
-		String preu = pubOpt.map(Publicacio::preuOPressupost).orElse(ofOpt.map(Oferta::price).orElse("Acordat"));
-		String proId = pubOpt.map(Publicacio::usuariId).orElse(interes.professionalId());
-		String proNom = pubOpt.map(Publicacio::usuariNom).orElse(interes.professionalNom());
-
-		String newTaskId = "T-" + String.format("%03d", 100 + tasks().size() + 1);
-
-		// Crea la TASCA en curs (sense estat redundant a la BD, data_finalitzacio = null)
-		jdbcTemplate.update(
-			"INSERT INTO tasques (id, titol, descripcio, categoria, client_id, client_nom, professional_id, professional_nom, publicacio_id, interes_id, preu_acordat, data_inici, estat, tipus) " +
-			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'En curs', 'tasca')",
-			newTaskId, titol, desc, cat, interes.clientId(), interes.clientNom(), proId, proNom, interes.publicacioId(), interesId, preu
-		);
-
-		// Vincula la tasca a l'interès per evitar duplicats
-		jdbcTemplate.update("UPDATE interessos SET tasca_id = ? WHERE id = ?", newTaskId, interesId);
-
-		// Notifica al client
-		if (interes.clientId() != null) {
-			addAvis(interes.clientId(), "El professional " + proNom + " ha acceptat el teu interés! S'ha iniciat la tasca en curs '" + titol + "'.");
-		}
-
-		return findTaskById(newTaskId);
+	public Interes addInteres(CrearInteresRequest req) {
+		String client = req.clientId() != null ? req.clientId() : req.clientNom();
+		Tasca sollicitud = convertOfferToTask(req.publicacioId(), client)
+			.orElseThrow(() -> new IllegalArgumentException("L'oferta no existeix."));
+		return findInteresById(sollicitud.id()).orElseThrow();
 	}
 
-	public boolean rebutjarInteres(String interesId) {
-		Optional<Interes> intOpt = findInteresById(interesId);
-		if (intOpt.isEmpty()) return false;
-		Interes interes = intOpt.get();
+	/**
+	 * Canvia l'estat d'una sol·licitud pendent. La condició SQL evita respondre dues vegades a la mateixa.
+	 */
+	private void resoldreSollicitud(Tasca tasca, String nouEstat, String dataInici) {
+		int files = jdbcTemplate.update(
+			"UPDATE tasques SET estat = ?, data_inici = " + dataInici + " WHERE id = ? AND estat = 'SOLLICITADA'",
+			nouEstat, UUID.fromString(tasca.id())
+		);
+		if (files == 0) {
+			throw new IllegalStateException("Aquesta sol·licitud ja no està pendent.");
+		}
+	}
 
-		if (interes.tascaId() != null && !interes.tascaId().isBlank()) {
+	private void exigirProfessionalDeLaTasca(Tasca tasca, String actorId) {
+		if (!usuariActor(actorId).id().equals(tasca.professionalId())) {
+			throw new SecurityException("Només el professional de l'oferta pot respondre la sol·licitud.");
+		}
+	}
+
+	/**
+	 * El professional accepta la sol·licitud i comença la tasca.
+	 * @return Optional amb la tasca en curs, buit si no existeix
+	 */
+	@Transactional
+	public Optional<Tasca> acceptarInteres(String interesId, String actorId) {
+		Optional<Tasca> tasca = findTaskById(interesId);
+		if (tasca.isEmpty()) {
+			return Optional.empty();
+		}
+		exigirProfessionalDeLaTasca(tasca.get(), actorId);
+		resoldreSollicitud(tasca.get(), "EN_CURS", "CURRENT_TIMESTAMP");
+		addAvis(tasca.get().clientId(), "El professional " + tasca.get().professionalNom() + " ha acceptat la teva sol·licitud! S'ha iniciat la tasca en curs '" + tasca.get().titol() + "'.");
+		return findTaskById(interesId);
+	}
+
+	/**
+	 * El professional rebutja la sol·licitud, que queda a l'historial.
+	 * @return true si s'ha rebutjat, false si no existeix
+	 */
+	@Transactional
+	public boolean rebutjarInteres(String interesId, String actorId) {
+		Optional<Tasca> tasca = findTaskById(interesId);
+		if (tasca.isEmpty()) {
 			return false;
 		}
+		exigirProfessionalDeLaTasca(tasca.get(), actorId);
+		resoldreSollicitud(tasca.get(), "REBUTJADA", "NULL");
+		addAvis(tasca.get().clientId(), "El professional " + tasca.get().professionalNom() + " ha rebutjat la teva sol·licitud per a '" + tasca.get().titol() + "'.");
+		return true;
+	}
 
-		int rows = jdbcTemplate.update("DELETE FROM interessos WHERE id = ?", interesId);
-		if (rows > 0 && interes.clientId() != null) {
-			addAvis(interes.clientId(), "El teu interés en l'oferta ha estat descartat pel professional.");
+	/**
+	 * El client retira la seua sol·licitud sense passar per l'administrador.
+	 * @return true si s'ha retirat, false si no existeix
+	 */
+	@Transactional
+	public boolean retirarInteres(String interesId, String actorId) {
+		Optional<Tasca> tasca = findTaskById(interesId);
+		if (tasca.isEmpty()) {
+			return false;
 		}
-		return rows > 0;
+		if (!usuariActor(actorId).id().equals(tasca.get().clientId())) {
+			throw new SecurityException("Només el client pot retirar la seua sol·licitud.");
+		}
+		resoldreSollicitud(tasca.get(), "RETIRADA", "NULL");
+		addAvis(tasca.get().professionalId(), "El client " + tasca.get().clientNom() + " ha retirat la sol·licitud per a '" + tasca.get().titol() + "'.");
+		return true;
 	}
 
 	// ==========================================

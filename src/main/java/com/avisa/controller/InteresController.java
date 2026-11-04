@@ -4,6 +4,7 @@ import com.avisa.dto.CrearInteresRequest;
 import com.avisa.model.Interes;
 import com.avisa.model.Tasca;
 import com.avisa.service.InteresService;
+import java.security.Principal;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,8 +33,8 @@ public class InteresController {
 	}
 
 	@PostMapping
-	public ResponseEntity<?> create(@RequestBody CrearInteresRequest req) {
-		Interes created = interesService.create(req);
+	public ResponseEntity<?> create(@RequestBody CrearInteresRequest req, Principal principal) {
+		Interes created = interesService.create(req.ambClient(Sollicitant.id(principal)));
 		return ResponseEntity.status(HttpStatus.CREATED).body(created);
 	}
 
@@ -55,15 +56,21 @@ public class InteresController {
 	}
 
 	@PostMapping("/{id}/acceptar")
-	public ResponseEntity<Tasca> acceptInterest(@PathVariable String id) {
-		return interesService.accept(id)
+	public ResponseEntity<Tasca> acceptInterest(@PathVariable String id, Principal principal) {
+		return interesService.accept(id, Sollicitant.id(principal))
 			.map(ResponseEntity::ok)
-			.orElse(ResponseEntity.badRequest().build());
+			.orElse(ResponseEntity.notFound().build());
 	}
 
 	@PostMapping("/{id}/rebutjar")
-	public ResponseEntity<Void> rejectInterest(@PathVariable String id) {
-		boolean ok = interesService.reject(id);
+	public ResponseEntity<Void> rejectInterest(@PathVariable String id, Principal principal) {
+		boolean ok = interesService.reject(id, Sollicitant.id(principal));
+		return ok ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+	}
+
+	@PostMapping("/{id}/retirar")
+	public ResponseEntity<Void> withdrawInterest(@PathVariable String id, Principal principal) {
+		boolean ok = interesService.withdraw(id, Sollicitant.id(principal));
 		return ok ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
 	}
 }

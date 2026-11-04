@@ -141,31 +141,36 @@ public class TascaService {
 	}
 
 	/**
-	 * Finalitza una tasca sense avaluació inicial.
+	 * Finalitza una tasca en curs, opcionalment amb la valoració del client.
 	 * @param id Identificador de la tasca
-	 * @return Tasca actualitzada a estat completat
-	 */
-	public Optional<Tasca> complete(String id) {
-		return catalog.completeTask(id);
-	}
-
-	/**
-	 * Finalitza una tasca registrant la valoració i opinió del client.
-	 * @param id Identificador de la tasca
+	 * @param actorId Usuari que fa l'acció
 	 * @param valoracio Puntuació numèrica d'1 a 5
-	 * @param opinio Comentari o ressenya del servei rebut
+	 * @param opinio Comentari del servei rebut
 	 * @return Tasca actualitzada
 	 */
-	public Optional<Tasca> completeWithReview(String id, Integer valoracio, String opinio) {
-		return catalog.completeTask(id, valoracio, opinio);
+	public Optional<Tasca> completeWithReview(String id, String actorId, Integer valoracio, String opinio) {
+		return catalog.completeTask(id, actorId, valoracio, opinio);
 	}
 
 	/**
-	 * Elimina una tasca del sistema.
+	 * Valora una tasca ja finalitzada.
 	 * @param id Identificador de la tasca
+	 * @param actorId Usuari que fa l'acció
+	 * @param valoracio Puntuació numèrica d'1 a 5
+	 * @param opinio Comentari del servei rebut
+	 * @return Tasca actualitzada
 	 */
-	public void delete(String id) {
-		catalog.deleteTask(id);
+	public Optional<Tasca> evaluate(String id, String actorId, Integer valoracio, String opinio) {
+		return catalog.valorarTasca(id, actorId, valoracio, opinio);
+	}
+
+	/**
+	 * Elimina una incidència o retira una sol·licitud. Les tasques acordades no s'esborren.
+	 * @param id Identificador
+	 * @param actorId Usuari que fa l'acció
+	 * @return true si s'ha fet l'acció
+	 */
+	public boolean delete(String id, String actorId) {
+		return catalog.deleteTask(id, actorId);
 	}
 }
-

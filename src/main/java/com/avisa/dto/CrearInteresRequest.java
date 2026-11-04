@@ -18,4 +18,7 @@ public record CrearInteresRequest(
     @Schema(description = "Missatge opcional del client", example = "Hola, voldria contractar el teu servei.")
     String missatge
 ) {
+    public CrearInteresRequest ambClient(String id) {
+        return new CrearInteresRequest(publicacioId, id, null, missatge);
+    }
 }

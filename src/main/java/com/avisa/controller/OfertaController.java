@@ -6,7 +6,6 @@ import com.avisa.model.Tasca;
 import com.avisa.service.OfertaService;
 import java.security.Principal;
 import java.util.List;
-import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,9 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Controlador REST per a la gestió d'ofertes i pressupostos (/api/offers).
- * Les ofertes no tenen estat: sols tenen 2 accions possibles (acceptar-les o esborrar-les).
- * En acceptar una oferta, es crea una tasca en curs privada entre el client i el professional,
- * mentre que l'oferta original roman disponible al mercat perquè altres clients puguin sol·licitar el servei.
+ * Sol·licitar una oferta crea una sol·licitud pendent del professional, mentre l'oferta original
+ * roman disponible al mercat perquè altres clients puguin sol·licitar el servei.
  */
 @RestController
 @RequestMapping("/api/offers")
@@ -94,33 +92,27 @@ public class OfertaController {
 	}
 
 	/**
-	 * Acceptar una oferta.
+	 * Ruta antiga d'acceptar: si l'identificador és un pressupost, l'accepta; si és una oferta, la sol·licita.
 	 * Endpoint: POST /api/offers/{id}/acceptar
-	 * Acció: El client accepta la proposta. L'oferta passa a 'Acceptada',
-	 * les altres ofertes de la tasca es rebutgen automàticament i la tasca passa a 'En curs'.
-	 * @param id Identificador de l'oferta acceptada
-	 * @return L'oferta actualitzada
+	 * @param id Identificador de l'oferta o del pressupost
+	 * @return L'oferta afectada
 	 */
 	@PostMapping("/{id}/acceptar")
-	public ResponseEntity<Oferta> acceptOffer(@PathVariable String id) {
-		return ofertaService.accept(id)
+	public ResponseEntity<Oferta> acceptOffer(@PathVariable String id, Principal principal) {
+		return ofertaService.accept(id, Sollicitant.id(principal))
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
 
 	/**
-	 * Contractar directament una oferta d'un professional i convertir-la en Tasca ('OFERTA to TAREA').
+	 * "M'interessa": crea una sol·licitud que el professional ha d'acceptar. El client és l'usuari del token.
 	 * Endpoint: POST /api/offers/{id}/contractar
 	 * @param id Identificador de l'oferta
-	 * @param body Cos opcional amb { "clientNom": "Nom del client" }
-	 * @return La Tasca creada o actualitzada en estat 'En curs'
+	 * @return La sol·licitud creada
 	 */
 	@PostMapping("/{id}/contractar")
-	public ResponseEntity<Tasca> hireOffer(@PathVariable String id, @RequestBody(required = false) Map<String, String> body) {
-		String clientNom = (body != null && body.get("clientNom") != null && !body.get("clientNom").isBlank())
-			? body.get("clientNom")
-			: "Client AVISA";
-		return ofertaService.contractDirect(id, clientNom)
+	public ResponseEntity<Tasca> hireOffer(@PathVariable String id, Principal principal) {
+		return ofertaService.contractDirect(id, Sollicitant.id(principal))
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}

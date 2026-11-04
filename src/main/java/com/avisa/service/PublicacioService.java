@@ -64,10 +64,10 @@ public class PublicacioService {
 	}
 
 	/**
-	 * Contractació directa d'una oferta des del mercat de publicacions.
+	 * Sol·licitud d'una oferta des del mercat de publicacions.
 	 * @param id Identificador de la publicació/oferta
-	 * @param clientNom Nom o identificador del client
-	 * @return La tasca creada
+	 * @param clientNom Identificador del client
+	 * @return La sol·licitud creada
 	 */
 	public Optional<Tasca> contractDirect(String id, String clientNom) {
 		return catalog.convertOfferToTask(id, clientNom);

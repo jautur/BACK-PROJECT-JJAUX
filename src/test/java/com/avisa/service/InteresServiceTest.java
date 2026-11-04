@@ -52,9 +52,9 @@ class InteresServiceTest {
     @DisplayName("Acceptar interès genera tasca")
     void haDAcceptarInteres() {
         Tasca tasca = new Tasca("T-1", "Servei", "Desc", "Cat", "u-client", "Client A", "u-pro", "Pro 1", null, null, null, "50€", LocalDateTime.now(), null, null, null, null);
-        when(catalog.acceptarInteres("INT-1")).thenReturn(Optional.of(tasca));
+        when(catalog.acceptarInteres("INT-1", "u-pro")).thenReturn(Optional.of(tasca));
 
-        Optional<Tasca> result = interesService.accept("INT-1");
+        Optional<Tasca> result = interesService.accept("INT-1", "u-pro");
         assertThat(result).isPresent();
         assertThat(result.get().id()).isEqualTo("T-1");
     }
@@ -62,11 +62,11 @@ class InteresServiceTest {
     @Test
     @DisplayName("Rebutjar interès")
     void haDeRebutjarInteres() {
-        when(catalog.rebutjarInteres("INT-1")).thenReturn(true);
+        when(catalog.rebutjarInteres("INT-1", "u-pro")).thenReturn(true);
 
-        boolean rebutjat = interesService.reject("INT-1");
+        boolean rebutjat = interesService.reject("INT-1", "u-pro");
         assertThat(rebutjat).isTrue();
-        verify(catalog).rebutjarInteres("INT-1");
+        verify(catalog).rebutjarInteres("INT-1", "u-pro");
     }
 }
 

@@ -3,6 +3,7 @@ package com.avisa.controller;
 import com.avisa.model.Resenya;
 import com.avisa.service.ResenyaService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.security.Principal;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -68,11 +69,8 @@ public class ResenyaController {
 	 * @return Ressenya desada
 	 */
 	@PostMapping
-	public ResponseEntity<Resenya> create(@RequestBody Resenya resenya) {
-		if (resenya.clientId() == null || resenya.treballadorId() == null) {
-			return ResponseEntity.badRequest().build();
-		}
-		Resenya created = resenyaService.create(resenya);
+	public ResponseEntity<Resenya> create(@RequestBody Resenya resenya, Principal principal) {
+		Resenya created = resenyaService.create(resenya, Sollicitant.id(principal));
 		return ResponseEntity.ok(created);
 	}
 }

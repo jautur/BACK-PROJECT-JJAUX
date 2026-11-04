@@ -48,9 +48,9 @@ class ResenyaServiceTest {
     @DisplayName("Crear nova ressenya")
     void haDeCrearResenya() {
         Resenya r = new Resenya("R-2", "u-client", "u-pro", "T-2", 4, "Bona atenció", LocalDateTime.now());
-        when(catalog.addResenya(r)).thenReturn(r);
+        when(catalog.addResenya(r, "u-1")).thenReturn(r);
 
-        Resenya creat = resenyaService.create(r);
+        Resenya creat = resenyaService.create(r, "u-1");
         assertThat(creat).isNotNull();
         assertThat(creat.descripcio()).isEqualTo("Bona atenció");
     }

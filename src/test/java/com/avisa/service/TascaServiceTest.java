@@ -64,9 +64,9 @@ class TascaServiceTest {
     @DisplayName("Finalitzar tasca amb valoració")
     void haDeFinalitzarTasca() {
         Tasca tFinalitzada = new Tasca("T-1", "Reparació", "Aixeta", "Fontaneria", "u-1", "Joan", "u-2", "Manel", null, null, null, "50€", LocalDateTime.now(), LocalDateTime.now(), 5, "Feina excel·lent!", LocalDateTime.now());
-        when(catalog.completeTask("T-1", 5, "Feina excel·lent!")).thenReturn(Optional.of(tFinalitzada));
+        when(catalog.completeTask("T-1", "u-1", 5, "Feina excel·lent!")).thenReturn(Optional.of(tFinalitzada));
 
-        Optional<Tasca> result = tascaService.completeWithReview("T-1", 5, "Feina excel·lent!");
+        Optional<Tasca> result = tascaService.completeWithReview("T-1", "u-1", 5, "Feina excel·lent!");
         assertThat(result).isPresent();
         assertThat(result.get().valoracio()).isEqualTo(5);
     }

@@ -17,6 +17,10 @@ public record TascaRequest(
     Integer valoracio,
     String opinio
 ) {
+    public TascaRequest ambClient(String id) {
+        return new TascaRequest(titol, descripcio, categoria, id, null, id, professionalId, professionalNom, professional, origenId, budget, estat, tipus, valoracio, opinio);
+    }
+
     public String resolveClient() {
         if (client != null && !client.isBlank()) return client;
         if (clientNom != null && !clientNom.isBlank()) return clientNom;
