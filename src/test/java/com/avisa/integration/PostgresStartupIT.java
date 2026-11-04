@@ -2,58 +2,41 @@ package com.avisa.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.avisa.AvisaApplication;
-import java.sql.SQLException;
-import org.junit.jupiter.api.AfterAll;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Arrenca l'aplicació sencera amb Flyway activat sobre PostgreSQL, com en execució real.
- * La migració V3 queda fora fins que el nou esquema permeta aplicar-la sobre una base buida.
+ * Arrenca l'aplicació sencera sobre PostgreSQL buit, com en una instal·lació nova.
  */
-@SpringBootTest(classes = AvisaApplication.class)
-class PostgresStartupIT {
-
-	private static final String SCHEMA = PostgresItSupport.newSchemaName();
+class PostgresStartupIT extends PostgresIntegrationTest {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
-	@DynamicPropertySource
-	static void postgres(DynamicPropertyRegistry registry) {
-		String url = PostgresItSupport.url();
-		registry.add("spring.datasource.url", () -> url + (url.contains("?") ? "&" : "?") + "currentSchema=" + SCHEMA);
-		registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-		registry.add("spring.datasource.username", PostgresItSupport::user);
-		registry.add("spring.datasource.password", PostgresItSupport::password);
-		registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
-		registry.add("spring.jpa.hibernate.ddl-auto", () -> "update");
-		registry.add("spring.flyway.enabled", () -> "true");
-		registry.add("spring.flyway.schemas", () -> SCHEMA);
-		registry.add("spring.flyway.target", () -> "2");
-	}
+	@Test
+	@DisplayName("L'aplicació arrenca i crea exactament les taules del disseny")
+	void arrencaAmbLesTaulesDelDisseny() {
+		Integer failedMigrations = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM flyway_schema_history WHERE success = FALSE", Integer.class);
+		List<String> tables = jdbcTemplate.queryForList(
+			"SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_name <> 'flyway_schema_history'",
+			String.class, PostgresItSupport.SHARED_SCHEMA);
 
-	@AfterAll
-	static void dropSchema() throws SQLException {
-		PostgresItSupport.dropSchema(SCHEMA);
+		assertThat(failedMigrations).isZero();
+		assertThat(tables).containsExactlyInAnyOrder(
+			"usuaris", "publicacions", "pressupostos", "tasques", "sollicituds_cancellacio", "avisos", "blacklist_telefons");
 	}
 
 	@Test
-	@DisplayName("L'aplicació arrenca amb Flyway i crea el seu esquema a PostgreSQL")
-	void arrencaSobrePostgres() {
-		Integer failedMigrations = jdbcTemplate.queryForObject(
-			"SELECT COUNT(*) FROM flyway_schema_history WHERE success = FALSE", Integer.class);
-		Integer blacklistTable = jdbcTemplate.queryForObject(
-			"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'blacklist_telefons'",
-			Integer.class, SCHEMA);
+	@DisplayName("Totes les claus primàries són UUID")
+	void lesClausSonUuid() {
+		List<String> types = jdbcTemplate.queryForList(
+			"SELECT DISTINCT data_type FROM information_schema.columns WHERE table_schema = ? AND column_name = 'id'",
+			String.class, PostgresItSupport.SHARED_SCHEMA);
 
-		assertThat(failedMigrations).isZero();
-		assertThat(blacklistTable).isEqualTo(1);
+		assertThat(types).containsExactly("uuid");
 	}
 }

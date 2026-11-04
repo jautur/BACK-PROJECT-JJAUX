@@ -16,6 +16,19 @@ import java.util.UUID;
  */
 final class PostgresItSupport {
 
+	/** Esquema compartit pels tests amb context Spring. S'esborra en acabar la JVM. */
+	static final String SHARED_SCHEMA = newSchemaName();
+
+	static {
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+			try {
+				dropSchema(SHARED_SCHEMA);
+			} catch (SQLException | IllegalStateException ignored) {
+				// La base és d'un sol ús: un esquema sobrant no afecta cap test.
+			}
+		}));
+	}
+
 	private PostgresItSupport() {}
 
 	static String url() {

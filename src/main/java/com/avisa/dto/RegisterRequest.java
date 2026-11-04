@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -30,6 +31,7 @@ public record RegisterRequest(
 
     @Schema(description = "Rol a la plataforma ('client' o 'professional')", example = "client")
     @NotBlank(message = "El rol és obligatori")
+    @Pattern(regexp = "(?i)client|professional", message = "El rol ha de ser client o professional")
     String rol,
 
     @Schema(description = "Telèfon de contacte", example = "600123456")

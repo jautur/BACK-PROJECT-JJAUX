@@ -19,8 +19,11 @@ import com.avisa.model.Usuari;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,74 +35,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class InMemoryCatalog {
 
+	private static final String TELEFON_BLOQUEJAT = "Aquest número de telèfon no es pot utilitzar a la plataforma.";
+
 	private final JdbcTemplate jdbcTemplate;
 
 	public InMemoryCatalog(JdbcTemplate jdbcTemplate) {
 		this.jdbcTemplate = jdbcTemplate;
-		try {
-			jdbcTemplate.execute("ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS percentil INT DEFAULT 3 CHECK (percentil >= 0 AND percentil <= 100)");
-			jdbcTemplate.execute("UPDATE usuaris SET percentil = 3 WHERE percentil IS NULL");
-			jdbcTemplate.execute("ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS verificat BOOLEAN DEFAULT FALSE");
-			jdbcTemplate.execute("ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS sollicitud_verificacio BOOLEAN DEFAULT FALSE");
-			jdbcTemplate.execute("UPDATE usuaris SET verificat = FALSE WHERE verificat IS NULL");
-			jdbcTemplate.execute("UPDATE usuaris SET sollicitud_verificacio = FALSE WHERE sollicitud_verificacio IS NULL");
-			jdbcTemplate.execute("ALTER TABLE usuaris ADD COLUMN IF NOT EXISTS foto TEXT");
-			jdbcTemplate.execute("ALTER TABLE avisos ADD COLUMN IF NOT EXISTS enllac VARCHAR(255)");
-			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS categoria VARCHAR(100)");
-			jdbcTemplate.execute("ALTER TABLE ofertes ADD COLUMN IF NOT EXISTS incidencia_id VARCHAR(100)");
-			jdbcTemplate.execute("ALTER TABLE ofertes ALTER COLUMN tasca_id DROP NOT NULL");
-			// Assegurar que la taula d'ofertes públiques no continga pressupostos privats d'incidències
-			jdbcTemplate.execute("DELETE FROM ofertes WHERE categoria = 'Pressupost' OR (incidencia_id IS NOT NULL AND incidencia_id <> '')");
-			jdbcTemplate.execute("ALTER TABLE resenyes ALTER COLUMN descripcio DROP NOT NULL");
-			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_inici TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_finalitzacio TIMESTAMP");
-			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS data_valoracio TIMESTAMP");
-			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS interes_id VARCHAR(100)");
-			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS pressupost_id VARCHAR(100)");
-			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS preu_acordat VARCHAR(50)");
-			jdbcTemplate.execute("ALTER TABLE tasques ADD COLUMN IF NOT EXISTS publicacio_id VARCHAR(100)");
-			jdbcTemplate.execute(
-				"CREATE TABLE IF NOT EXISTS publicacions (" +
-				"id VARCHAR(100) PRIMARY KEY, " +
-				"usuari_id VARCHAR(100), " +
-				"usuari_nom VARCHAR(150) NOT NULL, " +
-				"tipus VARCHAR(50) NOT NULL, " +
-				"titol VARCHAR(255) NOT NULL, " +
-				"descripcio TEXT, " +
-				"categoria VARCHAR(100), " +
-				"preu_o_pressupost VARCHAR(50), " +
-				"created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
-			);
-			jdbcTemplate.execute(
-				"CREATE TABLE IF NOT EXISTS interessos (" +
-				"id VARCHAR(100) PRIMARY KEY, " +
-				"publicacio_id VARCHAR(100), " +
-				"client_id VARCHAR(100), " +
-				"client_nom VARCHAR(150) NOT NULL, " +
-				"missatge TEXT, " +
-				"tasca_id VARCHAR(100), " +
-				"data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
-			);
-			jdbcTemplate.execute(
-				"CREATE TABLE IF NOT EXISTS pressupostos (" +
-				"id VARCHAR(100) PRIMARY KEY, " +
-				"incidencia_id VARCHAR(100), " +
-				"professional_id VARCHAR(100), " +
-				"professional_nom VARCHAR(150) NOT NULL, " +
-				"preu VARCHAR(50) NOT NULL, " +
-				"descripcio TEXT, " +
-				"duracio_estimada VARCHAR(100), " +
-				"data_creacio TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
-			);
-			jdbcTemplate.execute(
-				"CREATE TABLE IF NOT EXISTS blacklist_telefons (" +
-				"id VARCHAR(100) PRIMARY KEY, " +
-				"telefon VARCHAR(50) UNIQUE NOT NULL, " +
-				"motiu TEXT, " +
-				"bloquejat_per VARCHAR(100) DEFAULT 'admin', " +
-				"created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
-			);
-		} catch (Exception ignored) {}
 	}
 
 	// ==========================================
@@ -164,7 +105,7 @@ public class InMemoryCatalog {
 	public List<Usuari> users() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris ORDER BY created_at",
+				"SELECT id::text AS id, nom, email, LOWER(rol) AS rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris ORDER BY created_at",
 				(rs, rowNum) -> mapUsuari(rs)
 			);
 		} catch (Exception e) {
@@ -180,7 +121,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserById(String id) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE id = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
+				"SELECT id::text AS id, nom, email, LOWER(rol) AS rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE id::text = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
 				(rs, rowNum) -> mapUsuari(rs),
 				id, id, id
 			);
@@ -198,7 +139,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserByEmail(String email) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?)",
+				"SELECT id::text AS id, nom, email, LOWER(rol) AS rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?)",
 				(rs, rowNum) -> mapUsuari(rs),
 				email
 			);
@@ -217,7 +158,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> authenticate(String email, String password) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
+				"SELECT id::text AS id, nom, email, LOWER(rol) AS rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
 				(rs, rowNum) -> mapUsuari(rs),
 				email, password, password
 			);
@@ -245,8 +186,16 @@ public class InMemoryCatalog {
 	 * - Només un administrador pot modificar-lo a la baixa.
 	 */
 	public Usuari updateUser(String id, Usuari nou, String requesterRol, String requesterId) {
-		Usuari actual = findUserById(id).orElse(null);
-		int percentilFinal = (actual != null && actual.percentil() != null) ? actual.percentil() : 3;
+		Usuari actual = findUserById(id).orElseThrow(() -> new IllegalArgumentException("Usuari no trobat"));
+		if (nou.nom() == null || nou.nom().isBlank()) {
+			throw new IllegalArgumentException("El nom és obligatori.");
+		}
+		if (nou.telefon() != null
+			&& !normalizePhone(nou.telefon()).equals(normalizePhone(actual.telefon()))
+			&& isPhoneBlacklisted(nou.telefon())) {
+			throw new IllegalArgumentException(TELEFON_BLOQUEJAT);
+		}
+		int percentilFinal = actual.percentil() != null ? actual.percentil() : 3;
 
 		if (nou.percentil() != null) {
 			int proposed = nou.percentil();
@@ -255,7 +204,7 @@ public class InMemoryCatalog {
 			}
 
 			boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"))
-				|| (actual != null && "admin".equalsIgnoreCase(actual.rol()));
+				|| "admin".equalsIgnoreCase(actual.rol());
 
 			if (proposed < percentilFinal) {
 				if (!isAdmin) {
@@ -267,17 +216,13 @@ public class InMemoryCatalog {
 			}
 		}
 
-		String fotoFinal = (nou.foto() != null) ? (nou.foto().trim().isBlank() ? null : nou.foto().trim()) : (actual != null ? actual.foto() : null);
+		String fotoFinal = (nou.foto() != null) ? (nou.foto().trim().isBlank() ? null : nou.foto().trim()) : actual.foto();
 
-		try {
-			jdbcTemplate.update(
-				"UPDATE usuaris SET nom = ?, telefon = ?, bio = ?, percentil = ?, foto = ? WHERE id = ?",
-				nou.nom(), nou.telefon(), nou.bio(), percentilFinal, fotoFinal, id
-			);
-			return findUserById(id).orElse(nou);
-		} catch (Exception e) {
-			return nou;
-		}
+		jdbcTemplate.update(
+			"UPDATE usuaris SET nom = ?, telefon = ?, bio = ?, percentil = ?, foto = ? WHERE id = ?::uuid",
+			nou.nom(), nou.telefon(), nou.bio(), percentilFinal, fotoFinal, actual.id()
+		);
+		return findUserById(actual.id()).orElse(nou);
 	}
 
 	/**
@@ -288,7 +233,7 @@ public class InMemoryCatalog {
 	 */
 	public Usuari assignarFoto(String id, String foto) {
 		String clean = (foto != null && !foto.trim().isBlank()) ? foto.trim() : null;
-		jdbcTemplate.update("UPDATE usuaris SET foto = ? WHERE id = ?", clean, id);
+		jdbcTemplate.update("UPDATE usuaris SET foto = ? WHERE id::text = ?", clean, id);
 		return findUserById(id).orElseThrow(() -> new IllegalArgumentException("Usuari no trobat"));
 	}
 
@@ -299,10 +244,11 @@ public class InMemoryCatalog {
 	 * @param newPassword Nova contrasenya
 	 */
 	public void changePassword(String id, String newPassword) {
-		try {
-			jdbcTemplate.update("UPDATE usuaris SET password = ? WHERE id = ?", newPassword, id);
-			addAvis(id, "La teva contrasenya d'accés ha estat actualitzada correctament.");
-		} catch (Exception ignored) {}
+		int rows = jdbcTemplate.update("UPDATE usuaris SET password = ? WHERE id::text = ?", newPassword, id);
+		if (rows == 0) {
+			throw new IllegalArgumentException("Usuari no trobat");
+		}
+		addAvis(id, "La teva contrasenya d'accés ha estat actualitzada correctament.");
 	}
 
 	/**
@@ -319,8 +265,8 @@ public class InMemoryCatalog {
 		if (usuari.telefon() == null || usuari.telefon().trim().isBlank()) {
 			throw new IllegalArgumentException("El telèfon de contacte és obligatori per sol·licitar la verificació (l'administrador et trucarà per validar la teva identitat).");
 		}
-		jdbcTemplate.update("UPDATE usuaris SET sollicitud_verificacio = TRUE WHERE id = ?", id);
-		addAvis("u-admin", "Nova sol·licitud de verificació professional: " + usuari.nom() + " (Tel: " + usuari.telefon() + ", Email: " + usuari.email() + "). Cal realitzar la trucada de comprovació.");
+		jdbcTemplate.update("UPDATE usuaris SET sollicitud_verificacio = TRUE WHERE id::text = ?", usuari.id());
+		notificarAdmins("Nova sol·licitud de verificació professional: " + usuari.nom() + " (Tel: " + usuari.telefon() + ", Email: " + usuari.email() + "). Cal realitzar la trucada de comprovació.");
 		return findUserById(id).orElse(usuari);
 	}
 
@@ -337,7 +283,7 @@ public class InMemoryCatalog {
 			throw new SecurityException("Només un administrador té permisos per verificar o desverificar professionals.");
 		}
 		Usuari usuari = findUserById(id).orElseThrow(() -> new IllegalArgumentException("Usuari no trobat"));
-		jdbcTemplate.update("UPDATE usuaris SET verificat = ?, sollicitud_verificacio = FALSE WHERE id = ?", estat, id);
+		jdbcTemplate.update("UPDATE usuaris SET verificat = ?, sollicitud_verificacio = FALSE WHERE id::text = ?", estat, usuari.id());
 		if (estat) {
 			addAvis(id, "Enhorabona! L'administrador ha verificat oficialment el teu compte de professional després de la comprovació telefònica.");
 		} else {
@@ -347,21 +293,19 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Elimina un usuari de la plataforma i neteja els seus registres associats.
-	 * Protegeix el compte d'administrador principal contra eliminació accidental.
+	 * Elimina un usuari de la plataforma. Els avisos s'esborren en cascada.
+	 * Els administradors estan protegits pel seu rol, i els usuaris amb historial no es poden esborrar.
 	 * @param id Identificador de l'usuari
-	 * @return true si s'ha eliminat correctament, false si està protegit o hi ha hagut error
+	 * @return true si s'ha eliminat, false si no existeix, és administrador o té historial
 	 */
 	public boolean deleteUser(String id) {
-		if ("u-admin".equals(id) || "admin@admin".equalsIgnoreCase(id) || "admin@admin.es".equalsIgnoreCase(id)) {
+		Optional<Usuari> usuari = findUserById(id);
+		if (usuari.isEmpty() || "admin".equalsIgnoreCase(usuari.get().rol())) {
 			return false;
 		}
 		try {
-			jdbcTemplate.update("DELETE FROM avisos WHERE usuari_id = ?", id);
-			jdbcTemplate.update("DELETE FROM incidencies WHERE client_id = ?", id);
-			int rows = jdbcTemplate.update("DELETE FROM usuaris WHERE id = ? AND id != 'u-admin'", id);
-			return rows > 0;
-		} catch (Exception ignored) {
+			return jdbcTemplate.update("DELETE FROM usuaris WHERE id = ?::uuid", usuari.get().id()) > 0;
+		} catch (DataIntegrityViolationException e) {
 			return false;
 		}
 	}
@@ -376,20 +320,20 @@ public class InMemoryCatalog {
 		if (findUserByEmail(request.email()).isPresent()) {
 			throw new IllegalArgumentException("El correu electrònic '" + request.email() + "' ja està registrat a la plataforma.");
 		}
-		String id = "u-" + UUID.randomUUID().toString().substring(0, 8);
-		String password = request.password() != null ? request.password() : "123456";
+		if (isPhoneBlacklisted(request.telefon())) {
+			throw new IllegalArgumentException(TELEFON_BLOQUEJAT);
+		}
+		String id = UUID.randomUUID().toString();
+		String rol = request.rol().toLowerCase(Locale.ROOT);
 		try {
 			jdbcTemplate.update(
-				"INSERT INTO usuaris (id, nom, email, password, rol, telefon, percentil) VALUES (?, ?, ?, ?, ?, ?, 3)",
-				id, request.nom(), request.email(), password, request.rol(), request.telefon()
+				"INSERT INTO usuaris (id, nom, email, password, rol, telefon) VALUES (?::uuid, ?, ?, ?, ?, ?)",
+				id, request.nom(), request.email(), request.password(), rol.toUpperCase(Locale.ROOT), request.telefon()
 			);
-		} catch (Exception e) {
-			if (e.getMessage() != null && e.getMessage().toLowerCase().contains("unique")) {
-				throw new IllegalArgumentException("El correu electrònic '" + request.email() + "' ja està en ús.");
-			}
-			throw new RuntimeException("Error en desar l'usuari a la base de dades: " + e.getMessage(), e);
+		} catch (DuplicateKeyException e) {
+			throw new IllegalArgumentException("El correu electrònic '" + request.email() + "' ja està en ús.");
 		}
-		return new Usuari(id, request.nom(), request.email(), request.rol(), request.telefon(), null, 3);
+		return new Usuari(id, request.nom(), request.email(), rol, request.telefon(), null, 3);
 	}
 
 	// ==========================================
@@ -1159,7 +1103,7 @@ public class InMemoryCatalog {
 	public List<Avis> avisos() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, usuari_id, missatge, llegit, data, enllac FROM avisos ORDER BY created_at DESC",
+				"SELECT id::text AS id, destinatari_id::text AS usuari_id, missatge, llegit, created_at::date AS data, enllac FROM avisos ORDER BY created_at DESC",
 				(rs, rowNum) -> mapAvis(rs)
 			);
 		} catch (Exception e) {
@@ -1175,7 +1119,7 @@ public class InMemoryCatalog {
 	public List<Avis> findAvisosByUsuari(String usuariId) {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, usuari_id, missatge, llegit, data, enllac FROM avisos WHERE usuari_id = ? OR usuari_id IN (SELECT id FROM usuaris WHERE LOWER(nom) = LOWER(?)) ORDER BY created_at DESC",
+				"SELECT id::text AS id, destinatari_id::text AS usuari_id, missatge, llegit, created_at::date AS data, enllac FROM avisos WHERE destinatari_id::text = ? OR destinatari_id IN (SELECT id FROM usuaris WHERE LOWER(nom) = LOWER(?)) ORDER BY created_at DESC",
 				(rs, rowNum) -> mapAvis(rs),
 				usuariId, usuariId
 			);
@@ -1199,7 +1143,9 @@ public class InMemoryCatalog {
 	 * @return L'avís creat
 	 */
 	public Avis addAvis(String usuariId, String missatge, String enllac) {
-		String id = "A-" + UUID.randomUUID().toString().substring(0, 8);
+		Usuari destinatari = findUserById(usuariId)
+			.orElseThrow(() -> new IllegalArgumentException("Destinatari de l'avís no trobat"));
+		String id = UUID.randomUUID().toString();
 		LocalDate data = LocalDate.now();
 		String targetEnllac = enllac;
 		if (targetEnllac == null || targetEnllac.isBlank()) {
@@ -1215,13 +1161,20 @@ public class InMemoryCatalog {
 			}
 		}
 
-		try {
-			jdbcTemplate.update(
-				"INSERT INTO avisos (id, usuari_id, missatge, llegit, data, enllac) VALUES (?, ?, ?, false, ?, ?)",
-				id, usuariId, missatge, data, targetEnllac
-			);
-		} catch (Exception ignored) {}
-		return new Avis(id, usuariId, missatge, false, data, targetEnllac);
+		jdbcTemplate.update(
+			"INSERT INTO avisos (id, destinatari_id, missatge, enllac) VALUES (?::uuid, ?::uuid, ?, ?)",
+			id, destinatari.id(), missatge, targetEnllac
+		);
+		return new Avis(id, destinatari.id(), missatge, false, data, targetEnllac);
+	}
+
+	/**
+	 * Envia un avís del sistema a tots els administradors.
+	 * @param missatge Missatge de l'avís
+	 */
+	public void notificarAdmins(String missatge) {
+		jdbcTemplate.queryForList("SELECT id::text FROM usuaris WHERE rol = 'ADMIN'", String.class)
+			.forEach(adminId -> addAvis(adminId, missatge));
 	}
 
 	/**
@@ -1230,7 +1183,7 @@ public class InMemoryCatalog {
 	 */
 	public void markAvisAsRead(String id) {
 		try {
-			jdbcTemplate.update("UPDATE avisos SET llegit = true WHERE id = ?", id);
+			jdbcTemplate.update("UPDATE avisos SET llegit = true WHERE id::text = ?", id);
 		} catch (Exception ignored) {}
 	}
 
@@ -1240,7 +1193,7 @@ public class InMemoryCatalog {
 	 */
 	public void deleteAvis(String id) {
 		try {
-			jdbcTemplate.update("DELETE FROM avisos WHERE id = ?", id);
+			jdbcTemplate.update("DELETE FROM avisos WHERE id::text = ?", id);
 		} catch (Exception ignored) {}
 	}
 
@@ -1909,7 +1862,7 @@ public class InMemoryCatalog {
 	public List<com.avisa.model.BlacklistTelefon> blacklistTelefons() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id, telefon, motiu, bloquejat_per, created_at FROM blacklist_telefons ORDER BY created_at DESC",
+				"SELECT id::text AS id, telefon, motiu, bloquejat_per, created_at FROM blacklist_telefons ORDER BY created_at DESC",
 				(rs, rowNum) -> new com.avisa.model.BlacklistTelefon(
 					rs.getString("id"),
 					rs.getString("telefon"),
@@ -1939,12 +1892,12 @@ public class InMemoryCatalog {
 			throw new IllegalArgumentException("El número de telèfon " + cleanPhone + " ja està registrat a la llista negra.");
 		}
 
-		String id = "BL-" + String.format("%03d", blacklistTelefons().size() + 1);
+		String id = UUID.randomUUID().toString();
 		String admin = (requesterNom != null && !requesterNom.isBlank()) ? requesterNom : "admin";
 		String motiuFinal = (motiu != null && !motiu.trim().isBlank()) ? motiu.trim() : "Bloquejat per administració";
 
 		jdbcTemplate.update(
-			"INSERT INTO blacklist_telefons (id, telefon, motiu, bloquejat_per) VALUES (?, ?, ?, ?)",
+			"INSERT INTO blacklist_telefons (id, telefon, motiu, bloquejat_per) VALUES (?::uuid, ?, ?, ?)",
 			id, cleanPhone, motiuFinal, admin
 		);
 
@@ -1959,7 +1912,7 @@ public class InMemoryCatalog {
 		if (!isAdmin) {
 			throw new SecurityException("Només un administrador té permisos per desbloquejar telèfons de la llista negra.");
 		}
-		int affected = jdbcTemplate.update("DELETE FROM blacklist_telefons WHERE id = ? OR telefon = ?", id, id);
+		int affected = jdbcTemplate.update("DELETE FROM blacklist_telefons WHERE id::text = ? OR telefon = ?", id, id);
 		return affected > 0;
 	}
 }
