@@ -61,8 +61,8 @@ class PublicacioServiceTest {
     @Test
     @DisplayName("Eliminar publicació")
     void haDEliminarPublicacio() {
-        publicacioService.delete("PUB-1");
-        verify(catalog).deletePublicacio("PUB-1");
+        publicacioService.delete("PUB-1", "u-admin");
+        verify(catalog).deletePublicacio("PUB-1", "u-admin");
     }
 }
 

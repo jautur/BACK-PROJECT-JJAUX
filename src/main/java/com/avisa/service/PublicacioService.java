@@ -76,9 +76,11 @@ public class PublicacioService {
 	/**
 	 * Elimina una publicació de la plataforma.
 	 * @param id Identificador de la publicació
+	 * @param actorId Usuari que fa l'acció
+	 * @return true si la publicació existia
 	 */
-	public void delete(String id) {
-		catalog.deletePublicacio(id);
+	public boolean delete(String id, String actorId) {
+		return catalog.deletePublicacio(id, actorId);
 	}
 }
 

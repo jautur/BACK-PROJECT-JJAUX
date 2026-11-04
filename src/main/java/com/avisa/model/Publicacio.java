@@ -18,8 +18,17 @@ public record Publicacio(
     String descripcio,
     String categoria,
     String preuOPressupost,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    String estat
 ) {
+    public Publicacio(String id, String usuariId, String usuariNom, String tipus, String titol, String descripcio, String categoria, String preuOPressupost, LocalDateTime createdAt) {
+        this(id, usuariId, usuariNom, tipus, titol, descripcio, categoria, preuOPressupost, createdAt, null);
+    }
+
+    public Publicacio ambAutor(String autorId) {
+        return new Publicacio(id, autorId, null, tipus, titol, descripcio, categoria, preuOPressupost, createdAt, estat);
+    }
+
     @JsonProperty("professional")
     public String professional() {
         return "OFERTA".equalsIgnoreCase(tipus) ? usuariNom : null;

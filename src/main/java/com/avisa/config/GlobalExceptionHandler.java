@@ -1,5 +1,8 @@
 package com.avisa.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -17,6 +20,8 @@ import java.util.Map;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex) {
@@ -44,5 +49,29 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.badRequest().body(body);
     }
-}
 
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<Map<String, Object>> handleSecurityException(SecurityException ex) {
+        return error(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalStateException(IllegalStateException ex) {
+        return error(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /** Un error de la base no es pot fer passar per un resultat correcte, ni exposar el seu SQL. */
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<Map<String, Object>> handleDataAccessException(DataAccessException ex) {
+        log.error("Error d'accés a dades", ex);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "No s'ha pogut completar l'operació.");
+    }
+
+    private ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", status.value());
+        body.put("error", message);
+        return ResponseEntity.status(status).body(body);
+    }
+}

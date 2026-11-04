@@ -4,6 +4,7 @@ import com.avisa.dto.OfertaRequest;
 import com.avisa.model.Oferta;
 import com.avisa.model.Tasca;
 import com.avisa.service.OfertaService;
+import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
@@ -51,8 +52,8 @@ public class OfertaController {
 	 * @return L'oferta creada
 	 */
 	@PostMapping
-	public Oferta create(@RequestBody OfertaRequest request) {
-		return ofertaService.create(request);
+	public Oferta create(@RequestBody OfertaRequest request, Principal principal) {
+		return ofertaService.create(principal != null ? request.ambProfessional(principal.getName()) : request);
 	}
 
 	/**
@@ -125,26 +126,25 @@ public class OfertaController {
 	}
 
 	/**
-	 * Rebutjar/descartar una oferta: les ofertes no es rebutgen, es borren o s'accepten.
+	 * Descartar una oferta: la retira del mercat, igual que DELETE.
 	 * Endpoint: POST /api/offers/{id}/rebutjar
 	 * @param id Identificador de l'oferta
-	 * @return 204 No Content
+	 * @return 204 No Content, o 404 si no existeix
 	 */
 	@PostMapping("/{id}/rebutjar")
-	public ResponseEntity<Void> rejectOffer(@PathVariable String id) {
-		ofertaService.delete(id);
-		return ResponseEntity.noContent().build();
+	public ResponseEntity<Void> rejectOffer(@PathVariable String id, Principal principal) {
+		return deleteOffer(id, principal);
 	}
 
 	/**
-	 * Eliminar o borrar una oferta.
+	 * Retirar una oferta del mercat. Les sol·licituds pendents es rebutgen avisant els clients.
 	 * Endpoint: DELETE /api/offers/{id}
 	 * @param id Identificador de l'oferta
-	 * @return 204 No Content
+	 * @return 204 No Content, o 404 si no existeix
 	 */
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> deleteOffer(@PathVariable String id) {
-		ofertaService.delete(id);
-		return ResponseEntity.noContent().build();
+	public ResponseEntity<Void> deleteOffer(@PathVariable String id, Principal principal) {
+		boolean retirada = ofertaService.delete(id, Sollicitant.id(principal));
+		return retirada ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
 	}
 }

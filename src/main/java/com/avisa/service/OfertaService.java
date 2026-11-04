@@ -89,19 +89,11 @@ public class OfertaService {
 	/**
 	 * Elimina una oferta del mercat.
 	 * @param id Identificador de l'oferta
-	 * @return true si s'ha esborrat correctament
+	 * @param actorId Usuari que fa l'acció
+	 * @return true si l'oferta existeix i ha quedat retirada
 	 */
-	public boolean delete(String id) {
-		return catalog.deleteOffer(id);
-	}
-
-	/**
-	 * Rebutja una oferta.
-	 * @param offerId Identificador de l'oferta
-	 * @return Oferta actualitzada si s'ha rebutjat
-	 */
-	public Optional<Oferta> reject(String offerId) {
-		return catalog.rejectOffer(offerId);
+	public boolean delete(String id, String actorId) {
+		return catalog.deleteOffer(id, actorId);
 	}
 }
 

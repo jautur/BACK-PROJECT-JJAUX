@@ -2,15 +2,12 @@ package com.avisa.controller;
 
 import com.avisa.model.Publicacio;
 import com.avisa.model.Tasca;
-import com.avisa.model.Usuari;
 import com.avisa.service.PublicacioService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.time.LocalDateTime;
+import java.security.Principal;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -27,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Controlador REST per a la gestió de publicacions (/api/publicacions).
  * Una publicació pot ser de dos tipus:
  * - 'OFERTA': Servei ofertat per un professional. Roman actiu i pot generar múltiples tasques per a diferents clients.
- * - 'INCIDENCIA': Demanda d'un client per resoldre una necessitat. Rebrà pressupostos i s'elimina un cop contractada.
+ * - 'INCIDENCIA': Demanda d'un client per resoldre una necessitat. Rebrà pressupostos i es conserva com a historial.
  */
 @RestController
 @RequestMapping("/api/publicacions")
@@ -59,58 +56,15 @@ public class PublicacioController {
 	}
 
 	@PostMapping
-	public ResponseEntity<?> create(@RequestBody Publicacio req) {
-		String tipus = req.tipus() != null ? req.tipus().trim().toUpperCase() : "INCIDENCIA";
-		String usuariNom = req.usuariNom();
-		String usuariId = req.usuariId();
-
-		// Resolució d'usuari i validació de rols en el backend
-		Optional<Usuari> userOpt = Optional.empty();
-		if (usuariId != null) {
-			userOpt = publicacioService.findUser(usuariId);
-		}
-		if (userOpt.isEmpty() && usuariNom != null) {
-			userOpt = publicacioService.findUser(usuariNom);
-		}
-
-		if (userOpt.isPresent()) {
-			Usuari u = userOpt.get();
-			usuariId = u.id();
-			usuariNom = u.nom();
-
-			// Validació de rol per a crear OFERTA: només professionals o administradors
-			if ("OFERTA".equalsIgnoreCase(tipus) && "client".equalsIgnoreCase(u.rol())) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body("Només els professionals poden publicar ofertes de serveis.");
-			}
-		}
-
-		String prefix = "OFERTA".equalsIgnoreCase(tipus) ? "O-" : "I-";
-		String id = req.id();
-		if (id == null || id.isBlank()) {
-			id = prefix + UUID.randomUUID().toString().substring(0, 8);
-		}
-
-		Publicacio pub = new Publicacio(
-			id,
-			usuariId,
-			usuariNom != null ? usuariNom : "Usuari AVISA",
-			tipus,
-			req.titol(),
-			req.descripcio(),
-			req.categoria() != null ? req.categoria() : "Altres Serveis",
-			req.preuOPressupost(),
-			LocalDateTime.now()
-		);
-
-		Publicacio created = publicacioService.create(pub);
+	public ResponseEntity<Publicacio> create(@RequestBody Publicacio req, Principal principal) {
+		Publicacio created = publicacioService.create(principal != null ? req.ambAutor(principal.getName()) : req);
 		return ResponseEntity.status(HttpStatus.CREATED).body(created);
 	}
 
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> delete(@PathVariable String id) {
-		publicacioService.delete(id);
-		return ResponseEntity.noContent().build();
+	public ResponseEntity<Void> delete(@PathVariable String id, Principal principal) {
+		boolean existia = publicacioService.delete(id, Sollicitant.id(principal));
+		return existia ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
 	}
 
 	/**
