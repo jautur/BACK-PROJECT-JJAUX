@@ -50,39 +50,6 @@ public class InMemoryCatalog {
 	// ==========================================
 
 	private Usuari mapUsuari(java.sql.ResultSet rs) throws java.sql.SQLException {
-		Integer percentil = 3;
-		try {
-			Object p = rs.getObject("percentil");
-			if (p != null) {
-				percentil = rs.getInt("percentil");
-			}
-		} catch (java.sql.SQLException ignored) {}
-		Boolean verificat = false;
-		try {
-			Object v = rs.getObject("verificat");
-			if (v != null) {
-				verificat = rs.getBoolean("verificat");
-			}
-		} catch (java.sql.SQLException ignored) {}
-		Boolean sollicitudVerificacio = false;
-		try {
-			Object s = rs.getObject("sollicitud_verificacio");
-			if (s != null) {
-				sollicitudVerificacio = rs.getBoolean("sollicitud_verificacio");
-			}
-		} catch (java.sql.SQLException ignored) {}
-		String foto = null;
-		try {
-			foto = rs.getString("foto");
-		} catch (java.sql.SQLException ignored) {}
-		String fotoPerfil = null;
-		try {
-			fotoPerfil = rs.getString("foto_perfil");
-		} catch (java.sql.SQLException ignored) {}
-		String logo = null;
-		try {
-			logo = rs.getString("logo");
-		} catch (java.sql.SQLException ignored) {}
 		return new Usuari(
 			rs.getString("id"),
 			rs.getString("nom"),
@@ -90,13 +57,13 @@ public class InMemoryCatalog {
 			rs.getString("rol"),
 			rs.getString("telefon"),
 			rs.getString("bio"),
-			percentil,
+			rs.getInt("percentil"),
 			null,
-			verificat,
-			sollicitudVerificacio,
-			foto,
-			fotoPerfil,
-			logo
+			rs.getBoolean("verificat"),
+			rs.getBoolean("sollicitud_verificacio"),
+			rs.getString("foto"),
+			rs.getString("foto_perfil"),
+			rs.getString("logo")
 		);
 	}
 
@@ -105,14 +72,10 @@ public class InMemoryCatalog {
 	 * @return Llista completa d'usuaris
 	 */
 	public List<Usuari> users() {
-		try {
-			return jdbcTemplate.query(
-				"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris ORDER BY created_at",
-				(rs, rowNum) -> mapUsuari(rs)
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(
+			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris ORDER BY created_at",
+			(rs, rowNum) -> mapUsuari(rs)
+		);
 	}
 
 	/**
@@ -121,16 +84,12 @@ public class InMemoryCatalog {
 	 * @return Optional amb l'usuari trobat
 	 */
 	public Optional<Usuari> findUserById(String id) {
-		try {
-			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE id::text = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
-				(rs, rowNum) -> mapUsuari(rs),
-				id, id, id
-			);
-			return res.stream().findFirst();
-		} catch (Exception e) {
-			return Optional.empty();
-		}
+		List<Usuari> res = jdbcTemplate.query(
+			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE id::text = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
+			(rs, rowNum) -> mapUsuari(rs),
+			id, id, id
+		);
+		return res.stream().findFirst();
 	}
 
 	/**
@@ -139,16 +98,12 @@ public class InMemoryCatalog {
 	 * @return Optional amb l'usuari si existeix
 	 */
 	public Optional<Usuari> findUserByEmail(String email) {
-		try {
-			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?)",
-				(rs, rowNum) -> mapUsuari(rs),
-				email
-			);
-			return res.stream().findFirst();
-		} catch (Exception e) {
-			return Optional.empty();
-		}
+		List<Usuari> res = jdbcTemplate.query(
+			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?)",
+			(rs, rowNum) -> mapUsuari(rs),
+			email
+		);
+		return res.stream().findFirst();
 	}
 
 	/**
@@ -158,16 +113,12 @@ public class InMemoryCatalog {
 	 * @return Optional amb l'usuari autenticat
 	 */
 	public Optional<Usuari> authenticate(String email, String password) {
-		try {
-			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
-				(rs, rowNum) -> mapUsuari(rs),
-				email, password, password
-			);
-			return res.stream().findFirst();
-		} catch (Exception e) {
-			return Optional.empty();
-		}
+		List<Usuari> res = jdbcTemplate.query(
+			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
+			(rs, rowNum) -> mapUsuari(rs),
+			email, password, password
+		);
+		return res.stream().findFirst();
 	}
 
 	/**
@@ -923,29 +874,21 @@ public class InMemoryCatalog {
 	 * @return Llista d'avisos
 	 */
 	private Avis mapAvis(java.sql.ResultSet rs) throws java.sql.SQLException {
-		String enllac = null;
-		try {
-			enllac = rs.getString("enllac");
-		} catch (java.sql.SQLException ignored) {}
 		return new Avis(
 			rs.getString("id"),
 			rs.getString("usuari_id"),
 			rs.getString("missatge"),
 			rs.getBoolean("llegit"),
 			rs.getDate("data") != null ? rs.getDate("data").toLocalDate() : LocalDate.now(),
-			enllac
+			rs.getString("enllac")
 		);
 	}
 
 	public List<Avis> avisos() {
-		try {
-			return jdbcTemplate.query(
-				"SELECT id::text AS id, destinatari_id::text AS usuari_id, missatge, llegit, created_at::date AS data, enllac FROM avisos ORDER BY created_at DESC",
-				(rs, rowNum) -> mapAvis(rs)
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(
+			"SELECT id::text AS id, destinatari_id::text AS usuari_id, missatge, llegit, created_at::date AS data, enllac FROM avisos ORDER BY created_at DESC",
+			(rs, rowNum) -> mapAvis(rs)
+		);
 	}
 
 	/**
@@ -954,15 +897,11 @@ public class InMemoryCatalog {
 	 * @return Llista d'avisos de l'usuari
 	 */
 	public List<Avis> findAvisosByUsuari(String usuariId) {
-		try {
-			return jdbcTemplate.query(
-				"SELECT id::text AS id, destinatari_id::text AS usuari_id, missatge, llegit, created_at::date AS data, enllac FROM avisos WHERE destinatari_id::text = ? OR destinatari_id IN (SELECT id FROM usuaris WHERE LOWER(nom) = LOWER(?)) ORDER BY created_at DESC",
-				(rs, rowNum) -> mapAvis(rs),
-				usuariId, usuariId
-			);
-		} catch (Exception e) {
-			return List.of();
-		}
+		return jdbcTemplate.query(
+			"SELECT id::text AS id, destinatari_id::text AS usuari_id, missatge, llegit, created_at::date AS data, enllac FROM avisos WHERE destinatari_id::text = ? OR destinatari_id IN (SELECT id FROM usuaris WHERE LOWER(nom) = LOWER(?)) ORDER BY created_at DESC",
+			(rs, rowNum) -> mapAvis(rs),
+			usuariId, usuariId
+		);
 	}
 
 	/**

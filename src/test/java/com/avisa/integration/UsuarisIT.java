@@ -167,6 +167,20 @@ class UsuarisIT extends PostgresIntegrationTest {
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM usuaris", Integer.class)).isZero();
 	}
 
+	@Test
+	@DisplayName("Si la base falla, el login i el llistat d'usuaris donen error 500 en lloc de fer-se passar per credencials incorrectes o per una llista buida")
+	void errorDeBaseNoEsConfonCambCredencialsIncorrectes() throws Exception {
+		usuari("CLIENT", "cli@test.es", null);
+		jdbc.execute("ALTER TABLE usuaris RENAME TO usuaris_amagada");
+		try {
+			mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"email\":\"cli@test.es\",\"password\":\"secreta\"}")).andExpect(status().isInternalServerError());
+			mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/users")).andExpect(status().isInternalServerError());
+		} finally {
+			jdbc.execute("ALTER TABLE usuaris_amagada RENAME TO usuaris");
+		}
+	}
+
 	private UUID usuari(String rol, String email, String telefon) {
 		UUID id = UUID.randomUUID();
 		jdbc.update("INSERT INTO usuaris (id, nom, email, password, rol, telefon) VALUES (?, ?, ?, 'secreta', ?, ?)",
