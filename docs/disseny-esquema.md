@@ -16,9 +16,9 @@ blacklist_telefons (independiente; se consulta en registro y perfil)
 
 | Entidad | Estados | Transiciones |
 |---|---|---|
-| Oferta | `ACTIVA`, `RETIRADA` | Se retira en lugar de borrarse; se puede contratar varias veces |
-| Incidencia | `OBERTA`, `ASSIGNADA`, `TANCADA` | Aceptar un presupuesto la pasa a `ASSIGNADA` |
-| Presupuesto | `PENDENT`, `ACCEPTAT`, `REBUTJAT` | Al aceptar uno, los demás de la incidencia pasan a `REBUTJAT` y se avisa a sus profesionales |
+| Oferta | `ACTIVA`, `RETIRADA` | Se retira en lugar de borrarse; se puede contratar varias veces. Al retirarla, sus solicitudes en `SOLLICITADA` pasan a `REBUTJADA` y se avisa a los clientes |
+| Incidencia | `OBERTA`, `ASSIGNADA`, `TANCADA` | Aceptar un presupuesto la pasa a `ASSIGNADA`; finalizar la tarea, a `TANCADA`; cancelar la tarea, de nuevo a `OBERTA` |
+| Presupuesto | `PENDENT`, `ACCEPTAT`, `REBUTJAT` | Al aceptar uno, los demás pendientes pasan a `REBUTJAT` con `rebutjat_automaticament` y se avisa a sus profesionales |
 | Tarea | ver abajo | |
 
 ### Tarea
@@ -41,11 +41,13 @@ EN_REVISIO ──admin: rechazada──> EN_CURS
 - **Finalizar:** cliente, profesional o admin, validando en el back quién llama y sin confirmación de la otra parte. No se puede finalizar en `EN_REVISIO`.
 - **Valorar:** solo el cliente, también si finalizó otro. El back rechaza a cualquier otro.
 - **Cancelar:** el cliente o el profesional la solicita con motivo sobre una tarea `EN_CURS`. Se avisa a la otra parte y a todos los admin.
-- **Resolución:** el admin elige sin consecuencias, negligencia (indicando el responsable) o rechazada.
+- **Resolución:** el admin elige sin consecuencias, negligencia (indicando el responsable) o rechazada. El servicio exige que el responsable sea el cliente o el profesional de esa tarea.
+- **Cancelar una tarea que viene de un presupuesto:** la incidencia vuelve a `OBERTA`, ese presupuesto queda `REBUTJAT` y los rechazados automáticamente al aceptarlo vuelven a `PENDENT`, avisando a sus profesionales. Los que el cliente rechazó a mano siguen rechazados, gracias a `rebutjat_automaticament`.
 - **Negligencia:** sin consecuencias automáticas. Queda en el historial del usuario, visible solo para el admin, que decide si avisa o añade su teléfono a la lista negra.
 - **Admin:** se protege por rol, no por un ID concreto.
 - **Precio:** texto libre.
 - **Presupuestos:** uno por profesional en cada incidencia.
+- **Identidad:** las acciones sobre el ciclo de vida usan el usuario del token JWT verificado, nunca un dato del cuerpo ni una cabecera.
 
 ## Por qué `SOLLICITADA` y no reutilizar `interessos`
 

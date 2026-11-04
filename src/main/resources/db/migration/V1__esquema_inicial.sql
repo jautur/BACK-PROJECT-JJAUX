@@ -45,7 +45,9 @@ CREATE TABLE pressupostos (
     descripcio TEXT,
     duracio_estimada VARCHAR(100),
     estat VARCHAR(20) NOT NULL DEFAULT 'PENDENT' CHECK (estat IN ('PENDENT', 'ACCEPTAT', 'REBUTJAT')),
+    rebutjat_automaticament BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pressupostos_automatic_si_rebutjat CHECK (NOT rebutjat_automaticament OR estat = 'REBUTJAT'),
     CONSTRAINT pressupostos_un_per_professional UNIQUE (publicacio_id, professional_id)
 );
 CREATE UNIQUE INDEX pressupostos_un_acceptat ON pressupostos (publicacio_id) WHERE estat = 'ACCEPTAT';

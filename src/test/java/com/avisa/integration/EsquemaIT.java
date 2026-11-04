@@ -67,6 +67,12 @@ class EsquemaIT extends PostgresIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("Només un pressupost rebutjat pot estar marcat com a rebuig automàtic")
+	void rebuigAutomaticNomesSiRebutjat() {
+		assertRebutjat("INSERT INTO pressupostos (publicacio_id, professional_id, preu, estat, rebutjat_automaticament) VALUES ('" + incidencia + "', '" + professional + "', '1', 'PENDENT', TRUE)");
+	}
+
+	@Test
 	@DisplayName("Una sola sol·licitud activa per client i oferta, però es pot tornar a sol·licitar")
 	void unaSollicitudActiva() {
 		sollicitud("REBUTJADA");
