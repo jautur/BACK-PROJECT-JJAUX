@@ -64,7 +64,7 @@ public class JwtService {
                 .expiresAt(now.plus(24, ChronoUnit.HOURS))
                 .subject(userId)
                 .claim("email", email)
-                .claim("rol", rol != null ? rol.toLowerCase() : "client")
+                .claim("rol", rol != null ? rol.toUpperCase() : "CLIENT")
                 .build();
 
         JwsHeader header = JwsHeader.with(() -> "HS256").build();

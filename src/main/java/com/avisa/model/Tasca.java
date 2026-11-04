@@ -10,10 +10,7 @@ import java.time.LocalDateTime;
  *   - CAS A: El professional accepta l'interés d'un client en una oferta.
  *   - CAS B: El client accepta un pressupost enviat per un professional per a una incidència.
  * 
- * Regla de cicle de vida (sense camp estat redundant a la BD):
- *   - dataFinalitzacio == null: tasca en curs.
- *   - dataFinalitzacio amb valor: tasca acabada / finalitzada.
- *   - valoracio i opinio: registrats directament a la tasca un cop finalitzada.
+ * L'estat ve de la base de dades, i valoracio i comentari es registren a la tasca un cop finalitzada.
  */
 public record Tasca(
     String id,
@@ -31,8 +28,9 @@ public record Tasca(
     LocalDateTime dataInici,
     LocalDateTime dataFinalitzacio,
     Integer valoracio,
-    String opinio,
-    LocalDateTime dataValoracio
+    String comentari,
+    LocalDateTime dataValoracio,
+    String estat
 ) {
     @JsonProperty("client")
     public String client() {
@@ -49,14 +47,32 @@ public record Tasca(
         return preuAcordat != null ? preuAcordat : "";
     }
 
-    @JsonProperty("estat")
-    public String estat() {
-        return dataFinalitzacio != null ? "Finalitzada" : "En curs";
-    }
-
     @JsonProperty("tipus")
     public String tipus() {
-        return "tasca";
+        return professionalId == null && professionalNom == null ? "incidencia" : "tasca";
+    }
+
+    public Tasca(
+        String id,
+        String titol,
+        String descripcio,
+        String categoria,
+        String clientId,
+        String clientNom,
+        String professionalId,
+        String professionalNom,
+        String publicacioId,
+        String interesId,
+        String pressupostId,
+        String preuAcordat,
+        LocalDateTime dataInici,
+        LocalDateTime dataFinalitzacio,
+        Integer valoracio,
+        String comentari,
+        LocalDateTime dataValoracio
+    ) {
+        this(id, titol, descripcio, categoria, clientId, clientNom, professionalId, professionalNom, publicacioId, interesId, pressupostId,
+            preuAcordat, dataInici, dataFinalitzacio, valoracio, comentari, dataValoracio, dataFinalitzacio != null ? "Finalitzada" : "En curs");
     }
 
     public Tasca(
@@ -73,7 +89,7 @@ public record Tasca(
         String estat,
         String tipus,
         Integer valoracio,
-        String opinio
+        String comentari
     ) {
         this(
             id,
@@ -91,8 +107,9 @@ public record Tasca(
             LocalDateTime.now(),
             ("Finalitzada".equalsIgnoreCase(estat)) ? LocalDateTime.now() : null,
             valoracio,
-            opinio,
-            (valoracio != null) ? LocalDateTime.now() : null
+            comentari,
+            (valoracio != null) ? LocalDateTime.now() : null,
+            estat
         );
     }
 

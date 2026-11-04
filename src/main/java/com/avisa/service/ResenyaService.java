@@ -45,10 +45,11 @@ public class ResenyaService {
 	/**
 	 * Registrar una nova valoració de servei per a un professional.
 	 * @param resenya Dades de la ressenya
+	 * @param actorId Usuari que fa l'acció
 	 * @return La ressenya desada
 	 */
-	public Resenya create(Resenya resenya) {
-		return catalog.addResenya(resenya);
+	public Resenya create(Resenya resenya, String actorId) {
+		return catalog.addResenya(resenya, actorId);
 	}
 }
 

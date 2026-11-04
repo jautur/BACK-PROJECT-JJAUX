@@ -9,6 +9,10 @@ public record OfertaRequest(
     String note,
     String estat
 ) {
+    public OfertaRequest ambProfessional(String id) {
+        return new OfertaRequest(tascaId, incidenciaId, id, categoria, price, note, estat);
+    }
+
     public String resolveTargetId() {
         if (incidenciaId != null && !incidenciaId.isBlank()) return incidenciaId;
         return tascaId;

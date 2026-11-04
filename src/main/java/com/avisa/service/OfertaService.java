@@ -38,22 +38,17 @@ public class OfertaService {
 	}
 
 	/**
-	 * Llistar totes les ofertes associades a una tasca concreta.
-	 * @param tascaId Identificador de la tasca
-	 * @return Llista d'ofertes vinculades
-	 */
-	public List<Oferta> listByTasca(String tascaId) {
-		return catalog.findOffersByTasca(tascaId);
-	}
-
-	/**
 	 * Llistar les ofertes presentades per un professional concret.
 	 * @param professionalNom Nom del professional
 	 * @return Llista d'ofertes enviades
 	 */
 	public List<Oferta> listByProfessional(String professionalNom) {
+		if (professionalNom == null || professionalNom.isBlank()) {
+			return List.of();
+		}
 		return catalog.offers().stream()
-			.filter(o -> o.professional() != null && o.professional().equalsIgnoreCase(professionalNom))
+			.filter(o -> (o.professional() != null && o.professional().equalsIgnoreCase(professionalNom))
+				|| (o.professionalId() != null && o.professionalId().equalsIgnoreCase(professionalNom)))
 			.toList();
 	}
 
@@ -67,20 +62,11 @@ public class OfertaService {
 	}
 
 	/**
-	 * Accepta una oferta vinculada a una tasca existent.
+	 * Sol·licitud d'una oferta per part d'un client ("M'interessa"):
+	 * queda pendent del professional i l'oferta continua activa per a altres clients.
 	 * @param offerId Identificador de l'oferta
-	 * @return Oferta acceptada
-	 */
-	public Optional<Oferta> accept(String offerId) {
-		return catalog.acceptOffer(offerId);
-	}
-
-	/**
-	 * Contractació directa d'una oferta pública per part d'un client:
-	 * Genera una tasca en curs privada mantenint l'oferta activa al mercat per a futurs clients.
-	 * @param offerId Identificador de l'oferta contractada
-	 * @param clientNom Nom o identificador del client contractant
-	 * @return La tasca en curs creada
+	 * @param clientNom Identificador del client
+	 * @return La sol·licitud creada
 	 */
 	public Optional<Tasca> contractDirect(String offerId, String clientNom) {
 		return catalog.convertOfferToTask(offerId, clientNom);
@@ -89,19 +75,11 @@ public class OfertaService {
 	/**
 	 * Elimina una oferta del mercat.
 	 * @param id Identificador de l'oferta
-	 * @return true si s'ha esborrat correctament
+	 * @param actorId Usuari que fa l'acció
+	 * @return true si l'oferta existeix i ha quedat retirada
 	 */
-	public boolean delete(String id) {
-		return catalog.deleteOffer(id);
-	}
-
-	/**
-	 * Rebutja una oferta.
-	 * @param offerId Identificador de l'oferta
-	 * @return Oferta actualitzada si s'ha rebutjat
-	 */
-	public Optional<Oferta> reject(String offerId) {
-		return catalog.rejectOffer(offerId);
+	public boolean delete(String id, String actorId) {
+		return catalog.deleteOffer(id, actorId);
 	}
 }
 

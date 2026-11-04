@@ -11,23 +11,28 @@ import java.time.LocalDateTime;
  */
 public record Publicacio(
     String id,
-    String usuariId,
-    String usuariNom,
+    String autorId,
+    String autorNom,
     String tipus,
     String titol,
     String descripcio,
     String categoria,
     String preuOPressupost,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    String estat
 ) {
+    public Publicacio(String id, String autorId, String autorNom, String tipus, String titol, String descripcio, String categoria, String preuOPressupost, LocalDateTime createdAt) {
+        this(id, autorId, autorNom, tipus, titol, descripcio, categoria, preuOPressupost, createdAt, null);
+    }
+
     @JsonProperty("professional")
     public String professional() {
-        return "OFERTA".equalsIgnoreCase(tipus) ? usuariNom : null;
+        return "OFERTA".equalsIgnoreCase(tipus) ? autorNom : null;
     }
 
     @JsonProperty("client")
     public String client() {
-        return "INCIDENCIA".equalsIgnoreCase(tipus) ? usuariNom : null;
+        return "INCIDENCIA".equalsIgnoreCase(tipus) ? autorNom : null;
     }
 
     @JsonProperty("price")

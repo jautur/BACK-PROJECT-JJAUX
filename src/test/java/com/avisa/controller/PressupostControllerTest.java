@@ -104,9 +104,9 @@ class PressupostControllerTest {
     @DisplayName("POST /api/pressupostos/{id}/acceptar accepta el pressupost i genera la tasca")
     void haDAcceptarPressupost() throws Exception {
         Tasca t = new Tasca("T-1", "Pintura", "Desc", "Pintura", "u-client", "Client", "u-pro", "Pro", null, null, null, "90€", LocalDateTime.now(), null, null, null, null);
-        when(pressupostService.accept("P-1")).thenReturn(Optional.of(t));
+        when(pressupostService.accept("P-1", "u-client")).thenReturn(Optional.of(t));
 
-        mockMvc.perform(post("/api/pressupostos/P-1/acceptar"))
+        mockMvc.perform(post("/api/pressupostos/P-1/acceptar").principal(() -> "u-client"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("T-1"));
     }
@@ -114,9 +114,9 @@ class PressupostControllerTest {
     @Test
     @DisplayName("POST /api/pressupostos/{id}/rebutjar rebutja el pressupost amb 204")
     void haDeRebutjarPressupost() throws Exception {
-        when(pressupostService.reject("P-1")).thenReturn(true);
+        when(pressupostService.reject("P-1", "u-client")).thenReturn(true);
 
-        mockMvc.perform(post("/api/pressupostos/P-1/rebutjar"))
+        mockMvc.perform(post("/api/pressupostos/P-1/rebutjar").principal(() -> "u-client"))
                 .andExpect(status().isNoContent());
     }
 }

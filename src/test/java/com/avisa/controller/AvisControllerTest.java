@@ -59,7 +59,7 @@ class AvisControllerTest {
 
         mockMvc.perform(get("/api/avisos/usuari/u-1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].usuariId").value("u-1"));
+                .andExpect(jsonPath("$[0].destinatariId").value("u-1"));
     }
 
     @Test
@@ -70,7 +70,7 @@ class AvisControllerTest {
 
         mockMvc.perform(post("/api/avisos")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"usuariId\":\"u-2\",\"missatge\":\"Nova tasca\"}"))
+                .content("{\"destinatariId\":\"u-2\",\"missatge\":\"Nova tasca\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("A-2"));
     }

@@ -1,6 +1,5 @@
 package com.avisa.service;
 
-import com.avisa.dto.CrearInteresRequest;
 import com.avisa.model.Interes;
 import com.avisa.model.Tasca;
 import java.util.List;
@@ -18,15 +17,6 @@ public class InteresService {
 
 	public InteresService(InMemoryCatalog catalog) {
 		this.catalog = catalog;
-	}
-
-	/**
-	 * Registrar un nou interés expressat per un client sobre una oferta.
-	 * @param req Dades de la sol·licitud d'interés
-	 * @return L'interés creat
-	 */
-	public Interes create(CrearInteresRequest req) {
-		return catalog.addInteres(req);
 	}
 
 	/**
@@ -48,30 +38,33 @@ public class InteresService {
 	}
 
 	/**
-	 * Troba un interés pel seu identificador.
-	 * @param id Identificador de l'interés
-	 * @return L'interés si existeix
-	 */
-	public Optional<Interes> findById(String id) {
-		return catalog.findInteresById(id);
-	}
-
-	/**
 	 * Accepta un interés per part del professional i genera automàticament la tasca en curs.
 	 * @param interesId Identificador de l'interés
+	 * @param actorId Usuari que fa l'acció
 	 * @return La tasca en curs generada
 	 */
-	public Optional<Tasca> accept(String interesId) {
-		return catalog.acceptarInteres(interesId);
+	public Optional<Tasca> accept(String interesId, String actorId) {
+		return catalog.acceptarInteres(interesId, actorId);
 	}
 
 	/**
 	 * Rebutja un interés presentat sense generar tasca.
 	 * @param interesId Identificador de l'interés
+	 * @param actorId Usuari que fa l'acció
 	 * @return true si s'ha rebutjat correctament
 	 */
-	public boolean reject(String interesId) {
-		return catalog.rebutjarInteres(interesId);
+	public boolean reject(String interesId, String actorId) {
+		return catalog.rebutjarInteres(interesId, actorId);
+	}
+
+	/**
+	 * El client retira la seua sol·licitud.
+	 * @param interesId Identificador de l'interés
+	 * @param actorId Usuari que fa l'acció
+	 * @return true si s'ha retirat correctament
+	 */
+	public boolean withdraw(String interesId, String actorId) {
+		return catalog.retirarInteres(interesId, actorId);
 	}
 }
 

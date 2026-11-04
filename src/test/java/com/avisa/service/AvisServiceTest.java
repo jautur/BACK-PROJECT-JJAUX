@@ -41,7 +41,7 @@ class AvisServiceTest {
 
         List<Avis> list = avisService.listByUsuari("u-1");
         assertThat(list).hasSize(1);
-        assertThat(list.get(0).usuariId()).isEqualTo("u-1");
+        assertThat(list.get(0).destinatariId()).isEqualTo("u-1");
     }
 
     @Test

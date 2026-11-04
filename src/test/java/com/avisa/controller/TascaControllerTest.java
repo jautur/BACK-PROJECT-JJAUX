@@ -1,7 +1,6 @@
 package com.avisa.controller;
 
 import com.avisa.dto.FinalitzarTascaRequest;
-import com.avisa.dto.TascaRequest;
 import com.avisa.model.Tasca;
 import com.avisa.service.TascaService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -72,9 +71,9 @@ class TascaControllerTest {
     void haDeFinalitzarTasca() throws Exception {
         FinalitzarTascaRequest req = new FinalitzarTascaRequest(5, "Molt bona feina");
         Tasca t = new Tasca("T-1", "Pintura", "Desc", "Pintura", "u-1", "Client", "u-2", "Pro", null, null, null, "100€", LocalDateTime.now(), LocalDateTime.now(), 5, "Molt bona feina", LocalDateTime.now());
-        when(tascaService.completeWithReview(eq("T-1"), eq(5), eq("Molt bona feina"))).thenReturn(Optional.of(t));
+        when(tascaService.completeWithReview(eq("T-1"), eq("u-1"), eq(5), eq("Molt bona feina"))).thenReturn(Optional.of(t));
 
-        mockMvc.perform(post("/api/tasks/T-1/finalitzar")
+        mockMvc.perform(post("/api/tasks/T-1/finalitzar").principal(() -> "u-1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())

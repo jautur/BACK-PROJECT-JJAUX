@@ -35,15 +35,6 @@ public class UsuariService {
 	}
 
 	/**
-	 * Troba un usuari pel seu correu electrònic.
-	 * @param email Correu de l'usuari
-	 * @return Usuari si existeix
-	 */
-	public Optional<Usuari> findByEmail(String email) {
-		return catalog.findUserByEmail(email);
-	}
-
-	/**
 	 * Actualitza el perfil d'un usuari amb control d'autorització segons el rol del sol·licitant.
 	 * @param id Identificador de l'usuari a modificar
 	 * @param nou Noves dades de l'usuari

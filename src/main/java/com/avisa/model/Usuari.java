@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Min;
  * @param id Identificador únic de l'usuari (ex: 'u-1', 'u-admin')
  * @param nom Nom visible o corporatiu de l'usuari
  * @param email Adreça de correu electrònic única utilitzada per a l'accés
- * @param rol Rol del compte ('client', 'professional', 'ambdos', 'admin')
+ * @param rol Rol del compte ('CLIENT', 'PROFESSIONAL', 'ADMIN')
  * @param telefon Telèfon de contacte opcional
  * @param bio Biografia o descripció d'habilitats
  * @param percentil Percentil de comissió reservat per a la plataforma (0 a 100, per defecte 3)
@@ -62,11 +62,4 @@ public record Usuari(
 		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, foto, fotoPerfil, logo);
 	}
 
-	public Usuari withVerification(Boolean verificat, Boolean sollicitudVerificacio) {
-		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, foto, fotoPerfil, logo);
-	}
-
-	public Usuari withFoto(String foto) {
-		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, foto, fotoPerfil, foto);
-	}
 }

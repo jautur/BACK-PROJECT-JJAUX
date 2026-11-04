@@ -1,13 +1,11 @@
 package com.avisa.controller;
 
 import com.avisa.dto.FinalitzarTascaRequest;
-import com.avisa.dto.TascaRequest;
 import com.avisa.model.Tasca;
 import com.avisa.service.TascaService;
-import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.security.Principal;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,8 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
  * Controlador REST per a la gestió de tasques (/api/tasks).
  * Gestiona el cicle de vida dels projectes en curs i conclosos delegant en TascaService:
  * 1. Les tasques acordades són privades entre el client propietari, el professional assignat i l'administrador.
- * 2. Tant el client com el professional assignat tenen la capacitat de donar la tasca per finalitzada.
- * 3. En finalitzar, el client pot registrar o actualitzar la valoració i opinió del servei rebut.
+ * 2. El client, el professional assignat o un administrador poden donar la tasca per finalitzada.
+ * 3. Només el client pot valorar-la, també si l'ha finalitzada una altra persona.
  */
 @RestController
 @RequestMapping("/api/tasks")
@@ -45,18 +43,6 @@ public class TascaController {
 	@GetMapping
 	public List<Tasca> list() {
 		return tascaService.list();
-	}
-
-	/**
-	 * Crear i publicar una nova tasca.
-	 * Endpoint: POST /api/tasks
-	 * Acció realitzada per usuaris amb rol de Client.
-	 * @param request Dades de la tasca (títol, descripció, categoria, client, pressupost)
-	 * @return La tasca creada
-	 */
-	@PostMapping
-	public Tasca create(@RequestBody TascaRequest request) {
-		return tascaService.create(request);
 	}
 
 	/**
@@ -97,7 +83,7 @@ public class TascaController {
 	/**
 	 * Finalitzar una tasca.
 	 * Endpoint: POST /api/tasks/{id}/finalitzar
-	 * Acció: El client confirma la conclusió del projecte (passa l'estat a 'Finalitzada') i enregistra la valoració i opinió.
+	 * Acció: El client, el professional o un administrador donen la tasca per acabada. Només el client pot afegir-hi valoració.
 	 * @param id Identificador de la tasca
 	 * @param body Dades opcionals de valoració i opinió del client
 	 * @return La tasca actualitzada
@@ -105,11 +91,12 @@ public class TascaController {
 	@PostMapping("/{id}/finalitzar")
 	public ResponseEntity<Tasca> markAsCompleted(
 		@PathVariable String id,
-		@RequestBody(required = false) FinalitzarTascaRequest body
+		@RequestBody(required = false) FinalitzarTascaRequest body,
+		Principal principal
 	) {
 		Integer valoracio = body != null ? body.valoracio() : null;
-		String opinio = body != null ? body.opinio() : null;
-		return tascaService.completeWithReview(id, valoracio, opinio)
+		String comentari = body != null ? body.comentari() : null;
+		return tascaService.completeWithReview(id, Sollicitant.id(principal), valoracio, comentari)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -122,29 +109,12 @@ public class TascaController {
 	 * @return La tasca actualitzada
 	 */
 	@PostMapping("/{id}/avaluar")
-	public ResponseEntity<?> evaluateTask(
+	public ResponseEntity<Tasca> evaluateTask(
 		@PathVariable String id,
-		@RequestBody FinalitzarTascaRequest body
+		@RequestBody FinalitzarTascaRequest body,
+		Principal principal
 	) {
-		Optional<Tasca> taskOpt = tascaService.findById(id);
-		if (taskOpt.isEmpty()) {
-			return ResponseEntity.notFound().build();
-		}
-		Tasca t = taskOpt.get();
-		// Regla: Només quan la tasca estiga acabada (data_finalitzacio amb valor)
-		if (t.dataFinalitzacio() == null) {
-			return ResponseEntity.badRequest().body("Només es pot valorar una tasca quan ja està finalitzada.");
-		}
-		// Regla: No es pot valorar dues vegades la mateixa tasca
-		if (t.valoracio() != null) {
-			return ResponseEntity.badRequest().body("Aquesta tasca ja ha estat valorada anteriorment.");
-		}
-		Integer valoracio = body != null ? body.valoracio() : null;
-		if (valoracio == null || valoracio < 1 || valoracio > 5) {
-			return ResponseEntity.badRequest().body("La valoració ha de ser entre 1 i 5 estrelles.");
-		}
-		String opinio = body != null ? body.opinio() : null;
-		return tascaService.completeWithReview(id, valoracio, opinio)
+		return tascaService.evaluate(id, Sollicitant.id(principal), body.valoracio(), body.comentari())
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -172,14 +142,13 @@ public class TascaController {
 	}
 
 	/**
-	 * Eliminar una tasca de la plataforma.
+	 * Eliminar una incidència o retirar una sol·licitud. Les tasques acordades no s'esborren.
 	 * Endpoint: DELETE /api/tasks/{id}
 	 * @param id Identificador de la tasca
-	 * @return 204 No Content
+	 * @return 204 No Content, o 404 si no existeix
 	 */
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> delete(@PathVariable String id) {
-		tascaService.delete(id);
-		return ResponseEntity.noContent().build();
+	public ResponseEntity<Void> delete(@PathVariable String id, Principal principal) {
+		return tascaService.delete(id, Sollicitant.id(principal)) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
 	}
 }

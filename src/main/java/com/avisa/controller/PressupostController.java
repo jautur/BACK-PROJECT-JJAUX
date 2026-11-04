@@ -7,6 +7,7 @@ import com.avisa.service.PressupostService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
@@ -23,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Controlador REST per a la gestió de pressupostos sobre incidències (/api/pressupostos).
  * Permet als professionals enviar pressupostos a incidències obertes per clients.
  * Quan el client accepta un pressupost, l'operació és transaccional:
- * es crea la tasca en curs i s'elimina la incidència de les publicacions.
+ * es crea la tasca en curs, la incidència queda assignada i la resta de pressupostos es rebutgen.
  */
 @RestController
 @RequestMapping("/api/pressupostos")
@@ -51,7 +52,8 @@ public class PressupostController {
 
 	@PostMapping
 	@Operation(summary = "Crear pressupost", description = "Permet a un professional presentar un pressupost per a una incidència oberta")
-	public ResponseEntity<?> create(@Valid @RequestBody CrearPressupostRequest req) {
+	public ResponseEntity<?> create(@Valid @RequestBody CrearPressupostRequest cos, Principal principal) {
+		CrearPressupostRequest req = principal != null ? cos.ambProfessional(principal.getName()) : cos;
 		// Validació del professional en el backend
 		String proIdentifier = req.professionalId() != null ? req.professionalId() : req.professionalNom();
 		if (!pressupostService.isProfessionalEligible(proIdentifier)) {
@@ -111,15 +113,15 @@ public class PressupostController {
 	}
 
 	@PostMapping("/{id}/acceptar")
-	public ResponseEntity<Tasca> acceptBudget(@PathVariable String id) {
-		return pressupostService.accept(id)
+	public ResponseEntity<Tasca> acceptBudget(@PathVariable String id, Principal principal) {
+		return pressupostService.accept(id, Sollicitant.id(principal))
 			.map(ResponseEntity::ok)
-			.orElse(ResponseEntity.badRequest().build());
+			.orElse(ResponseEntity.notFound().build());
 	}
 
 	@PostMapping("/{id}/rebutjar")
-	public ResponseEntity<Void> rejectBudget(@PathVariable String id) {
-		boolean ok = pressupostService.reject(id);
+	public ResponseEntity<Void> rejectBudget(@PathVariable String id, Principal principal) {
+		boolean ok = pressupostService.reject(id, Sollicitant.id(principal));
 		return ok ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
 	}
 }

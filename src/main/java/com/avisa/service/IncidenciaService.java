@@ -57,9 +57,20 @@ public class IncidenciaService {
 	/**
 	 * Elimina una incidència de la plataforma.
 	 * @param id Identificador de la incidència
+	 * @param actorId Usuari que fa l'acció
+	 * @return true si s'ha eliminat
 	 */
-	public void delete(String id) {
-		catalog.deleteIncidencia(id);
+	public boolean delete(String id, String actorId) {
+		return catalog.deleteIncidencia(id, actorId);
+	}
+
+	/**
+	 * Tanca una incidència oberta, rebutjant els seus pressupostos pendents.
+	 * @param id Identificador de la incidència
+	 * @param actorId Usuari que fa l'acció
+	 * @return La incidència tancada
+	 */
+	public Optional<Incidencia> close(String id, String actorId) {
+		return catalog.tancarIncidencia(id, actorId);
 	}
 }
-

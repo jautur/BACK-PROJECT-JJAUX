@@ -56,9 +56,9 @@ class ResenyaControllerTest {
     @DisplayName("POST /api/resenyes desa una nova valoració")
     void haDeCrearResenya() throws Exception {
         Resenya r = new Resenya("R-2", "u-client", "u-pro", "T-2", 4, "Bona feina", LocalDateTime.now());
-        when(resenyaService.create(any())).thenReturn(r);
+        when(resenyaService.create(any(), any())).thenReturn(r);
 
-        mockMvc.perform(post("/api/resenyes")
+        mockMvc.perform(post("/api/resenyes").principal(() -> "u-1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"clientId\":\"u-client\",\"treballadorId\":\"u-pro\",\"tascaId\":\"T-2\",\"puntuacio\":4,\"descripcio\":\"Bona feina\"}"))
                 .andExpect(status().isOk())
