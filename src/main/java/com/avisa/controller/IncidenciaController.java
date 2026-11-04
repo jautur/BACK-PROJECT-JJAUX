@@ -86,4 +86,17 @@ public class IncidenciaController {
 		boolean eliminada = incidenciaService.delete(id, Sollicitant.id(principal));
 		return eliminada ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
 	}
+
+	/**
+	 * Tancar una incidència oberta sense assignar-la. Els pressupostos pendents es rebutgen.
+	 * Endpoint: POST /api/incidencies/{id}/tancar
+	 * @param id Identificador de la incidència
+	 * @return La incidència tancada, o 404 si no existeix
+	 */
+	@PostMapping("/{id}/tancar")
+	public ResponseEntity<Incidencia> close(@PathVariable String id, Principal principal) {
+		return incidenciaService.close(id, Sollicitant.id(principal))
+			.map(ResponseEntity::ok)
+			.orElse(ResponseEntity.notFound().build());
+	}
 }

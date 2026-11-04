@@ -145,11 +145,11 @@ public class TascaService {
 	 * @param id Identificador de la tasca
 	 * @param actorId Usuari que fa l'acció
 	 * @param valoracio Puntuació numèrica d'1 a 5
-	 * @param opinio Comentari del servei rebut
+	 * @param comentari Comentari del servei rebut
 	 * @return Tasca actualitzada
 	 */
-	public Optional<Tasca> completeWithReview(String id, String actorId, Integer valoracio, String opinio) {
-		return catalog.completeTask(id, actorId, valoracio, opinio);
+	public Optional<Tasca> completeWithReview(String id, String actorId, Integer valoracio, String comentari) {
+		return catalog.completeTask(id, actorId, valoracio, comentari);
 	}
 
 	/**
@@ -157,11 +157,11 @@ public class TascaService {
 	 * @param id Identificador de la tasca
 	 * @param actorId Usuari que fa l'acció
 	 * @param valoracio Puntuació numèrica d'1 a 5
-	 * @param opinio Comentari del servei rebut
+	 * @param comentari Comentari del servei rebut
 	 * @return Tasca actualitzada
 	 */
-	public Optional<Tasca> evaluate(String id, String actorId, Integer valoracio, String opinio) {
-		return catalog.valorarTasca(id, actorId, valoracio, opinio);
+	public Optional<Tasca> evaluate(String id, String actorId, Integer valoracio, String comentari) {
+		return catalog.valorarTasca(id, actorId, valoracio, comentari);
 	}
 
 	/**

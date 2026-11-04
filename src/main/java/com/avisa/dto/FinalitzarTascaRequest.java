@@ -15,5 +15,5 @@ public record FinalitzarTascaRequest(
     Integer valoracio,
 
     @Schema(description = "Opinió o ressenya escrita", example = "Treball impecable i molt puntual.")
-    String opinio
+    String comentari
 ) {}

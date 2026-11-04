@@ -29,7 +29,7 @@ public record RegisterRequest(
     @Size(min = 6, message = "La contrasenya ha de tenir almenys 6 caràcters")
     String password,
 
-    @Schema(description = "Rol a la plataforma ('client' o 'professional')", example = "client")
+    @Schema(description = "Rol a la plataforma ('CLIENT' o 'PROFESSIONAL')", example = "CLIENT")
     @NotBlank(message = "El rol és obligatori")
     @Pattern(regexp = "(?i)client|professional", message = "El rol ha de ser client o professional")
     String rol,

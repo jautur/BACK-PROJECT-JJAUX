@@ -108,8 +108,8 @@ public class TascaController {
 		Principal principal
 	) {
 		Integer valoracio = body != null ? body.valoracio() : null;
-		String opinio = body != null ? body.opinio() : null;
-		return tascaService.completeWithReview(id, Sollicitant.id(principal), valoracio, opinio)
+		String comentari = body != null ? body.comentari() : null;
+		return tascaService.completeWithReview(id, Sollicitant.id(principal), valoracio, comentari)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -127,7 +127,7 @@ public class TascaController {
 		@RequestBody FinalitzarTascaRequest body,
 		Principal principal
 	) {
-		return tascaService.evaluate(id, Sollicitant.id(principal), body.valoracio(), body.opinio())
+		return tascaService.evaluate(id, Sollicitant.id(principal), body.valoracio(), body.comentari())
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}

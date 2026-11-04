@@ -147,7 +147,7 @@ class TasquesIT extends MercatIntegrationTest {
 		avaluar(professional, tasca, 5).andExpect(status().isForbidden());
 		avaluar(admin, tasca, 5).andExpect(status().isForbidden());
 		avaluar(client, tasca, 6).andExpect(status().isBadRequest());
-		avaluar(client, tasca, 4).andExpect(status().isOk()).andExpect(jsonPath("$.valoracio").value(4)).andExpect(jsonPath("$.opinio").value("bé"));
+		avaluar(client, tasca, 4).andExpect(status().isOk()).andExpect(jsonPath("$.valoracio").value(4)).andExpect(jsonPath("$.comentari").value("bé"));
 		avaluar(client, tasca, 3).andExpect(status().isConflict());
 
 		assertThat(jdbc.queryForObject("SELECT comentari FROM tasques WHERE id = ?::uuid", String.class, tasca)).isEqualTo("bé");
@@ -161,7 +161,7 @@ class TasquesIT extends MercatIntegrationTest {
 		finalitzar(professional, tasca, "{\"valoracio\":5}").andExpect(status().isForbidden());
 		assertThat(estatTasca(tasca)).isEqualTo("EN_CURS");
 
-		finalitzar(client, tasca, "{\"valoracio\":5,\"opinio\":\"genial\"}").andExpect(status().isOk()).andExpect(jsonPath("$.valoracio").value(5));
+		finalitzar(client, tasca, "{\"valoracio\":5,\"comentari\":\"genial\"}").andExpect(status().isOk()).andExpect(jsonPath("$.valoracio").value(5));
 	}
 
 	@Test
@@ -239,7 +239,7 @@ class TasquesIT extends MercatIntegrationTest {
 	}
 
 	private ResultActions avaluar(UUID usuari, String tasca, int valoracio) throws Exception {
-		return mvc.perform(postCom(usuari, "/api/tasks/" + tasca + "/avaluar", "{\"valoracio\":" + valoracio + ",\"opinio\":\"bé\"}"));
+		return mvc.perform(postCom(usuari, "/api/tasks/" + tasca + "/avaluar", "{\"valoracio\":" + valoracio + ",\"comentari\":\"bé\"}"));
 	}
 
 	private String estatTasca(String id) {

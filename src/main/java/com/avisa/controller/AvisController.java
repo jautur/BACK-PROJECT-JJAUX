@@ -53,9 +53,9 @@ public class AvisController {
 	@PostMapping
 	public Avis create(@RequestBody Avis avis) {
 		if (avis.enllac() != null && !avis.enllac().isBlank()) {
-			return avisService.create(avis.usuariId(), avis.missatge(), avis.enllac());
+			return avisService.create(avis.destinatariId(), avis.missatge(), avis.enllac());
 		}
-		return avisService.create(avis.usuariId(), avis.missatge());
+		return avisService.create(avis.destinatariId(), avis.missatge());
 	}
 
 	/**

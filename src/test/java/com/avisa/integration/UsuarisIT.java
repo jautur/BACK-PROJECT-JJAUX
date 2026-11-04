@@ -90,11 +90,11 @@ class UsuarisIT extends PostgresIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("El registre guarda el rol en majúscules i l'API el retorna en minúscules")
+	@DisplayName("El registre guarda el rol en majúscules i l'API el retorna igual")
 	void registreDeClient() throws Exception {
 		mvc.perform(registre("nova@test.es", "client", "600000001"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.rol").value("client"));
+			.andExpect(jsonPath("$.rol").value("CLIENT"));
 
 		assertThat(jdbc.queryForObject("SELECT rol FROM usuaris WHERE email = 'nova@test.es'", String.class)).isEqualTo("CLIENT");
 		mvc.perform(registre("NOVA@test.es", "client", null)).andExpect(status().isBadRequest());
@@ -148,7 +148,7 @@ class UsuarisIT extends PostgresIntegrationTest {
 	@DisplayName("Un avís per a un destinatari inexistent dona error en lloc de fingir èxit")
 	void avisSenseDestinatari() throws Exception {
 		mvc.perform(post("/api/avisos").contentType(MediaType.APPLICATION_JSON)
-				.content("{\"usuariId\":\"" + UUID.randomUUID() + "\",\"missatge\":\"hola\"}"))
+				.content("{\"destinatariId\":\"" + UUID.randomUUID() + "\",\"missatge\":\"hola\"}"))
 			.andExpect(status().isBadRequest());
 
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM avisos", Integer.class)).isZero();

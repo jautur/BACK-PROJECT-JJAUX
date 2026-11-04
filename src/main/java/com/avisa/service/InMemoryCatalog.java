@@ -107,7 +107,7 @@ public class InMemoryCatalog {
 	public List<Usuari> users() {
 		try {
 			return jdbcTemplate.query(
-				"SELECT id::text AS id, nom, email, LOWER(rol) AS rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris ORDER BY created_at",
+				"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris ORDER BY created_at",
 				(rs, rowNum) -> mapUsuari(rs)
 			);
 		} catch (Exception e) {
@@ -123,7 +123,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserById(String id) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id::text AS id, nom, email, LOWER(rol) AS rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE id::text = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
+				"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE id::text = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
 				(rs, rowNum) -> mapUsuari(rs),
 				id, id, id
 			);
@@ -141,7 +141,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> findUserByEmail(String email) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id::text AS id, nom, email, LOWER(rol) AS rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?)",
+				"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?)",
 				(rs, rowNum) -> mapUsuari(rs),
 				email
 			);
@@ -160,7 +160,7 @@ public class InMemoryCatalog {
 	public Optional<Usuari> authenticate(String email, String password) {
 		try {
 			List<Usuari> res = jdbcTemplate.query(
-				"SELECT id::text AS id, nom, email, LOWER(rol) AS rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
+				"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
 				(rs, rowNum) -> mapUsuari(rs),
 				email, password, password
 			);
@@ -326,11 +326,11 @@ public class InMemoryCatalog {
 			throw new IllegalArgumentException(TELEFON_BLOQUEJAT);
 		}
 		String id = UUID.randomUUID().toString();
-		String rol = request.rol().toLowerCase(Locale.ROOT);
+		String rol = request.rol().toUpperCase(Locale.ROOT);
 		try {
 			jdbcTemplate.update(
 				"INSERT INTO usuaris (id, nom, email, password, rol, telefon) VALUES (?::uuid, ?, ?, ?, ?, ?)",
-				id, request.nom(), request.email(), request.password(), rol.toUpperCase(Locale.ROOT), request.telefon()
+				id, request.nom(), request.email(), request.password(), rol, request.telefon()
 			);
 		} catch (DuplicateKeyException e) {
 			throw new IllegalArgumentException("El correu electrònic '" + request.email() + "' ja està en ús.");
@@ -516,6 +516,34 @@ public class InMemoryCatalog {
 		return jdbcTemplate.update("DELETE FROM publicacions WHERE id = ?", uuid) > 0;
 	}
 
+	/**
+	 * El client (o un administrador) tanca una incidència oberta sense triar cap professional.
+	 * Els pressupostos pendents es rebutgen avisant els professionals, i no tornen a pendent mai.
+	 * @param id Identificador de la incidència
+	 * @param actorId Usuari que fa l'acció
+	 * @return Optional amb la incidència tancada, buit si no existeix
+	 */
+	@Transactional
+	public Optional<Incidencia> tancarIncidencia(String id, String actorId) {
+		Optional<Incidencia> trobada = findIncidenciaById(id);
+		if (trobada.isEmpty()) {
+			return Optional.empty();
+		}
+		Incidencia incidencia = trobada.get();
+		exigirAutorOAdmin(incidencia.clientId(), actorId);
+		UUID uuid = UUID.fromString(incidencia.id());
+		int files = jdbcTemplate.update("UPDATE publicacions SET estat = 'TANCADA' WHERE id = ? AND estat = 'OBERTA'", uuid);
+		if (files == 0) {
+			throw new IllegalStateException("Només es pot tancar una incidència oberta.");
+		}
+		jdbcTemplate.queryForList(
+			"UPDATE pressupostos SET estat = 'REBUTJAT' WHERE publicacio_id = ? AND estat = 'PENDENT' RETURNING professional_id::text",
+			String.class, uuid
+		).forEach(professionalId -> addAvis(professionalId,
+			"El client ha tancat la incidència '" + incidencia.titol() + "' i el teu pressupost ha quedat rebutjat.", "/tasques-ofertes"));
+		return findIncidenciaById(id);
+	}
+
 	// ==========================================
 	// GESTIÓ DE TASQUES
 	// ==========================================
@@ -641,11 +669,11 @@ public class InMemoryCatalog {
 	 * @param id Identificador de la tasca
 	 * @param actorId Usuari que fa l'acció
 	 * @param valoracio Puntuació opcional (1 a 5 estrelles)
-	 * @param opinio Comentari opcional del client
+	 * @param comentari Comentari opcional del client
 	 * @return Optional amb la tasca actualitzada, buit si no existeix
 	 */
 	@Transactional
-	public Optional<Tasca> completeTask(String id, String actorId, Integer valoracio, String opinio) {
+	public Optional<Tasca> completeTask(String id, String actorId, Integer valoracio, String comentari) {
 		Optional<Tasca> trobada = findTaskById(id);
 		if (trobada.isEmpty()) {
 			return Optional.empty();
@@ -669,14 +697,14 @@ public class InMemoryCatalog {
 		}
 		jdbcTemplate.update("UPDATE publicacions SET estat = 'TANCADA' WHERE id = ?::uuid AND tipus = 'INCIDENCIA'", tasca.publicacioId());
 		if (valoracio != null) {
-			guardarValoracio(uuid, valoracio, opinio);
+			guardarValoracio(uuid, valoracio, comentari);
 		}
 		String missatge = "La tasca '" + tasca.titol() + "' ha estat finalitzada.";
 		if (!actor.id().equals(tasca.clientId())) {
 			addAvis(tasca.clientId(), missatge);
 		}
 		if (!actor.id().equals(tasca.professionalId())) {
-			addAvis(tasca.professionalId(), valoracio != null ? textValoracio(tasca, valoracio, opinio) : missatge);
+			addAvis(tasca.professionalId(), valoracio != null ? textValoracio(tasca, valoracio, comentari) : missatge);
 		}
 		return findTaskById(id);
 	}
@@ -686,11 +714,11 @@ public class InMemoryCatalog {
 	 * @param id Identificador de la tasca
 	 * @param actorId Usuari que fa l'acció
 	 * @param valoracio Puntuació (1 a 5 estrelles)
-	 * @param opinio Comentari opcional
+	 * @param comentari Comentari opcional
 	 * @return Optional amb la tasca valorada, buit si no existeix
 	 */
 	@Transactional
-	public Optional<Tasca> valorarTasca(String id, String actorId, Integer valoracio, String opinio) {
+	public Optional<Tasca> valorarTasca(String id, String actorId, Integer valoracio, String comentari) {
 		Optional<Tasca> trobada = findTaskById(id);
 		if (trobada.isEmpty()) {
 			return Optional.empty();
@@ -700,10 +728,10 @@ public class InMemoryCatalog {
 			throw new SecurityException("Només el client pot valorar la tasca.");
 		}
 		validarValoracio(valoracio);
-		if (!guardarValoracio(UUID.fromString(tasca.id()), valoracio, opinio)) {
+		if (!guardarValoracio(UUID.fromString(tasca.id()), valoracio, comentari)) {
 			throw new IllegalStateException("Només es pot valorar una vegada una tasca finalitzada.");
 		}
-		addAvis(tasca.professionalId(), textValoracio(tasca, valoracio, opinio));
+		addAvis(tasca.professionalId(), textValoracio(tasca, valoracio, comentari));
 		return findTaskById(id);
 	}
 
@@ -713,15 +741,15 @@ public class InMemoryCatalog {
 		}
 	}
 
-	private boolean guardarValoracio(UUID tasca, int valoracio, String opinio) {
+	private boolean guardarValoracio(UUID tasca, int valoracio, String comentari) {
 		return jdbcTemplate.update(
 			"UPDATE tasques SET valoracio = ?, comentari = ?, data_valoracio = CURRENT_TIMESTAMP WHERE id = ? AND estat = 'FINALITZADA' AND valoracio IS NULL",
-			valoracio, opinio, tasca
+			valoracio, comentari, tasca
 		) > 0;
 	}
 
-	private static String textValoracio(Tasca tasca, int valoracio, String opinio) {
-		String text = (opinio != null && !opinio.isBlank()) ? ": \"" + opinio + "\"" : "";
+	private static String textValoracio(Tasca tasca, int valoracio, String comentari) {
+		String text = (comentari != null && !comentari.isBlank()) ? ": \"" + comentari + "\"" : "";
 		return tasca.clientNom() + " t'ha puntuat amb " + valoracio + " estrelles per a la tasca '" + tasca.titol() + "'" + text;
 	}
 
@@ -850,12 +878,12 @@ public class InMemoryCatalog {
 			id = jdbcTemplate.queryForObject(
 				"INSERT INTO tasques (publicacio_id, client_id, professional_id, preu_acordat, estat) VALUES (?, ?::uuid, ?::uuid, ?, 'SOLLICITADA') RETURNING id::text",
 				String.class,
-				uuid, client.id(), oferta.usuariId(), preu
+				uuid, client.id(), oferta.autorId(), preu
 			);
 		} catch (DuplicateKeyException e) {
 			throw new IllegalStateException("Ja tens una sol·licitud pendent per a aquesta oferta.");
 		}
-		addAvis(oferta.usuariId(), "El client " + client.nom() + " ha mostrat interés en la teva oferta '" + oferta.titol() + "'. Pots acceptar o rebutjar la sol·licitud.");
+		addAvis(oferta.autorId(), "El client " + client.nom() + " ha mostrat interés en la teva oferta '" + oferta.titol() + "'. Pots acceptar o rebutjar la sol·licitud.");
 		return findTaskById(id);
 	}
 
@@ -872,7 +900,7 @@ public class InMemoryCatalog {
 		if (oferta.isEmpty()) {
 			return false;
 		}
-		exigirAutorOAdmin(oferta.get().usuariId(), actorId);
+		exigirAutorOAdmin(oferta.get().autorId(), actorId);
 		UUID uuid = UUID.fromString(oferta.get().id());
 		jdbcTemplate.queryForObject("SELECT estat FROM publicacions WHERE id = ? FOR UPDATE", String.class, uuid);
 		jdbcTemplate.update("UPDATE publicacions SET estat = 'RETIRADA' WHERE id = ?", uuid);
@@ -1078,7 +1106,7 @@ public class InMemoryCatalog {
 		Tasca tasca = valorarTasca(resenya.tascaId(), actorId, resenya.puntuacio(), resenya.descripcio())
 			.orElseThrow(() -> new IllegalArgumentException("La tasca no existeix."));
 		return new Resenya("R-" + tasca.id(), tasca.clientId(), tasca.clientNom(), tasca.professionalId(), tasca.professionalNom(),
-			tasca.id(), tasca.valoracio(), tasca.opinio(), tasca.dataValoracio());
+			tasca.id(), tasca.valoracio(), tasca.comentari(), tasca.dataValoracio());
 	}
 
 	// ==========================================
@@ -1106,7 +1134,7 @@ public class InMemoryCatalog {
 		if (!"OFERTA".equals(tipus) && !"INCIDENCIA".equals(tipus)) {
 			throw new IllegalArgumentException("El tipus de publicació ha de ser OFERTA o INCIDENCIA.");
 		}
-		String identificador = pub.usuariId() != null ? pub.usuariId() : pub.usuariNom();
+		String identificador = pub.autorId() != null ? pub.autorId() : pub.autorNom();
 		Usuari autor = autorDe(identificador, tipus);
 		String estat = "OFERTA".equals(tipus) ? "ACTIVA" : "OBERTA";
 		String id = inserirPublicacio(tipus, autor, pub.titol(), pub.descripcio(), pub.categoria(), pub.preuOPressupost(), estat);

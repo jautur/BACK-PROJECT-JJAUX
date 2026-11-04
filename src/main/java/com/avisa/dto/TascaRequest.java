@@ -15,10 +15,10 @@ public record TascaRequest(
     String estat,
     String tipus,
     Integer valoracio,
-    String opinio
+    String comentari
 ) {
     public TascaRequest ambClient(String id) {
-        return new TascaRequest(titol, descripcio, categoria, id, null, id, professionalId, professionalNom, professional, origenId, budget, estat, tipus, valoracio, opinio);
+        return new TascaRequest(titol, descripcio, categoria, id, null, id, professionalId, professionalNom, professional, origenId, budget, estat, tipus, valoracio, comentari);
     }
 
     public String resolveClient() {
