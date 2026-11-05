@@ -29,14 +29,16 @@ public class InteresController {
 		this.interesService = interesService;
 	}
 
-	@GetMapping("/professional/{proNomOrId}")
-	public List<Interes> listByProfessional(@PathVariable String proNomOrId) {
-		return interesService.listByProfessional(proNomOrId);
+	@GetMapping("/professional/{professionalId}")
+	public List<Interes> listByProfessional(@PathVariable String professionalId, Principal principal) {
+		Sollicitant.exigirUnDelsOAdmin(principal, professionalId);
+		return interesService.listByProfessional(professionalId);
 	}
 
-	@GetMapping("/client/{clientNomOrId}")
-	public List<Interes> listByClient(@PathVariable String clientNomOrId) {
-		return interesService.listByClient(clientNomOrId);
+	@GetMapping("/client/{clientId}")
+	public List<Interes> listByClient(@PathVariable String clientId, Principal principal) {
+		Sollicitant.exigirUnDelsOAdmin(principal, clientId);
+		return interesService.listByClient(clientId);
 	}
 
 	@PostMapping("/{id}/acceptar")

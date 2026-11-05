@@ -46,38 +46,46 @@ public class TascaController {
 	}
 
 	/**
-	 * Obtenir el detall d'una tasca concreta pel seu ID.
+	 * Obtenir el detall d'una tasca o d'una incidència pel seu ID.
+	 * Una incidència és pública al mercat; una tasca només la veuen les seues dues parts i un administrador.
 	 * Endpoint: GET /api/tasks/{id}
-	 * @param id Identificador de la tasca (ex: 'T-101')
+	 * @param id Identificador de la tasca o incidència
 	 * @return La tasca o 404 Not Found si no existeix
 	 */
 	@GetMapping("/{id}")
-	public ResponseEntity<Tasca> getById(@PathVariable String id) {
+	public ResponseEntity<Tasca> getById(@PathVariable String id, Principal principal) {
 		return tascaService.findTaskOrIncidenciaById(id)
-			.map(ResponseEntity::ok)
+			.map(tasca -> {
+				if (!"incidencia".equals(tasca.tipus())) {
+					Sollicitant.exigirUnDelsOAdmin(principal, tasca.clientId(), tasca.professionalId());
+				}
+				return ResponseEntity.ok(tasca);
+			})
 			.orElse(ResponseEntity.notFound().build());
 	}
 
 	/**
-	 * Llistar les tasques creades per un client concret pel seu nom.
-	 * Endpoint: GET /api/tasks/client/{clientNom}
-	 * @param clientNom Nom de l'usuari client
-	 * @return Llista de tasques publicades per aquell client
+	 * Llistar les tasques d'un client: el mateix client o un administrador.
+	 * Endpoint: GET /api/tasks/client/{clientId}
+	 * @param clientId Identificador de l'usuari client
+	 * @return Llista de tasques d'aquell client
 	 */
-	@GetMapping("/client/{clientNom}")
-	public List<Tasca> listByClient(@PathVariable String clientNom) {
-		return tascaService.listByClient(clientNom);
+	@GetMapping("/client/{clientId}")
+	public List<Tasca> listByClient(@PathVariable String clientId, Principal principal) {
+		Sollicitant.exigirUnDelsOAdmin(principal, clientId);
+		return tascaService.listByClient(clientId);
 	}
 
 	/**
-	 * Llistar les tasques assignades a un professional concret (on ja convergeixen client i professional).
-	 * Endpoint: GET /api/tasks/professional/{professionalNom}
-	 * @param professionalNom Nom del professional
+	 * Llistar les tasques assignades a un professional: el mateix professional o un administrador.
+	 * Endpoint: GET /api/tasks/professional/{professionalId}
+	 * @param professionalId Identificador del professional
 	 * @return Llista de tasques on el professional ha estat assignat
 	 */
-	@GetMapping("/professional/{professionalNom}")
-	public List<Tasca> listByProfessional(@PathVariable String professionalNom) {
-		return tascaService.listByProfessional(professionalNom);
+	@GetMapping("/professional/{professionalId}")
+	public List<Tasca> listByProfessional(@PathVariable String professionalId, Principal principal) {
+		Sollicitant.exigirUnDelsOAdmin(principal, professionalId);
+		return tascaService.listByProfessional(professionalId);
 	}
 
 	/**
@@ -131,13 +139,14 @@ public class TascaController {
 	}
 
 	/**
-	 * Filtrar tasques per una categoria específica (ex: 'Web', 'Branding', 'Multimèdia').
+	 * Filtrar tasques per una categoria específica (només administrador: són tasques de tothom).
 	 * Endpoint: GET /api/tasks/categoria/{categoria}
 	 * @param categoria Nom de la categoria
 	 * @return Llista de tasques d'aquella categoria
 	 */
 	@GetMapping("/categoria/{categoria}")
-	public List<Tasca> listByCategory(@PathVariable String categoria) {
+	public List<Tasca> listByCategory(@PathVariable String categoria, Principal principal) {
+		Sollicitant.exigirAdmin(principal);
 		return tascaService.listByCategory(categoria);
 	}
 

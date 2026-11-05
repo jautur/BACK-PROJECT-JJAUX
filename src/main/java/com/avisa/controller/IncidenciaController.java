@@ -72,7 +72,7 @@ public class IncidenciaController {
 	 */
 	@PostMapping
 	public Incidencia create(@RequestBody IncidenciaRequest request, Principal principal) {
-		return incidenciaService.create(principal != null ? request.ambClient(principal.getName()) : request);
+		return incidenciaService.create(request.ambClient(Sollicitant.id(principal)));
 	}
 
 	/**

@@ -875,6 +875,16 @@ public class InMemoryCatalog {
 	}
 
 	/**
+	 * Obté el destinatari d'un avís.
+	 * @param id Identificador de l'avís
+	 * @return Identificador del destinatari, buit si l'avís no existeix
+	 */
+	public Optional<String> destinatariAvis(String id) {
+		return jdbcTemplate.queryForList("SELECT destinatari_id::text FROM avisos WHERE id::text = ?", String.class, id)
+			.stream().findFirst();
+	}
+
+	/**
 	 * Crea un nou avís o notificació per a un usuari sense enllaç explícit (auto-detectat).
 	 */
 	public Avis addAvis(String usuariId, String missatge) {

@@ -37,7 +37,7 @@ class AvisControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(avisController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(avisController).setControllerAdvice(new com.avisa.config.GlobalExceptionHandler()).build();
     }
 
     @Test
@@ -46,7 +46,7 @@ class AvisControllerTest {
         Avis a = new Avis("A-1", "u-1", "Notificació de prova", false, LocalDate.now());
         when(avisService.list()).thenReturn(List.of(a));
 
-        mockMvc.perform(get("/api/avisos"))
+        mockMvc.perform(get("/api/avisos").principal(JwtDeProva.sessio("u-admin", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].missatge").value("Notificació de prova"));
     }
@@ -57,7 +57,7 @@ class AvisControllerTest {
         Avis a = new Avis("A-1", "u-1", "Notificació de prova", false, LocalDate.now());
         when(avisService.listByUsuari("u-1")).thenReturn(List.of(a));
 
-        mockMvc.perform(get("/api/avisos/usuari/u-1"))
+        mockMvc.perform(get("/api/avisos/usuari/u-1").principal(JwtDeProva.sessio("u-1", "CLIENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].destinatariId").value("u-1"));
     }
@@ -68,7 +68,7 @@ class AvisControllerTest {
         Avis nou = new Avis("A-2", "u-2", "Nova tasca", false, LocalDate.now());
         when(avisService.create("u-2", "Nova tasca")).thenReturn(nou);
 
-        mockMvc.perform(post("/api/avisos")
+        mockMvc.perform(post("/api/avisos").principal(JwtDeProva.sessio("u-admin", "ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"destinatariId\":\"u-2\",\"missatge\":\"Nova tasca\"}"))
                 .andExpect(status().isOk())

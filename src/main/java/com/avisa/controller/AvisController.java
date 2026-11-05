@@ -3,6 +3,7 @@ package com.avisa.controller;
 import com.avisa.model.Avis;
 import com.avisa.service.AvisService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.security.Principal;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -32,11 +33,12 @@ public class AvisController {
 	}
 
 	/**
-	 * Llistar tots els avisos del sistema (panell d'administració o global).
+	 * Llistar tots els avisos del sistema (només administrador).
 	 * @return Llista completa d'avisos
 	 */
 	@GetMapping
-	public List<Avis> list() {
+	public List<Avis> list(Principal principal) {
+		Sollicitant.exigirAdmin(principal);
 		return avisService.list();
 	}
 
@@ -45,13 +47,14 @@ public class AvisController {
 	// ==========================================
 
 	/**
-	 * Crear un nou avís o alerta de sistema manualment.
+	 * Crear un nou avís manualment (només administrador).
 	 * Acció: Emet un avís a un client o professional.
 	 * @param avis Dades de l'avís a donar d'alta
 	 * @return L'avís creat
 	 */
 	@PostMapping
-	public Avis create(@RequestBody Avis avis) {
+	public Avis create(@RequestBody Avis avis, Principal principal) {
+		Sollicitant.exigirAdmin(principal);
 		if (avis.enllac() != null && !avis.enllac().isBlank()) {
 			return avisService.create(avis.destinatariId(), avis.missatge(), avis.enllac());
 		}
@@ -59,37 +62,45 @@ public class AvisController {
 	}
 
 	/**
-	 * Llistar els avisos d'un usuari concret.
+	 * Llistar els avisos d'un usuari: el mateix usuari o un administrador.
 	 * Acció: Mostrar les notificacions a la safata d'entrada de l'usuari connectat.
 	 * @param usuariId Identificador únic de l'usuari
 	 * @return Llista de notificacions de l'usuari
 	 */
 	@GetMapping("/usuari/{usuariId}")
-	public List<Avis> listByUsuari(@PathVariable String usuariId) {
+	public List<Avis> listByUsuari(@PathVariable String usuariId, Principal principal) {
+		Sollicitant.exigirUnDelsOAdmin(principal, usuariId);
 		return avisService.listByUsuari(usuariId);
 	}
 
 	/**
-	 * Marcar un avís com a llegit.
+	 * Marcar un avís com a llegit: el seu destinatari o un administrador.
 	 * Acció: Actualitza la columna llegit a true a la base de dades.
 	 * @param id Identificador de l'avís
 	 * @return Resposta 200 OK
 	 */
 	@PutMapping("/{id}/llegit")
-	public ResponseEntity<Void> markAsRead(@PathVariable String id) {
+	public ResponseEntity<Void> markAsRead(@PathVariable String id, Principal principal) {
+		exigirDestinatariOAdmin(id, principal);
 		avisService.markAsRead(id);
 		return ResponseEntity.ok().build();
 	}
 
 	/**
-	 * Eliminar un avís del sistema.
+	 * Eliminar un avís: el seu destinatari o un administrador.
 	 * Acció: Suprimeix el registre de la taula avisos.
 	 * @param id Identificador de l'avís
 	 * @return Resposta 204 No Content
 	 */
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> delete(@PathVariable String id) {
+	public ResponseEntity<Void> delete(@PathVariable String id, Principal principal) {
+		exigirDestinatariOAdmin(id, principal);
 		avisService.delete(id);
 		return ResponseEntity.noContent().build();
+	}
+
+	private void exigirDestinatariOAdmin(String avisId, Principal principal) {
+		Sollicitant.id(principal);
+		avisService.destinatari(avisId).ifPresent(destinatari -> Sollicitant.exigirUnDelsOAdmin(principal, destinatari));
 	}
 }

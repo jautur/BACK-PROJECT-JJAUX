@@ -25,7 +25,7 @@ class TasquesIT extends MercatIntegrationTest {
 			.isEqualTo(client.toString());
 		assertThat(avisosDe(professional)).isEqualTo(1);
 		mvc.perform(get("/api/tasks")).andExpect(jsonPath("$.length()").value(0));
-		mvc.perform(get("/api/interessos/professional/" + professional))
+		mvc.perform(getCom(professional, "/api/interessos/professional/" + professional))
 			.andExpect(jsonPath("$[0].id").value(tasca))
 			.andExpect(jsonPath("$[0].tascaId").doesNotExist());
 		assertThat(estatPublicacio(oferta)).isEqualTo("ACTIVA");

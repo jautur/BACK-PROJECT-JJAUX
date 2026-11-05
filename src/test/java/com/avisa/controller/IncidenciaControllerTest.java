@@ -71,7 +71,7 @@ class IncidenciaControllerTest {
         Incidencia inc = new Incidencia("I-2", "Client A", "Avaria persianes", "Cinta trencada", "Persianes", "40€", "Oberta");
         when(incidenciaService.create(any())).thenReturn(inc);
 
-        mockMvc.perform(post("/api/incidencies")
+        mockMvc.perform(post("/api/incidencies").principal(() -> "u-client")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())

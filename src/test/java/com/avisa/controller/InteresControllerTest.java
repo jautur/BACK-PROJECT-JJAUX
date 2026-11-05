@@ -38,7 +38,7 @@ class InteresControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(interesController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(interesController).setControllerAdvice(new com.avisa.config.GlobalExceptionHandler()).build();
     }
 
     @Test
@@ -47,7 +47,7 @@ class InteresControllerTest {
         Interes created = new Interes("INT-1", "PUB-1", "u-1", "Client A", "Vull el servei", null, LocalDateTime.now());
         when(interesService.listByProfessional("pro1")).thenReturn(List.of(created));
 
-        mockMvc.perform(get("/api/interessos/professional/pro1"))
+        mockMvc.perform(get("/api/interessos/professional/pro1").principal(JwtDeProva.sessio("pro1", "PROFESSIONAL")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("INT-1"));
     }

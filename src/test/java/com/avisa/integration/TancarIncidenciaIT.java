@@ -100,12 +100,12 @@ class TancarIncidenciaIT extends MercatIntegrationTest {
 	@Test
 	@DisplayName("El tipus d'un element no depén del prefix del seu identificador")
 	void tipusSegonsProfessional() throws Exception {
-		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/tasks/" + incidencia))
+		mvc.perform(getCom(client, "/api/tasks/" + incidencia))
 			.andExpect(jsonPath("$.tipus").value("incidencia")).andExpect(jsonPath("$.estat").value("Oberta"));
 
 		String tasca = cos(mvc.perform(postCom(client, "/api/pressupostos/" + pressupost + "/acceptar", "{}")).andExpect(status().isOk())).get("id").asText();
 
-		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/tasks/" + tasca))
+		mvc.perform(getCom(client, "/api/tasks/" + tasca))
 			.andExpect(jsonPath("$.tipus").value("tasca")).andExpect(jsonPath("$.publicacioId").value(incidencia));
 		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/users"))
 			.andExpect(jsonPath("$[?(@.id=='" + client + "')].rol").value("CLIENT"));

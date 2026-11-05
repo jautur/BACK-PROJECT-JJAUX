@@ -51,7 +51,7 @@ class PublicacionsIT extends MercatIntegrationTest {
 	@DisplayName("Sense autor existent o amb el rol equivocat no es crea res")
 	void autorInvalid() throws Exception {
 		mvc.perform(post("/api/incidencies").contentType(MediaType.APPLICATION_JSON).content("{\"titol\":\"t\",\"client\":\"ningú\"}"))
-			.andExpect(status().isBadRequest());
+			.andExpect(status().isUnauthorized());
 		mvc.perform(postCom(client, "/api/offers", "{\"price\":\"1\",\"note\":\"n\"}")).andExpect(status().isForbidden());
 		mvc.perform(postCom(professional, "/api/incidencies", "{\"titol\":\"t\"}")).andExpect(status().isForbidden());
 

@@ -2,6 +2,7 @@ package com.avisa.service;
 
 import com.avisa.model.Avis;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 /**
@@ -31,6 +32,15 @@ public class AvisService {
 	 */
 	public List<Avis> listByUsuari(String usuariId) {
 		return catalog.findAvisosByUsuari(usuariId);
+	}
+
+	/**
+	 * Obté a qui va adreçat un avís.
+	 * @param id Identificador de l'avís
+	 * @return Identificador del destinatari, buit si l'avís no existeix
+	 */
+	public Optional<String> destinatari(String id) {
+		return catalog.destinatariAvis(id);
 	}
 
 	/**

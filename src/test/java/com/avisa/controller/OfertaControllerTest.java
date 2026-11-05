@@ -71,7 +71,7 @@ class OfertaControllerTest {
         Oferta o = new Oferta("O-2", "standalone", "Pro Manel", "Fontaneria", "45€/h", "Reparacions", "Activa");
         when(ofertaService.create(any())).thenReturn(o);
 
-        mockMvc.perform(post("/api/offers")
+        mockMvc.perform(post("/api/offers").principal(() -> "u-pro")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())

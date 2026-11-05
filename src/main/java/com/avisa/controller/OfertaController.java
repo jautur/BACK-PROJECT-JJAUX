@@ -51,7 +51,7 @@ public class OfertaController {
 	 */
 	@PostMapping
 	public Oferta create(@RequestBody OfertaRequest request, Principal principal) {
-		return ofertaService.create(principal != null ? request.ambProfessional(principal.getName()) : request);
+		return ofertaService.create(request.ambProfessional(Sollicitant.id(principal)));
 	}
 
 	/**

@@ -41,7 +41,7 @@ class TascaControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(tascaController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(tascaController).setControllerAdvice(new com.avisa.config.GlobalExceptionHandler()).build();
     }
 
     @Test
@@ -61,7 +61,7 @@ class TascaControllerTest {
         Tasca t = new Tasca("T-1", "Pintura", "Desc", "Pintura", "u-1", "Client", "u-2", "Pro", null, null, null, "100€", LocalDateTime.now(), null, null, null, null);
         when(tascaService.findTaskOrIncidenciaById("T-1")).thenReturn(Optional.of(t));
 
-        mockMvc.perform(get("/api/tasks/T-1"))
+        mockMvc.perform(get("/api/tasks/T-1").principal(JwtDeProva.sessio("u-1", "CLIENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("T-1"));
     }

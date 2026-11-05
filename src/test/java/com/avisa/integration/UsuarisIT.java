@@ -173,7 +173,7 @@ class UsuarisIT extends PostgresIntegrationTest {
 	@Test
 	@DisplayName("Un avís per a un destinatari inexistent dona error en lloc de fingir èxit")
 	void avisSenseDestinatari() throws Exception {
-		mvc.perform(post("/api/avisos").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(post("/api/avisos").header(HttpHeaders.AUTHORIZATION, bearer(usuari("ADMIN", "admin@admin.test", null), "ADMIN")).contentType(MediaType.APPLICATION_JSON)
 				.content("{\"destinatariId\":\"" + UUID.randomUUID() + "\",\"missatge\":\"hola\"}"))
 			.andExpect(status().isBadRequest());
 

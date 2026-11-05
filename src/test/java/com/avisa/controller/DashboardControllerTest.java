@@ -38,7 +38,7 @@ class DashboardControllerTest {
     @DisplayName("GET /api/dashboard retorna mètriques globals")
     void haDeRetornarDashboard() throws Exception {
         DashboardResponse mockResp = new DashboardResponse(3, 7, 12, List.of(), List.of(), List.of());
-        when(dashboardService.getDashboard()).thenReturn(mockResp);
+        when(dashboardService.getDashboard(null, false)).thenReturn(mockResp);
 
         mockMvc.perform(get("/api/dashboard"))
                 .andExpect(status().isOk())
