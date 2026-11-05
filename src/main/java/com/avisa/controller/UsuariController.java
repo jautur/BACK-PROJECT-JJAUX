@@ -5,6 +5,7 @@ import com.avisa.service.UsuariService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -18,7 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Controlador REST per a la gestió d'usuaris i perfils (/api/users).
- * Permet consultar el perfil d'un usuari, editar les seves dades i llistar usuaris per rol.
+ * Qui fa la petició i el seu rol surten sempre del token JWT.
+ * El telèfon i el correu només els veuen el mateix usuari, un administrador
+ * i l'altra part d'una tasca acceptada.
  */
 @RestController
 @RequestMapping("/api/users")
@@ -33,64 +36,69 @@ public class UsuariController {
 	}
 
 	/**
-	 * Llistar tots els usuaris registrats.
+	 * Llistar els usuaris registrats. Només l'administrador rep totes les dades.
 	 * Endpoint: GET /api/users
-	 * @return Llista completa d'usuaris
+	 * @return Llista d'usuaris amb els camps que pot veure qui pregunta
 	 */
 	@GetMapping
-	@Operation(summary = "Llistar usuaris", description = "Retorna tots els comptes registrats a la plataforma")
-	public List<Usuari> list() {
-		return usuariService.list();
+	@Operation(summary = "Llistar usuaris", description = "Retorna els comptes registrats amb els camps que pot veure qui pregunta")
+	public List<Usuari> list(Principal principal) {
+		return usuariService.list().stream()
+			.map(u -> veuTotesLesDades(u, principal) ? u : u.perfilPublic())
+			.toList();
 	}
 
 	/**
-	 * Obtenir el perfil detallat d'un usuari pel seu ID.
+	 * Obtenir un perfil pel seu ID o nom.
 	 * Endpoint: GET /api/users/{id}
-	 * Ús: Carrega les dades a la vista de perfil de l'usuari connectat.
-	 * @param id Identificador de l'usuari
-	 * @return L'objecte Usuari o 404 Not Found si no existeix
+	 * Un correu només obri el perfil a un administrador: si no, serviria per a saber qui està registrat.
+	 * @param id Identificador o nom de l'usuari
+	 * @return L'usuari amb els camps que pot veure qui pregunta, o 404 si no existeix
 	 */
 	@GetMapping("/{id}")
-	@Operation(summary = "Obtenir perfil d'usuari", description = "Retorna el perfil complet per identificador")
-	public ResponseEntity<Usuari> getById(@PathVariable String id) {
+	@Operation(summary = "Obtenir perfil d'usuari", description = "Retorna el perfil amb els camps que pot veure qui pregunta")
+	public ResponseEntity<Usuari> getById(@PathVariable String id, Principal principal) {
+		if (id.contains("@") && !Sollicitant.esAdmin(principal)) {
+			return ResponseEntity.notFound().build();
+		}
 		return usuariService.findById(id)
+			.map(u -> vistaDelPerfil(u, principal))
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
 
 	/**
-	 * Filtrar usuaris pel seu rol ('client', 'professional', 'admin').
+	 * Filtrar usuaris pel seu rol (només administrador).
 	 * Endpoint: GET /api/users/rol/{rol}
-	 * Ús: Llistar el directori públic de professionals o administració d'usuaris.
 	 * @param rol Rol a filtrar
 	 * @return Llista d'usuaris que coincideixen amb el rol
 	 */
 	@GetMapping("/rol/{rol}")
 	@Operation(summary = "Llistar per rol", description = "Filtra usuaris segons siguin clients, professionals o administradors")
-	public List<Usuari> listByRol(@PathVariable String rol) {
+	public List<Usuari> listByRol(@PathVariable String rol, Principal principal) {
+		Sollicitant.exigirAdmin(principal);
 		return usuariService.list().stream()
 			.filter(u -> u.rol().equalsIgnoreCase(rol))
 			.toList();
 	}
 
 	/**
-	 * Actualitzar la informació del perfil d'un usuari.
+	 * Actualitzar la informació del perfil d'un usuari (el mateix usuari o un administrador).
 	 * Endpoint: PUT /api/users/{id}
-	 * Ús: Modificar nom, telèfon i descripció/bio des de la pantalla de perfil.
 	 * @param id Identificador de l'usuari
 	 * @param usuari Dades modificades
 	 * @return Usuari actualitzat
 	 */
 	@PutMapping("/{id}")
-	@Operation(summary = "Actualitzar perfil", description = "Modifica nom, telèfon, bio o percentil validant els permisos de rol")
+	@Operation(summary = "Actualitzar perfil", description = "Modifica nom, telèfon, bio o percentil; només el mateix usuari o un administrador")
 	public ResponseEntity<?> updateProfile(
 		@PathVariable String id,
 		@Valid @RequestBody Usuari usuari,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Id", required = false) String requesterId
+		Principal principal
 	) {
 		try {
-			Usuari updated = usuariService.update(id, usuari, requesterRol, requesterId);
+			Sollicitant.exigirUnDelsOAdmin(principal, id);
+			Usuari updated = usuariService.update(id, usuari, Sollicitant.rol(principal).orElse(null), Sollicitant.id(principal));
 			return ResponseEntity.ok(updated);
 		} catch (SecurityException se) {
 			return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
@@ -107,7 +115,8 @@ public class UsuariController {
 	 */
 	@org.springframework.web.bind.annotation.PostMapping("/{id}/sollicitar-verificacio")
 	@Operation(summary = "Sol·licitar verificació", description = "El professional sol·licita ser verificat mitjançant comprovació telefònica per part de l'administrador")
-	public ResponseEntity<?> sollicitarVerificacio(@PathVariable String id) {
+	public ResponseEntity<?> sollicitarVerificacio(@PathVariable String id, Principal principal) {
+		Sollicitant.exigirUnDelsOAdmin(principal, id);
 		try {
 			Usuari u = usuariService.sollicitarVerificacio(id);
 			return ResponseEntity.ok(u);
@@ -125,14 +134,12 @@ public class UsuariController {
 	public ResponseEntity<?> verificarProfessional(
 		@PathVariable String id,
 		@org.springframework.web.bind.annotation.RequestParam(defaultValue = "true") boolean estat,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
+		Principal principal
 	) {
+		Sollicitant.exigirAdmin(principal);
 		try {
-			Usuari u = usuariService.verificarProfessional(id, estat, requesterRol);
+			Usuari u = usuariService.verificarProfessional(id, estat, Sollicitant.rol(principal).orElse(null));
 			return ResponseEntity.ok(u);
-		} catch (SecurityException se) {
-			return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
-				.body(java.util.Map.of("message", se.getMessage()));
 		} catch (IllegalArgumentException iae) {
 			return ResponseEntity.badRequest().body(java.util.Map.of("message", iae.getMessage()));
 		}
@@ -147,13 +154,9 @@ public class UsuariController {
 	public ResponseEntity<?> assignarFoto(
 		@PathVariable String id,
 		@RequestBody java.util.Map<String, String> body,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
+		Principal principal
 	) {
-		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
-		if (!isAdmin) {
-			return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
-				.body(java.util.Map.of("message", "Només un administrador pot assignar fotografies a professionals."));
-		}
+		Sollicitant.exigirAdmin(principal);
 		String foto = body != null ? body.get("foto") : null;
 		try {
 			Usuari u = usuariService.assignarFoto(id, foto);
@@ -164,18 +167,34 @@ public class UsuariController {
 	}
 
 	/**
-	 * Donar de baixa o eliminar un usuari de la plataforma.
+	 * Donar de baixa un usuari de la plataforma (només administrador).
 	 * Endpoint: DELETE /api/users/{id}
 	 * @param id Identificador de l'usuari
 	 * @return 204 No Content si s'elimina correctament, o 400 Bad Request si no es pot eliminar
 	 */
 	@DeleteMapping("/{id}")
-	@Operation(summary = "Eliminar usuari", description = "Elimina el compte d'usuari de la base de dades")
-	public ResponseEntity<Void> deleteUser(@PathVariable String id) {
+	@Operation(summary = "Eliminar usuari", description = "Elimina el compte d'usuari de la base de dades; només un administrador")
+	public ResponseEntity<Void> deleteUser(@PathVariable String id, Principal principal) {
+		Sollicitant.exigirAdmin(principal);
 		boolean deleted = usuariService.delete(id);
 		if (!deleted) {
 			return ResponseEntity.badRequest().build();
 		}
 		return ResponseEntity.noContent().build();
+	}
+
+	private Usuari vistaDelPerfil(Usuari usuari, Principal principal) {
+		if (veuTotesLesDades(usuari, principal)) {
+			return usuari;
+		}
+		if (principal != null && usuariService.comparteixenTascaAcceptada(principal.getName(), usuari.id())) {
+			return usuari.perfilPublicAmbContacte();
+		}
+		return usuari.perfilPublic();
+	}
+
+	private boolean veuTotesLesDades(Usuari usuari, Principal principal) {
+		return Sollicitant.esAdmin(principal)
+			|| (principal != null && principal.getName().equalsIgnoreCase(usuari.id()));
 	}
 }

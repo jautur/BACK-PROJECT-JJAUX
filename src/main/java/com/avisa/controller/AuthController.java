@@ -11,6 +11,7 @@ import com.avisa.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,14 +37,14 @@ public class AuthController {
 	}
 
 	/**
-	 * Retorna la informació de l'usuari de la sessió actual.
+	 * Retorna la informació de l'usuari del token.
 	 * Endpoint: GET /api/auth/me
 	 * @return Usuari actualment autenticat
 	 */
 	@GetMapping("/me")
-	@Operation(summary = "Obtenir usuari actual", description = "Retorna l'usuari actiu de la sessió")
-	public ResponseEntity<Usuari> me() {
-		return authService.getActiveUser()
+	@Operation(summary = "Obtenir usuari actual", description = "Retorna l'usuari del token de la sessió")
+	public ResponseEntity<Usuari> me(Principal principal) {
+		return authService.usuariActual(Sollicitant.id(principal))
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
 	}
@@ -88,18 +89,16 @@ public class AuthController {
 	}
 
 	/**
-	 * Permet canviar la contrasenya d'un usuari.
+	 * Permet canviar la contrasenya pròpia o, a un administrador, la de qualsevol usuari.
 	 * Endpoint: POST /api/auth/canviar-contrasenya
 	 * @param request Objecte amb userId i la nova contrasenya validada
 	 * @return Missatge de confirmació o error si les dades són invàlides
 	 */
 	@PostMapping("/canviar-contrasenya")
-	@Operation(summary = "Canviar contrasenya", description = "Actualitza la contrasenya d'un usuari validant longitud mínima")
-	public ResponseEntity<String> changePassword(@Valid @RequestBody PasswordChangeRequest request) {
-		if (request.userId() == null || request.userId().isBlank()) {
-			return ResponseEntity.badRequest().body("L'identificador d'usuari és obligatori.");
-		}
-		if (request.newPassword() == null || request.newPassword().trim().length() < 6) {
+	@Operation(summary = "Canviar contrasenya", description = "Actualitza la contrasenya pròpia, o la de qualsevol usuari si qui ho demana és administrador")
+	public ResponseEntity<String> changePassword(@Valid @RequestBody PasswordChangeRequest request, Principal principal) {
+		Sollicitant.exigirUnDelsOAdmin(principal, request.userId());
+		if (request.newPassword().trim().length() < 6) {
 			return ResponseEntity.badRequest().body("La nova contrasenya ha de tenir com a mínim 6 caràcters.");
 		}
 		authService.changePassword(request.userId(), request.newPassword().trim());

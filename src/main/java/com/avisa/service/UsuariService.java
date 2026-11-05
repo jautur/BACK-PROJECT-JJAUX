@@ -84,5 +84,13 @@ public class UsuariService {
 	public boolean delete(String id) {
 		return catalog.deleteUser(id);
 	}
+
+	/**
+	 * Comprova si dos usuaris són el client i el professional d'una tasca acceptada,
+	 * l'única relació que permet veure el contacte de l'altre.
+	 */
+	public boolean comparteixenTascaAcceptada(String usuariA, String usuariB) {
+		return catalog.comparteixenTascaAcceptada(usuariA, usuariB);
+	}
 }
 

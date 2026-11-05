@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.avisa.config.DemoDataSeeder;
 import com.avisa.config.DevUsersSeeder;
+import com.avisa.config.JwtService;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -35,9 +37,16 @@ class UsuarisIT extends PostgresIntegrationTest {
 	@Autowired
 	private ApplicationContext context;
 
+	@Autowired
+	private JwtService jwtService;
+
 	@BeforeEach
 	void baseBuida() {
 		jdbc.execute("TRUNCATE usuaris, blacklist_telefons CASCADE");
+	}
+
+	private String bearer(UUID usuari, String rol) {
+		return "Bearer " + jwtService.generateToken(usuari.toString(), usuari + "@test.es", rol);
 	}
 
 	@Test
@@ -51,19 +60,21 @@ class UsuarisIT extends PostgresIntegrationTest {
 	@DisplayName("Un administrador no es pot esborrar, siga quin siga el seu identificador")
 	void adminProtegitPerRol() throws Exception {
 		UUID admin = usuari("ADMIN", "qualsevol@admin.test", null);
+		String token = bearer(admin, "ADMIN");
 
-		mvc.perform(delete("/api/users/" + admin)).andExpect(status().isBadRequest());
-		mvc.perform(delete("/api/users/qualsevol@admin.test")).andExpect(status().isBadRequest());
+		mvc.perform(delete("/api/users/" + admin).header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isBadRequest());
+		mvc.perform(delete("/api/users/qualsevol@admin.test").header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isBadRequest());
 
 		assertThat(existeix(admin)).isTrue();
 	}
 
 	@Test
-	@DisplayName("Un usuari sense historial es pot esborrar")
+	@DisplayName("Un administrador pot esborrar un usuari sense historial")
 	void esborraUsuariSenseHistorial() throws Exception {
 		UUID client = usuari("CLIENT", "client@test.es", null);
+		String token = bearer(usuari("ADMIN", "admin@admin.test", null), "ADMIN");
 
-		mvc.perform(delete("/api/users/" + client)).andExpect(status().isNoContent());
+		mvc.perform(delete("/api/users/" + client).header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isNoContent());
 
 		assertThat(existeix(client)).isFalse();
 	}
@@ -72,9 +83,23 @@ class UsuarisIT extends PostgresIntegrationTest {
 	@DisplayName("Un usuari amb historial no es pot esborrar")
 	void noEsborraUsuariAmbHistorial() throws Exception {
 		UUID client = usuari("CLIENT", "client@test.es", null);
+		String token = bearer(usuari("ADMIN", "admin@admin.test", null), "ADMIN");
 		jdbc.update("INSERT INTO publicacions (tipus, autor_id, titol, categoria, estat) VALUES ('INCIDENCIA', ?, 't', 'c', 'OBERTA')", client);
 
-		mvc.perform(delete("/api/users/" + client)).andExpect(status().isBadRequest());
+		mvc.perform(delete("/api/users/" + client).header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isBadRequest());
+
+		assertThat(existeix(client)).isTrue();
+	}
+
+	@Test
+	@DisplayName("Sense ser administrador no es pot esborrar cap usuari, ni el propi compte")
+	void nomesAdminEsborra() throws Exception {
+		UUID client = usuari("CLIENT", "client@test.es", null);
+		UUID altre = usuari("CLIENT", "altre@test.es", null);
+
+		mvc.perform(delete("/api/users/" + client)).andExpect(status().isUnauthorized());
+		mvc.perform(delete("/api/users/" + client).header(HttpHeaders.AUTHORIZATION, bearer(altre, "CLIENT"))).andExpect(status().isForbidden());
+		mvc.perform(delete("/api/users/" + client).header(HttpHeaders.AUTHORIZATION, bearer(client, "CLIENT"))).andExpect(status().isForbidden());
 
 		assertThat(existeix(client)).isTrue();
 	}
@@ -137,7 +162,8 @@ class UsuarisIT extends PostgresIntegrationTest {
 		usuari("ADMIN", "a2@admin.test", null);
 		UUID professional = usuari("PROFESSIONAL", "pro@test.es", "600000003");
 
-		mvc.perform(post("/api/users/" + professional + "/sollicitar-verificacio")).andExpect(status().isOk());
+		mvc.perform(post("/api/users/" + professional + "/sollicitar-verificacio").header(HttpHeaders.AUTHORIZATION, bearer(professional, "PROFESSIONAL")))
+			.andExpect(status().isOk());
 
 		assertThat(jdbc.queryForObject(
 			"SELECT COUNT(DISTINCT a.destinatari_id) FROM avisos a JOIN usuaris u ON u.id = a.destinatari_id WHERE u.rol = 'ADMIN'",
@@ -205,7 +231,7 @@ class UsuarisIT extends PostgresIntegrationTest {
 	}
 
 	private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder perfil(UUID id, String telefon) {
-		return put("/api/users/" + id).contentType(MediaType.APPLICATION_JSON)
+		return put("/api/users/" + id).header(HttpHeaders.AUTHORIZATION, bearer(id, "CLIENT")).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"nom\":\"Editat\",\"telefon\":\"" + telefon + "\",\"bio\":\"bio\"}");
 	}
 }

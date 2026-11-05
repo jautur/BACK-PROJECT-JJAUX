@@ -45,11 +45,12 @@ public class AuthService {
 	}
 
 	/**
-	 * Obté l'usuari actiu de la sessió.
-	 * @return Usuari actualment autenticat si existeix
+	 * Obté l'usuari de la sessió.
+	 * @param id Identificador que porta el token
+	 * @return Usuari autenticat si encara existeix
 	 */
-	public Optional<Usuari> getActiveUser() {
-		return catalog.users().stream().findFirst();
+	public Optional<Usuari> usuariActual(String id) {
+		return catalog.findUserById(id);
 	}
 
 	/**

@@ -20,6 +20,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -41,18 +44,49 @@ class AuthControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(authController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(authController).setControllerAdvice(new com.avisa.config.GlobalExceptionHandler()).build();
     }
 
     @Test
-    @DisplayName("GET /api/auth/me retorna 200 quan hi ha usuari")
+    @DisplayName("GET /api/auth/me retorna l'usuari del token")
     void haDeRetornarUsuariMe() throws Exception {
         Usuari u = new Usuari("u-1", "Joan", "joan@test.com", "client", null, null);
-        when(authService.getActiveUser()).thenReturn(Optional.of(u));
+        when(authService.usuariActual("u-1")).thenReturn(Optional.of(u));
 
-        mockMvc.perform(get("/api/auth/me"))
+        mockMvc.perform(get("/api/auth/me").principal(() -> "u-1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nom").value("Joan"));
+    }
+
+    @Test
+    @DisplayName("GET /api/auth/me demana sessió")
+    void meDemanaSessio() throws Exception {
+        mockMvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/canviar-contrasenya permet la pròpia i la de qualsevol a un admin")
+    void canviarContrasenyaPermesa() throws Exception {
+        String cos = "{\"userId\":\"u-1\",\"newPassword\":\"novaClau1\"}";
+
+        mockMvc.perform(post("/api/auth/canviar-contrasenya").principal(JwtDeProva.sessio("u-1", "CLIENT"))
+                .contentType(MediaType.APPLICATION_JSON).content(cos))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/canviar-contrasenya").principal(JwtDeProva.sessio("u-admin", "ADMIN"))
+                .contentType(MediaType.APPLICATION_JSON).content(cos))
+                .andExpect(status().isOk());
+
+        verify(authService, times(2)).changePassword("u-1", "novaClau1");
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/canviar-contrasenya no permet canviar la d'un altre")
+    void canviarContrasenyaAliena() throws Exception {
+        mockMvc.perform(post("/api/auth/canviar-contrasenya").principal(JwtDeProva.sessio("u-2", "CLIENT"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":\"u-1\",\"newPassword\":\"novaClau1\"}"))
+                .andExpect(status().isForbidden());
+
+        verify(authService, never()).changePassword(any(), any());
     }
 
     @Test

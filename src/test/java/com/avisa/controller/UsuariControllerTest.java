@@ -1,5 +1,6 @@
 package com.avisa.controller;
 
+import com.avisa.config.GlobalExceptionHandler;
 import com.avisa.model.Usuari;
 import com.avisa.service.UsuariService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,7 +18,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -39,18 +43,20 @@ class UsuariControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(usuariController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(usuariController).setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
     @Test
-    @DisplayName("GET /api/users retorna llista d'usuaris")
+    @DisplayName("GET /api/users retorna llista d'usuaris sense contacte si no hi ha sessió")
     void haDeLlistarUsuaris() throws Exception {
         Usuari u = new Usuari("u-1", "Pep", "pep@test.com", "client", "666111222", "Bio");
         when(usuariService.list()).thenReturn(List.of(u));
 
         mockMvc.perform(get("/api/users"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].nom").value("Pep"));
+                .andExpect(jsonPath("$[0].nom").value("Pep"))
+                .andExpect(jsonPath("$[0].email").doesNotExist())
+                .andExpect(jsonPath("$[0].telefon").doesNotExist());
     }
 
     @Test
@@ -71,7 +77,7 @@ class UsuariControllerTest {
         when(usuariService.assignarFoto("u-pro", "https://foto.jpg")).thenReturn(uAmbFoto);
 
         mockMvc.perform(put("/api/users/u-pro/foto")
-                .header("X-User-Rol", "admin")
+                .principal(JwtDeProva.sessio("u-admin", "ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("foto", "https://foto.jpg"))))
                 .andExpect(status().isOk())
@@ -79,22 +85,52 @@ class UsuariControllerTest {
     }
 
     @Test
-    @DisplayName("PUT /api/users/{id}/foto denega si no és admin")
+    @DisplayName("PUT /api/users/{id}/foto denega si no és admin, encara que la capçalera diga el contrari")
     void noHaDAssignarFotoNoAdmin() throws Exception {
         mockMvc.perform(put("/api/users/u-pro/foto")
-                .header("X-User-Rol", "client")
+                .principal(JwtDeProva.sessio("u-client", "CLIENT"))
+                .header("X-User-Rol", "admin")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("foto", "https://foto.jpg"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    @DisplayName("DELETE /api/users/{id} elimina usuari amb 204")
+    @DisplayName("PUT /api/users/{id}/foto demana sessió")
+    void noHaDAssignarFotoSenseSessio() throws Exception {
+        mockMvc.perform(put("/api/users/u-pro/foto")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("foto", "https://foto.jpg"))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/users/{id} elimina usuari amb 204 si ho fa un admin")
     void haDEliminarUsuari() throws Exception {
         when(usuariService.delete("u-1")).thenReturn(true);
 
-        mockMvc.perform(delete("/api/users/u-1"))
+        mockMvc.perform(delete("/api/users/u-1").principal(JwtDeProva.sessio("u-admin", "ADMIN")))
                 .andExpect(status().isNoContent());
     }
-}
 
+    @Test
+    @DisplayName("DELETE /api/users/{id} denega si qui ho demana no és admin")
+    void noHaDEliminarUsuariNoAdmin() throws Exception {
+        mockMvc.perform(delete("/api/users/u-1").principal(JwtDeProva.sessio("u-client", "CLIENT")))
+                .andExpect(status().isForbidden());
+
+        verify(usuariService, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("PUT /api/users/{id} denega editar el perfil d'un altre usuari")
+    void noHaDEditarPerfilAlie() throws Exception {
+        mockMvc.perform(put("/api/users/u-altre")
+                .principal(JwtDeProva.sessio("u-client", "CLIENT"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("nom", "Nou nom"))))
+                .andExpect(status().isForbidden());
+
+        verify(usuariService, never()).update(any(), any(), any(), any());
+    }
+}

@@ -62,4 +62,14 @@ public record Usuari(
 		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, foto, fotoPerfil, logo);
 	}
 
+	/** El que pot veure qualsevol: sense contacte, comissió ni estat intern de verificació. */
+	public Usuari perfilPublic() {
+		return new Usuari(id, nom, null, rol, null, bio, null, null, verificat, null, foto, fotoPerfil, logo);
+	}
+
+	/** El perfil públic més el contacte: per a l'altra part d'una tasca acceptada. */
+	public Usuari perfilPublicAmbContacte() {
+		return new Usuari(id, nom, email, rol, telefon, bio, null, null, verificat, null, foto, fotoPerfil, logo);
+	}
+
 }

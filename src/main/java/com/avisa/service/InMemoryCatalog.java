@@ -511,6 +511,24 @@ public class InMemoryCatalog {
 	/** Una sol·licitud no acceptada encara no és treball acordat: es consulta a /api/interessos. */
 	private static final String TASCA_ACORDADA = "t.estat NOT IN ('SOLLICITADA', 'REBUTJADA', 'RETIRADA') ";
 
+	/**
+	 * Comprova si dos usuaris són el client i el professional d'una tasca acceptada i no cancel·lada.
+	 * Només llavors es poden veure el contacte: són els mateixos estats en què el mostren les pantalles.
+	 */
+	public boolean comparteixenTascaAcceptada(String usuariA, String usuariB) {
+		Optional<UUID> a = uuid(usuariA);
+		Optional<UUID> b = uuid(usuariB);
+		if (a.isEmpty() || b.isEmpty()) {
+			return false;
+		}
+		Integer total = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM tasques t WHERE t.estat IN ('EN_CURS', 'EN_REVISIO', 'FINALITZADA') "
+				+ "AND ((t.client_id = ? AND t.professional_id = ?) OR (t.client_id = ? AND t.professional_id = ?))",
+			Integer.class, a.get(), b.get(), b.get(), a.get()
+		);
+		return total != null && total > 0;
+	}
+
 	private static final Map<String, String> ETIQUETES_TASCA = Map.of(
 		"SOLLICITADA", "Sol·licitada",
 		"REBUTJADA", "Rebutjada",
