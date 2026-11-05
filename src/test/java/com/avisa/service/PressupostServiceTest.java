@@ -43,10 +43,10 @@ class PressupostServiceTest {
     @DisplayName("Llistar pressupostos segurs per incidència")
     void haDeLlistarSegurPerIncidencia() {
         Pressupost p = new Pressupost("P-1", "I-1", "u-pro", "Pro Manolo", "120€", "Pintura", "1 dia", LocalDateTime.now());
-        when(catalog.findPressupostosByIncidenciaSecure("I-1", "u-client", "Client Joan", "client"))
+        when(catalog.findPressupostosByIncidenciaSecure("I-1", "u-client", "CLIENT"))
             .thenReturn(List.of(p));
 
-        List<Pressupost> list = pressupostService.listByIncidenciaSecure("I-1", "u-client", "Client Joan", "client");
+        List<Pressupost> list = pressupostService.listByIncidenciaSecure("I-1", "u-client", "CLIENT");
         assertThat(list).hasSize(1);
         assertThat(list.get(0).id()).isEqualTo("P-1");
     }

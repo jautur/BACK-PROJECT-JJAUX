@@ -63,8 +63,8 @@ public class PressupostService {
 	 * Llistar els pressupostos presentats per a una incidència aplicant PRIVADESA ESTRICTA:
 	 * Només els 2 usuaris implicats (client que publica o professional que pressuposta) o admin poden veure'ls.
 	 */
-	public List<Pressupost> listByIncidenciaSecure(String incidenciaId, String requesterId, String requesterNom, String requesterRol) {
-		return catalog.findPressupostosByIncidenciaSecure(incidenciaId, requesterId, requesterNom, requesterRol);
+	public List<Pressupost> listByIncidenciaSecure(String incidenciaId, String requesterId, String requesterRol) {
+		return catalog.findPressupostosByIncidenciaSecure(incidenciaId, requesterId, requesterRol);
 	}
 
 	/**
@@ -77,8 +77,8 @@ public class PressupostService {
 	/**
 	 * Comprova si un usuari és un dels 2 implicats en el pressupost.
 	 */
-	public boolean isUserInvolved(Pressupost p, String requesterId, String requesterNom, String requesterRol) {
-		return catalog.isUserInvolvedInPressupost(p, requesterId, requesterNom, requesterRol);
+	public boolean isUserInvolved(Pressupost p, String requesterId, String requesterRol) {
+		return catalog.isUserInvolvedInPressupost(p, requesterId, requesterRol);
 	}
 
 	/**

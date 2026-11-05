@@ -41,28 +41,27 @@ class BlacklistControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(blacklistController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(blacklistController).setControllerAdvice(new com.avisa.config.GlobalExceptionHandler()).build();
     }
 
     @Test
-    @DisplayName("GET /api/blacklist retorna llista de telèfons bloquejats")
+    @DisplayName("GET /api/blacklist retorna llista de telèfons bloquejats a un administrador")
     void haDeLlistarBlacklist() throws Exception {
         BlacklistTelefon b = new BlacklistTelefon("BL-1", "666000111", "Spam", "admin", LocalDateTime.now());
         when(blacklistService.list()).thenReturn(List.of(b));
 
-        mockMvc.perform(get("/api/blacklist"))
+        mockMvc.perform(get("/api/blacklist").principal(JwtDeProva.sessio("u-admin", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].telefon").value("666000111"));
     }
 
     @Test
-    @DisplayName("GET /api/blacklist/check?telefon=666000111 verifica estat")
-    void haDeComprovarTelefon() throws Exception {
-        when(blacklistService.isBlacklisted("666000111")).thenReturn(true);
-
-        mockMvc.perform(get("/api/blacklist/check").param("telefon", "666000111"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.blacklisted").value(true));
+    @DisplayName("Les capçaleres X-User-* no donen accés a la llista negra")
+    void capcaleresNoDonenAcces() throws Exception {
+        mockMvc.perform(get("/api/blacklist").header("X-User-Rol", "admin"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/blacklist").principal(JwtDeProva.sessio("u-client", "CLIENT")).header("X-User-Rol", "admin"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -70,11 +69,10 @@ class BlacklistControllerTest {
     void haDAfegirTelefon() throws Exception {
         AfegirBlacklistRequest req = new AfegirBlacklistRequest("666555444", "Spam");
         BlacklistTelefon creat = new BlacklistTelefon("BL-2", "666555444", "Spam", "admin", LocalDateTime.now());
-        when(blacklistService.add(any(), eq("admin"), eq("AdminUser"))).thenReturn(creat);
+        when(blacklistService.add(any(), eq("ADMIN"), eq("u-admin"))).thenReturn(creat);
 
         mockMvc.perform(post("/api/blacklist")
-                .header("X-User-Rol", "admin")
-                .header("X-User-Nom", "AdminUser")
+                .principal(JwtDeProva.sessio("u-admin", "ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
@@ -84,10 +82,10 @@ class BlacklistControllerTest {
     @Test
     @DisplayName("DELETE /api/blacklist/{id} desbloqueja amb 204 No Content")
     void haDEsborrarTelefon() throws Exception {
-        when(blacklistService.remove("666555444", "admin")).thenReturn(true);
+        when(blacklistService.remove("666555444", "ADMIN")).thenReturn(true);
 
         mockMvc.perform(delete("/api/blacklist/666555444")
-                .header("X-User-Rol", "admin"))
+                .principal(JwtDeProva.sessio("u-admin", "ADMIN")))
                 .andExpect(status().isNoContent());
     }
 }

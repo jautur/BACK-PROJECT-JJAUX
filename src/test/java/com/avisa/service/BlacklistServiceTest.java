@@ -36,23 +36,14 @@ class BlacklistServiceTest {
     }
 
     @Test
-    @DisplayName("Comprovar si un telèfon està bloquejat")
-    void haDeComprovarSiEstaBloquejat() {
-        when(catalog.isPhoneBlacklisted("666000111")).thenReturn(true);
-        when(catalog.isPhoneBlacklisted("600000000")).thenReturn(false);
-
-        assertThat(blacklistService.isBlacklisted("666000111")).isTrue();
-        assertThat(blacklistService.isBlacklisted("600000000")).isFalse();
-    }
-
-    @Test
-    @DisplayName("Afegir un telèfon a la llista negra")
+    @DisplayName("Afegir un telèfon a la llista negra guarda el nom de l'administrador del token")
     void haDAfegirTelefon() {
         AfegirBlacklistRequest req = new AfegirBlacklistRequest("666222333", "Frau reiterat");
         BlacklistTelefon b = new BlacklistTelefon("BL-2", "666222333", "Frau reiterat", "admin", LocalDateTime.now());
+        when(catalog.findUserById("u-admin")).thenReturn(java.util.Optional.of(new com.avisa.model.Usuari("u-admin", "AdminUser", "a@test.es", "ADMIN", null, null)));
         when(catalog.addToBlacklist("666222333", "Frau reiterat", "admin", "AdminUser")).thenReturn(b);
 
-        BlacklistTelefon creat = blacklistService.add(req, "admin", "AdminUser");
+        BlacklistTelefon creat = blacklistService.add(req, "admin", "u-admin");
         assertThat(creat).isNotNull();
         assertThat(creat.telefon()).isEqualTo("666222333");
     }

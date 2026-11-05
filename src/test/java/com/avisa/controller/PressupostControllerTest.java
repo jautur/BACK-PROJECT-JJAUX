@@ -49,13 +49,14 @@ class PressupostControllerTest {
     @Test
     @DisplayName("POST /api/pressupostos crea pressupost si el professional és vàlid")
     void haDeCrearPressupost() throws Exception {
-        CrearPressupostRequest req = new CrearPressupostRequest("I-1", "u-pro", "Pro Manel", "90€", "Pintura", "1 dia");
+        CrearPressupostRequest req = new CrearPressupostRequest("I-1", null, null, "90€", "Pintura", "1 dia");
         Pressupost p = new Pressupost("P-1", "I-1", "u-pro", "Pro Manel", "90€", "Pintura", "1 dia", LocalDateTime.now());
 
         when(pressupostService.isProfessionalEligible("u-pro")).thenReturn(true);
         when(pressupostService.create(any())).thenReturn(p);
 
         mockMvc.perform(post("/api/pressupostos")
+                .principal(() -> "u-pro")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
@@ -63,27 +64,41 @@ class PressupostControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/pressupostos retorna 403 si un client intenta pressupostar")
+    @DisplayName("POST /api/pressupostos retorna 403 si un client intenta pressupostar, encara que el cos diga un altre professional")
     void noHaDePermetreClientPressupostar() throws Exception {
-        CrearPressupostRequest req = new CrearPressupostRequest("I-1", "u-client", "Client Joan", "90€", "Pintura", "1 dia");
+        CrearPressupostRequest req = new CrearPressupostRequest("I-1", "u-pro", "Pro Manel", "90€", "Pintura", "1 dia");
 
         when(pressupostService.isProfessionalEligible("u-client")).thenReturn(false);
 
         mockMvc.perform(post("/api/pressupostos")
+                .principal(() -> "u-client")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    @DisplayName("GET /api/pressupostos/{id} retorna 403 si l'usuari no està implicat")
+    @DisplayName("POST /api/pressupostos demana sessió")
+    void pressupostarDemanaSessio() throws Exception {
+        CrearPressupostRequest req = new CrearPressupostRequest("I-1", "u-pro", "Pro Manel", "90€", "Pintura", "1 dia");
+
+        mockMvc.perform(post("/api/pressupostos")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("GET /api/pressupostos/{id} retorna 403 si l'usuari no està implicat, encara que la capçalera diga el contrari")
     void haDeRetornar403SiNoEstaImplicat() throws Exception {
         Pressupost p = new Pressupost("P-1", "I-1", "u-pro", "Pro Manel", "90€", "Pintura", "1 dia", LocalDateTime.now());
         when(pressupostService.findById("P-1")).thenReturn(Optional.of(p));
-        when(pressupostService.isUserInvolved(eq(p), eq("u-desconegut"), any(), any())).thenReturn(false);
+        when(pressupostService.isUserInvolved(p, "u-desconegut", "CLIENT")).thenReturn(false);
 
         mockMvc.perform(get("/api/pressupostos/P-1")
-                .header("X-User-Id", "u-desconegut"))
+                .principal(JwtDeProva.sessio("u-desconegut", "CLIENT"))
+                .header("X-User-Id", "u-pro")
+                .header("X-User-Rol", "admin"))
                 .andExpect(status().isForbidden());
     }
 
@@ -92,10 +107,10 @@ class PressupostControllerTest {
     void haDeRetornar200SiEstaImplicat() throws Exception {
         Pressupost p = new Pressupost("P-1", "I-1", "u-pro", "Pro Manel", "90€", "Pintura", "1 dia", LocalDateTime.now());
         when(pressupostService.findById("P-1")).thenReturn(Optional.of(p));
-        when(pressupostService.isUserInvolved(eq(p), eq("u-pro"), any(), any())).thenReturn(true);
+        when(pressupostService.isUserInvolved(p, "u-pro", "PROFESSIONAL")).thenReturn(true);
 
         mockMvc.perform(get("/api/pressupostos/P-1")
-                .header("X-User-Id", "u-pro"))
+                .principal(JwtDeProva.sessio("u-pro", "PROFESSIONAL")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("P-1"));
     }

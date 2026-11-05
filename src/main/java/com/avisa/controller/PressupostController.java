@@ -40,23 +40,16 @@ public class PressupostController {
 
 	@GetMapping
 	@Operation(summary = "Llistar tots els pressupostos", description = "Privilegi d'administrador: permet supervisar i auditar tots els pressupostos de la plataforma")
-	public ResponseEntity<List<Pressupost>> listAll(
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
-	) {
-		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
-		if (!isAdmin) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(List.of());
-		}
-		return ResponseEntity.ok(pressupostService.list());
+	public List<Pressupost> listAll(Principal principal) {
+		Sollicitant.exigirAdmin(principal);
+		return pressupostService.list();
 	}
 
 	@PostMapping
 	@Operation(summary = "Crear pressupost", description = "Permet a un professional presentar un pressupost per a una incidència oberta")
 	public ResponseEntity<?> create(@Valid @RequestBody CrearPressupostRequest cos, Principal principal) {
-		CrearPressupostRequest req = principal != null ? cos.ambProfessional(principal.getName()) : cos;
-		// Validació del professional en el backend
-		String proIdentifier = req.professionalId() != null ? req.professionalId() : req.professionalNom();
-		if (!pressupostService.isProfessionalEligible(proIdentifier)) {
+		CrearPressupostRequest req = cos.ambProfessional(Sollicitant.id(principal));
+		if (!pressupostService.isProfessionalEligible(req.professionalId())) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 				.body("Només els professionals poden enviar pressupostos a les incidències.");
 		}
@@ -66,30 +59,21 @@ public class PressupostController {
 	}
 
 	@GetMapping("/incidencia/{incidenciaId}")
-	@Operation(summary = "Llistar pressupostos d'una incidència", description = "Privat: només el client titular de la incidència o el professional que ha licitat poden veure els pressupostos")
-	public List<Pressupost> listByIncidencia(
-		@PathVariable String incidenciaId,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Id", required = false) String requesterId,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Nom", required = false) String requesterNom,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
-	) {
-		return pressupostService.listByIncidenciaSecure(incidenciaId, requesterId, requesterNom, requesterRol);
+	@Operation(summary = "Llistar pressupostos d'una incidència", description = "Privat: el client titular els veu tots, el professional només el seu, i l'administrador tots")
+	public List<Pressupost> listByIncidencia(@PathVariable String incidenciaId, Principal principal) {
+		return pressupostService.listByIncidenciaSecure(incidenciaId, Sollicitant.id(principal), Sollicitant.rol(principal).orElse(null));
 	}
 
 	@GetMapping("/{id}")
 	@Operation(summary = "Obtenir pressupost per ID", description = "Privat: només els 2 usuaris implicats o administrador tenen accés")
-	public ResponseEntity<Pressupost> getById(
-		@PathVariable String id,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Id", required = false) String requesterId,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Nom", required = false) String requesterNom,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
-	) {
+	public ResponseEntity<Pressupost> getById(@PathVariable String id, Principal principal) {
+		String actor = Sollicitant.id(principal);
 		Optional<Pressupost> opt = pressupostService.findById(id);
 		if (opt.isEmpty()) {
 			return ResponseEntity.notFound().build();
 		}
 		Pressupost p = opt.get();
-		if (!pressupostService.isUserInvolved(p, requesterId, requesterNom, requesterRol)) {
+		if (!pressupostService.isUserInvolved(p, actor, Sollicitant.rol(principal).orElse(null))) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
 		}
 		return ResponseEntity.ok(p);
@@ -97,19 +81,9 @@ public class PressupostController {
 
 	@GetMapping("/professional/{proIdentifier}")
 	@Operation(summary = "Llistar pressupostos enviats pel professional", description = "Retorna exclusivament els pressupostos emesos pel propi professional")
-	public ResponseEntity<List<Pressupost>> listByProfessional(
-		@PathVariable String proIdentifier,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Id", required = false) String requesterId,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Nom", required = false) String requesterNom,
-		@org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Rol", required = false) String requesterRol
-	) {
-		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
-		boolean isSelf = (requesterId != null && requesterId.equalsIgnoreCase(proIdentifier))
-			|| (requesterNom != null && requesterNom.equalsIgnoreCase(proIdentifier));
-		if (!isAdmin && !isSelf) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(List.of());
-		}
-		return ResponseEntity.ok(pressupostService.listByProfessional(proIdentifier));
+	public List<Pressupost> listByProfessional(@PathVariable String proIdentifier, Principal principal) {
+		Sollicitant.exigirUnDelsOAdmin(principal, proIdentifier);
+		return pressupostService.listByProfessional(proIdentifier);
 	}
 
 	@PostMapping("/{id}/acceptar")

@@ -1,7 +1,6 @@
 package com.avisa.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -162,9 +161,9 @@ class PressupostosIT extends MercatIntegrationTest {
 		assertThat(jdbc.queryForObject("SELECT rebutjat_automaticament FROM pressupostos WHERE id = ?::uuid", Boolean.class, id)).isFalse();
 		assertThat(avisosDe(professional)).isEqualTo(1);
 		acceptar(client, id).andExpect(status().isConflict());
-		mvc.perform(get("/api/pressupostos/incidencia/" + incidencia).header("X-User-Rol", "admin"))
+		mvc.perform(getCom(admin, "/api/pressupostos/incidencia/" + incidencia))
 			.andExpect(jsonPath("$.length()").value(0));
-		mvc.perform(get("/api/pressupostos/professional/" + professional).header("X-User-Id", professional.toString()))
+		mvc.perform(getCom(professional, "/api/pressupostos/professional/" + professional))
 			.andExpect(jsonPath("$[0].estat").value("Rebutjat"));
 	}
 

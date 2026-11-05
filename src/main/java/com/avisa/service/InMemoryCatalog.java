@@ -1189,43 +1189,34 @@ public class InMemoryCatalog {
 	 * o l'administrador poden visualitzar els pressupostos.
 	 * Els professionals només poden veure la seua pròpia oferta, no les dels competidors.
 	 */
-	public List<Pressupost> findPressupostosByIncidenciaSecure(String incidenciaId, String requesterId, String requesterNom, String requesterRol) {
+	public List<Pressupost> findPressupostosByIncidenciaSecure(String incidenciaId, String requesterId, String requesterRol) {
 		List<Pressupost> all = findPressupostosByIncidencia(incidenciaId);
 		if (all.isEmpty()) return List.of();
 
 		boolean isAdmin = (requesterRol != null && requesterRol.equalsIgnoreCase("admin"));
 		if (isAdmin) return all;
 
-		if ((requesterId == null || requesterId.isBlank()) && (requesterNom == null || requesterNom.isBlank())) {
+		if (requesterId == null || requesterId.isBlank()) {
 			return List.of();
 		}
 
-		boolean isClientOwner = isClientOwnerOfIncidencia(incidenciaId, requesterId, requesterNom);
-		if (isClientOwner) {
+		if (isClientOwnerOfIncidencia(incidenciaId, requesterId)) {
 			// El client titular veu tots els pressupostos rebuts per al seu anunci
 			return all;
 		}
 
 		// Si és un professional, només veu el seu propi pressupost
-		final String rId = requesterId != null ? requesterId.trim().toLowerCase() : "";
-		final String rNom = requesterNom != null ? requesterNom.trim().toLowerCase() : "";
-
 		return all.stream()
-			.filter(p -> {
-				String pId = p.professionalId() != null ? p.professionalId().trim().toLowerCase() : "";
-				String pNom = p.professionalNom() != null ? p.professionalNom().trim().toLowerCase() : "";
-				return (!rId.isEmpty() && rId.equals(pId)) || (!rNom.isEmpty() && rNom.equals(pNom));
-			})
+			.filter(p -> requesterId.equalsIgnoreCase(p.professionalId()))
 			.toList();
 	}
 
 	/**
 	 * Comprova si l'usuari és el client titular d'una incidència.
 	 */
-	public boolean isClientOwnerOfIncidencia(String incidenciaId, String requesterId, String requesterNom) {
+	public boolean isClientOwnerOfIncidencia(String incidenciaId, String requesterId) {
 		return findIncidenciaById(incidenciaId)
-			.map(inc -> (requesterId != null && requesterId.equalsIgnoreCase(inc.clientId()))
-				|| (requesterNom != null && requesterNom.equalsIgnoreCase(inc.clientNom())))
+			.map(inc -> requesterId != null && requesterId.equalsIgnoreCase(inc.clientId()))
 			.orElse(false);
 	}
 
@@ -1244,16 +1235,15 @@ public class InMemoryCatalog {
 	/**
 	 * Comprova si un usuari és un dels 2 implicats en aquest pressupost o administrador.
 	 */
-	public boolean isUserInvolvedInPressupost(Pressupost p, String requesterId, String requesterNom, String requesterRol) {
+	public boolean isUserInvolvedInPressupost(Pressupost p, String requesterId, String requesterRol) {
 		if (requesterRol != null && requesterRol.equalsIgnoreCase("admin")) return true;
-		if (requesterId == null && requesterNom == null) return false;
+		if (requesterId == null) return false;
 
 		// 1. És el professional emissor?
-		if (requesterId != null && requesterId.equalsIgnoreCase(p.professionalId())) return true;
-		if (requesterNom != null && requesterNom.equalsIgnoreCase(p.professionalNom())) return true;
+		if (requesterId.equalsIgnoreCase(p.professionalId())) return true;
 
 		// 2. És el client titular de la incidència?
-		return isClientOwnerOfIncidencia(p.incidenciaId(), requesterId, requesterNom);
+		return isClientOwnerOfIncidencia(p.incidenciaId(), requesterId);
 	}
 
 	/**

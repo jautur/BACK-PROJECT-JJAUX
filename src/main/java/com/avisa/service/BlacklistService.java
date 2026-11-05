@@ -2,6 +2,7 @@ package com.avisa.service;
 
 import com.avisa.dto.AfegirBlacklistRequest;
 import com.avisa.model.BlacklistTelefon;
+import com.avisa.model.Usuari;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -27,23 +28,15 @@ public class BlacklistService {
 	}
 
 	/**
-	 * Comprova si un número de telèfon està bloquejat a la llista negra.
-	 * @param telefon Número de telèfon a comprovar
-	 * @return true si està bloquejat, false en cas contrari
-	 */
-	public boolean isBlacklisted(String telefon) {
-		return catalog.isPhoneBlacklisted(telefon);
-	}
-
-	/**
 	 * Afegeix un nou registre de bloqueig a la llista negra.
 	 * @param req Dades del telèfon i motiu
 	 * @param requesterRol Rol de l'usuari que fa la petició (ha de ser admin)
-	 * @param requesterNom Nom de l'administrador
+	 * @param actorId Identificador de l'administrador: el registre guarda el seu nom
 	 * @return Registre de BlacklistTelefon creat
 	 */
-	public BlacklistTelefon add(AfegirBlacklistRequest req, String requesterRol, String requesterNom) {
-		return catalog.addToBlacklist(req.telefon(), req.motiu(), requesterRol, requesterNom);
+	public BlacklistTelefon add(AfegirBlacklistRequest req, String requesterRol, String actorId) {
+		String nom = catalog.findUserById(actorId).map(Usuari::nom).orElse(null);
+		return catalog.addToBlacklist(req.telefon(), req.motiu(), requesterRol, nom);
 	}
 
 	/**
