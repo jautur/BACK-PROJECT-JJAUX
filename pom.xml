@@ -73,6 +73,23 @@
 			<version>2.6.0</version>
 		</dependency>
 
+		<!-- Imatges: lectura de WebP i JPEG (CMYK, perfils ICC) i lectura de l'orientació EXIF -->
+		<dependency>
+			<groupId>com.twelvemonkeys.imageio</groupId>
+			<artifactId>imageio-jpeg</artifactId>
+			<version>3.15.3</version>
+		</dependency>
+		<dependency>
+			<groupId>com.twelvemonkeys.imageio</groupId>
+			<artifactId>imageio-webp</artifactId>
+			<version>3.15.3</version>
+		</dependency>
+		<dependency>
+			<groupId>com.drewnoakes</groupId>
+			<artifactId>metadata-extractor</artifactId>
+			<version>2.22.0</version>
+		</dependency>
+
 		<!-- Pruebas automatizadas -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

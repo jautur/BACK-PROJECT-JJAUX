@@ -95,3 +95,38 @@ arriben des de `127.0.0.1`, i es bloquejaria tothom alhora.
   deixar-lo 15 minuts sense poder entrar, i repetir-ho. Per mitigar-ho caldria limitar també per IP real (cal que el
   proxy passe `X-Forwarded-For` i que el backend només se'n fie si ve del proxy), o demanar un CAPTCHA després de
   diverses fallades en lloc de bloquejar del tot.
+
+## Imatges (fotos de perfil i logotips)
+
+### `AVISA_IMATGES_DIRECTORI` (opcional)
+
+Carpeta on es desen les imatges ja processades. Per defecte `~/.avisa/imatges`, fora dels repositoris. Si no existeix
+es crea en arrencar; si no es pot crear, el backend no arrenca. Els noms dels fitxers els genera el backend
+(UUID + `-petita` + `.jpg`/`.png`): cap nom ni camí que envie l'usuari arriba al disc.
+
+### `AVISA_IMATGES_MAX_BYTES` (opcional)
+
+Mida màxima del fitxer pujat, en bytes. Per defecte `5242880` (5 MB). Es comprova abans de mirar-ne el contingut;
+si es passa, la resposta és 413.
+
+### `AVISA_IMATGES_MAX_PIXELS` (opcional)
+
+Màxim d'amplària × altura de la imatge pujada. Per defecte `40000000` (40 megapíxels, prou per a qualsevol foto de mòbil).
+Es llig només la capçalera i es rebutja (413) **abans de descodificar**: un PNG de pocs KB pot dir que fa 50000×50000 i
+ocupar 10 GB en memòria (bomba de descompressió). Les imatges grans es lligen ja delmades, així que la memòria usada
+depén poc d'aquest límit.
+
+Els dos límits han de ser positius o el backend no arrenca.
+
+### Què es fa amb cada imatge pujada (`ProcessadorImatges`)
+
+1. Es reconeix el format pels primers bytes, no pel nom ni pel `Content-Type`. S'accepten JPEG, PNG i WebP;
+   la resta (SVG, GIF, HEIC, PDF...) es rebutja amb 400, igual que un fitxer malmés o truncat.
+2. S'aplica l'orientació EXIF, perquè les fotos fetes amb el mòbil girat es vegen dretes sense metadades.
+3. Es generen dues mides, sense ampliar mai: **512 px** pel costat llarg (detall) i **128 px** (llistats, sufix `-petita`).
+4. Es tornen a codificar des dels píxels, en JPEG (qualitat 0,85) o en PNG si la imatge té transparència.
+   **No es copia cap metadada de l'original**: ni EXIF (ubicació GPS, model del mòbil, data), ni XMP, ni comentaris,
+   ni el perfil de color, que es converteix a sRGB.
+
+Lectors: TwelveMonkeys `imageio-jpeg` (JPEG CMYK i amb perfil ICC) i `imageio-webp` (només lectura: WebP s'accepta
+d'entrada però mai se serveix); `metadata-extractor` només per llegir l'orientació.

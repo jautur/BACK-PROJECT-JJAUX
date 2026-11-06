@@ -61,6 +61,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(resposta.getStatusCode()).header("Retry-After", String.valueOf(ex.minuts() * 60)).body(resposta.getBody());
     }
 
+    @ExceptionHandler(com.avisa.imatges.ImatgeNoValidaException.class)
+    public ResponseEntity<Map<String, Object>> handleImatgeNoValida(com.avisa.imatges.ImatgeNoValidaException ex) {
+        return error(ex.massaGran() ? HttpStatus.PAYLOAD_TOO_LARGE : HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalStateException(IllegalStateException ex) {
         return error(HttpStatus.CONFLICT, ex.getMessage());
