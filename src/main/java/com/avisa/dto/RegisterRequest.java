@@ -17,16 +17,19 @@ import jakarta.validation.constraints.Size;
 public record RegisterRequest(
     @Schema(description = "Nom complet de l'usuari o raó social", example = "Maria Garcia")
     @NotBlank(message = "El nom és obligatori")
+    @Size(max = 150, message = "El nom pot tenir com a màxim 150 caràcters")
+    @Pattern(regexp = "^[^<>]*$", message = "No pot contenir els caràcters < ni >")
     String nom,
 
     @Schema(description = "Correu electrònic principal", example = "maria@example.com")
     @NotBlank(message = "El correu és obligatori")
     @Email(message = "El format del correu electrònic no és vàlid")
+    @Size(max = 150, message = "El correu pot tenir com a màxim 150 caràcters")
     String email,
 
     @Schema(description = "Contrasenya d'accés (mínim 6 caràcters)", example = "123456")
     @NotBlank(message = "La contrasenya és obligatòria")
-    @Size(min = 6, message = "La contrasenya ha de tenir almenys 6 caràcters")
+    @Size(min = 6, max = 72, message = "La contrasenya ha de tenir entre 6 i 72 caràcters")
     String password,
 
     @Schema(description = "Rol a la plataforma ('CLIENT' o 'PROFESSIONAL')", example = "CLIENT")
@@ -35,6 +38,7 @@ public record RegisterRequest(
     String rol,
 
     @Schema(description = "Telèfon de contacte", example = "600123456")
+    @Pattern(regexp = "^$|^[0-9+()\\s.-]{6,20}$", message = "El telèfon només pot tenir xifres, espais, +, -, . i parèntesis (entre 6 i 20)")
     String telefon,
 
     @Schema(description = "Acceptació dels termes i condicions d'ús d'AVISA", example = "true")
@@ -51,5 +55,12 @@ public record RegisterRequest(
 
     public RegisterRequest(String nom, String email, String password, String rol, String telefon) {
         this(nom, email, password, rol, telefon, true, true);
+    }
+
+    /** Un professional ha de donar un telèfon: l'administrador el truca per verificar-lo. */
+    @jakarta.validation.constraints.AssertTrue(message = "El telèfon és obligatori per als professionals")
+    @io.swagger.v3.oas.annotations.media.Schema(hidden = true)
+    public boolean isTelefonSiEsProfessional() {
+        return !"professional".equalsIgnoreCase(rol) || (telefon != null && !telefon.isBlank());
     }
 }

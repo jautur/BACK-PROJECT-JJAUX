@@ -15,7 +15,10 @@ import java.time.LocalDate;
  */
 public record Avis(
 	String id,
+	@jakarta.validation.constraints.NotBlank(message = "Cal indicar el destinatari")
 	String destinatariId,
+	@jakarta.validation.constraints.NotBlank(message = "El missatge és obligatori")
+	@jakarta.validation.constraints.Size(max = 2000, message = "El missatge pot tenir com a màxim 2000 caràcters")
 	String missatge,
 	Boolean llegit,
 	LocalDate data,

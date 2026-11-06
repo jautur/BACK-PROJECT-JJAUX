@@ -20,8 +20,12 @@ public record Resenya(
 	String clientNom,
 	String treballadorId,
 	String treballadorNom,
+	@jakarta.validation.constraints.NotBlank(message = "Cal indicar la tasca")
 	String tascaId,
+	@jakarta.validation.constraints.Min(value = 1, message = "La valoració mínima és 1 estrella")
+	@jakarta.validation.constraints.Max(value = 5, message = "La valoració màxima és 5 estrelles")
 	int puntuacio,
+	@jakarta.validation.constraints.Size(max = 2000, message = "El comentari pot tenir com a màxim 2000 caràcters")
 	String descripcio,
 	LocalDateTime createdAt
 ) {

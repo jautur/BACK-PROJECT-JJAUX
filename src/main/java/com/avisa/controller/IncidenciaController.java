@@ -69,7 +69,7 @@ public class IncidenciaController {
 	 * @return La incidència creada
 	 */
 	@PostMapping
-	public Incidencia create(@RequestBody IncidenciaRequest request, Principal principal) {
+	public Incidencia create(@jakarta.validation.Valid @RequestBody IncidenciaRequest request, Principal principal) {
 		return incidenciaService.create(request.ambClient(Sollicitant.id(principal)));
 	}
 

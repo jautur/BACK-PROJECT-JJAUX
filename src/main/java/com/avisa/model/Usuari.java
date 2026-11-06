@@ -23,10 +23,14 @@ import jakarta.validation.constraints.Min;
  */
 public record Usuari(
 	String id,
+	@jakarta.validation.constraints.Size(max = 150, message = "El nom pot tenir com a màxim 150 caràcters")
+	@jakarta.validation.constraints.Pattern(regexp = "^[^<>]*$", message = "No pot contenir els caràcters < ni >")
 	String nom,
 	String email,
 	String rol,
+	@jakarta.validation.constraints.Pattern(regexp = "^$|^[0-9+()\\s.-]{6,20}$", message = "El telèfon només pot tenir xifres, espais, +, -, . i parèntesis (entre 6 i 20)")
 	String telefon,
+	@jakarta.validation.constraints.Size(max = 2000, message = "La bio pot tenir com a màxim 2000 caràcters")
 	String bio,
 	@Min(value = 0, message = "El percentil no pot ser inferior a 0")
 	@Max(value = 100, message = "El percentil no pot superar 100")

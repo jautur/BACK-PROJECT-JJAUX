@@ -39,10 +39,22 @@ class PublicacionsIT extends MercatIntegrationTest {
 	@Test
 	@DisplayName("Un error de la base dona 500 i no fingeix que s'ha guardat")
 	void errorDeBaseNoFingeixExit() throws Exception {
-		String titolMassaLlarg = "x".repeat(300);
+		jdbc.execute("ALTER TABLE publicacions RENAME TO publicacions_amagada");
+		try {
+			mvc.perform(postCom(client, "/api/incidencies", "{\"titol\":\"Avaria\",\"categoria\":\"c\"}"))
+				.andExpect(status().isInternalServerError());
+		} finally {
+			jdbc.execute("ALTER TABLE publicacions_amagada RENAME TO publicacions");
+		}
 
-		mvc.perform(postCom(client, "/api/incidencies", "{\"titol\":\"" + titolMassaLlarg + "\",\"categoria\":\"c\"}"))
-			.andExpect(status().isInternalServerError());
+		assertThat(files("publicacions")).isZero();
+	}
+
+	@Test
+	@DisplayName("Un títol més llarg que la columna es rebutja amb 400 abans d'arribar a la base")
+	void titolMassaLlarg() throws Exception {
+		mvc.perform(postCom(client, "/api/incidencies", "{\"titol\":\"" + "x".repeat(300) + "\",\"categoria\":\"c\"}"))
+			.andExpect(status().isBadRequest());
 
 		assertThat(files("publicacions")).isZero();
 	}

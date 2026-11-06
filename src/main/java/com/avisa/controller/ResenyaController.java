@@ -67,7 +67,7 @@ public class ResenyaController {
 	 * @return Ressenya desada
 	 */
 	@PostMapping
-	public ResponseEntity<Resenya> create(@RequestBody Resenya resenya, Principal principal) {
+	public ResponseEntity<Resenya> create(@jakarta.validation.Valid @RequestBody Resenya resenya, Principal principal) {
 		Resenya created = resenyaService.create(resenya, Sollicitant.id(principal));
 		return ResponseEntity.ok(created);
 	}

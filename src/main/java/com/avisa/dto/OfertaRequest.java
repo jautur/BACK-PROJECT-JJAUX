@@ -1,11 +1,18 @@
 package com.avisa.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
 public record OfertaRequest(
     String tascaId,
     String incidenciaId,
     String professional,
+    @Size(max = 100, message = "La categoria pot tenir com a màxim 100 caràcters")
     String categoria,
+    @NotBlank(message = "El preu és obligatori") @Size(max = 100, message = "El preu pot tenir com a màxim 100 caràcters")
     String price,
+    @NotBlank(message = "La descripció de l'oferta és obligatòria") @Size(max = 5000, message = "La descripció pot tenir com a màxim 5000 caràcters")
     String note,
     String estat
 ) {

@@ -104,7 +104,7 @@ public class TascaController {
 	@PostMapping("/{id}/finalitzar")
 	public ResponseEntity<Tasca> markAsCompleted(
 		@PathVariable String id,
-		@RequestBody(required = false) FinalitzarTascaRequest body,
+		@jakarta.validation.Valid @RequestBody(required = false) FinalitzarTascaRequest body,
 		Principal principal
 	) {
 		Integer valoracio = body != null ? body.valoracio() : null;
@@ -124,7 +124,7 @@ public class TascaController {
 	@PostMapping("/{id}/avaluar")
 	public ResponseEntity<Tasca> evaluateTask(
 		@PathVariable String id,
-		@RequestBody FinalitzarTascaRequest body,
+		@jakarta.validation.Valid @RequestBody FinalitzarTascaRequest body,
 		Principal principal
 	) {
 		return tascaService.evaluate(id, Sollicitant.id(principal), body.valoracio(), body.comentari())

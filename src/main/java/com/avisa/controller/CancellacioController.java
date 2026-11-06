@@ -33,7 +33,7 @@ public class CancellacioController {
 	}
 
 	@PostMapping("/tasks/{id}/cancellar")
-	public ResponseEntity<Tasca> sollicitar(@PathVariable String id, @RequestBody SollicitarCancellacioRequest body, Principal principal) {
+	public ResponseEntity<Tasca> sollicitar(@PathVariable String id, @jakarta.validation.Valid @RequestBody SollicitarCancellacioRequest body, Principal principal) {
 		return cancellacioService.sollicitar(id, Sollicitant.id(principal), body.motiu())
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
@@ -50,7 +50,7 @@ public class CancellacioController {
 	}
 
 	@PostMapping("/cancellacions/{id}/resoldre")
-	public ResponseEntity<SollicitudCancellacio> resoldre(@PathVariable String id, @RequestBody ResoldreCancellacioRequest body, Principal principal) {
+	public ResponseEntity<SollicitudCancellacio> resoldre(@PathVariable String id, @jakarta.validation.Valid @RequestBody ResoldreCancellacioRequest body, Principal principal) {
 		return cancellacioService.resoldre(id, Sollicitant.id(principal), body.resolucio(), body.responsableId())
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());

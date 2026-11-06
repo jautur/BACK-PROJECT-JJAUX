@@ -51,7 +51,7 @@ public class AvisController {
 	 * @return L'avís creat
 	 */
 	@PostMapping
-	public Avis create(@RequestBody Avis avis, Principal principal) {
+	public Avis create(@jakarta.validation.Valid @RequestBody Avis avis, Principal principal) {
 		Sollicitant.exigirAdmin(principal);
 		if (avis.enllac() != null && !avis.enllac().isBlank()) {
 			return avisService.create(avis.destinatariId(), avis.missatge(), avis.enllac());

@@ -48,7 +48,7 @@ public class OfertaController {
 	 * @return L'oferta creada
 	 */
 	@PostMapping
-	public Oferta create(@RequestBody OfertaRequest request, Principal principal) {
+	public Oferta create(@jakarta.validation.Valid @RequestBody OfertaRequest request, Principal principal) {
 		return ofertaService.create(request.ambProfessional(Sollicitant.id(principal)));
 	}
 

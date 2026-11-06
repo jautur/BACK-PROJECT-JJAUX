@@ -15,5 +15,6 @@ public record FinalitzarTascaRequest(
     Integer valoracio,
 
     @Schema(description = "Opinió o ressenya escrita", example = "Treball impecable i molt puntual.")
+    @jakarta.validation.constraints.Size(max = 2000, message = "El comentari pot tenir com a màxim 2000 caràcters")
     String comentari
 ) {}
