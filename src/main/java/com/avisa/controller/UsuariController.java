@@ -1,5 +1,6 @@
 package com.avisa.controller;
 
+import com.avisa.imatges.ServeiImatges;
 import com.avisa.model.Usuari;
 import com.avisa.service.UsuariService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,9 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class UsuariController {
 
 	private final UsuariService usuariService;
+	private final ServeiImatges imatges;
 
-	public UsuariController(UsuariService usuariService) {
+	public UsuariController(UsuariService usuariService, ServeiImatges imatges) {
 		this.usuariService = usuariService;
+		this.imatges = imatges;
 	}
 
 	/**
@@ -154,10 +157,16 @@ public class UsuariController {
 	@Operation(summary = "Eliminar usuari", description = "Elimina el compte d'usuari de la base de dades; només un administrador")
 	public ResponseEntity<Void> deleteUser(@PathVariable String id, Principal principal) {
 		Sollicitant.exigirAdmin(principal);
+		java.util.Optional<Usuari> usuari = usuariService.findById(id);
 		boolean deleted = usuariService.delete(id);
 		if (!deleted) {
 			return ResponseEntity.badRequest().build();
 		}
+		// La fila ja no hi és: els seus fitxers d'imatge quedarien orfes
+		usuari.ifPresent(u -> {
+			imatges.esborrarFitxers(u.fotoUrl());
+			imatges.esborrarFitxers(u.logoUrl());
+		});
 		return ResponseEntity.noContent().build();
 	}
 

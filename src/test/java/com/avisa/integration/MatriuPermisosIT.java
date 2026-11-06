@@ -2,11 +2,13 @@ package com.avisa.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.avisa.imatges.EmmagatzematgeImatges;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +29,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -53,6 +56,9 @@ class MatriuPermisosIT extends MercatIntegrationTest {
 			return metode + " " + ruta;
 		}
 	}
+
+	/** Cos especial: la fila s'envia com a multipart amb una imatge WebP de veritat al camp "fitxer". */
+	private static final String IMATGE = "<imatge>";
 
 	private static Fila fila(String metode, String ruta, int... esperat) {
 		return new Fila(metode, ruta, null, esperat);
@@ -93,6 +99,14 @@ class MatriuPermisosIT extends MercatIntegrationTest {
 		fila("POST", "/api/users/{professional}/sollicitar-verificacio", "{}", N, F, 200, 200, F, F),
 		nomesAdmin("PUT", "/api/users/{professional}/verificar", "{}", 200),
 		nomesAdmin("DELETE", "/api/users/{usuariLliure}", null, 204),
+
+		// ---------- Imatges: pujar només la pròpia (el logo, només professionals); esborrar, també l'admin; llegir, tothom
+		fila("POST", "/api/users/{client}/foto", IMATGE, N, 200, F, F, F, F),
+		fila("DELETE", "/api/users/{client}/foto", N, 204, F, 204, F, F),
+		fila("POST", "/api/users/{professional}/logo", IMATGE, N, F, 200, F, F, F),
+		fila("POST", "/api/users/{client}/logo", IMATGE, N, F, F, F, F, F),
+		fila("DELETE", "/api/users/{professional}/logo", N, F, 204, 204, F, F),
+		publica("/api/imatges/{imatge}"),
 
 		// ---------- Tasques: GET /api/tasks dona totes a l'admin i les pròpies a la resta
 		fila("GET", "/api/tasks", N, 200, 200, 200, 200, 200),
@@ -189,6 +203,9 @@ class MatriuPermisosIT extends MercatIntegrationTest {
 	@Qualifier("requestMappingHandlerMapping")
 	private RequestMappingHandlerMapping rutes;
 
+	@Autowired
+	private EmmagatzematgeImatges magatzem;
+
 	private final Map<String, String> valors = new HashMap<>();
 	private final Map<Actor, UUID> actors = new HashMap<>();
 
@@ -225,7 +242,18 @@ class MatriuPermisosIT extends MercatIntegrationTest {
 		valors.put("pressupost", inserir("INSERT INTO pressupostos (id, publicacio_id, professional_id, preu) VALUES (?, ?, ?, '100€')", incidencia, professional));
 		valors.put("avis", inserir("INSERT INTO avisos (id, destinatari_id, missatge) VALUES (?, ?, 'Hola')", client));
 		valors.put("bloquejat", inserir("INSERT INTO blacklist_telefons (id, telefon) VALUES (?, '688888888')"));
+		String imatge = UUID.randomUUID() + ".jpg";
+		magatzem.desar(imatge, webp());
+		valors.put("imatge", imatge);
 		valors.put("cancellacio", inserir("INSERT INTO sollicituds_cancellacio (id, tasca_id, sollicitant_id, motiu) VALUES (?, ?, ?, 'Motiu')", enRevisio, client));
+	}
+
+	private static byte[] webp() {
+		try (java.io.InputStream in = MatriuPermisosIT.class.getResourceAsStream("/imatges/girada-6.webp")) {
+			return in.readAllBytes();
+		} catch (java.io.IOException e) {
+			throw new java.io.UncheckedIOException(e);
+		}
 	}
 
 	private String inserir(String sql, Object... parametres) {
@@ -250,7 +278,10 @@ class MatriuPermisosIT extends MercatIntegrationTest {
 	@DisplayName("Cada ruta respon el que toca a cada actor")
 	void matriu(Fila fila, Actor actor, int esperat) throws Exception {
 		MockHttpServletRequestBuilder peticio = request(HttpMethod.valueOf(fila.metode()), omplir(fila.ruta()));
-		if (fila.cos() != null) {
+		if (IMATGE.equals(fila.cos())) {
+			peticio = multipart(HttpMethod.valueOf(fila.metode()), omplir(fila.ruta()))
+				.file(new MockMultipartFile("fitxer", "foto.webp", "image/webp", webp()));
+		} else if (fila.cos() != null) {
 			peticio.contentType(MediaType.APPLICATION_JSON).content(omplir(fila.cos()));
 		}
 		if (actor != Actor.ANONIM) {

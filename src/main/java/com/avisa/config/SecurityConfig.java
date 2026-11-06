@@ -52,6 +52,11 @@ public class SecurityConfig {
         "/api/professionals/*"
     };
 
+    /** Fotos i logotips: un <img src> no envia el token. Els noms són UUID aleatoris, no es poden llistar. */
+    private static final String[] IMATGES_PUBLIQUES = {
+        "/api/imatges/*"
+    };
+
     private final JwtDecoder jwtDecoder;
 
     /** La documentació de l'API (Swagger) només és pública amb el perfil dev. */
@@ -73,6 +78,7 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").access((autenticacio, context) -> new AuthorizationDecision(swaggerPublic))
                 .requestMatchers(HttpMethod.POST, AUTH_PUBLICA).permitAll()
                 .requestMatchers(HttpMethod.GET, MERCAT_PUBLIC).permitAll()
+                .requestMatchers(HttpMethod.GET, IMATGES_PUBLIQUES).permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder)));

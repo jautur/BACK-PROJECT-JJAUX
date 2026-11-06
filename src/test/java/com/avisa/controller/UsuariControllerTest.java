@@ -1,6 +1,7 @@
 package com.avisa.controller;
 
 import com.avisa.config.GlobalExceptionHandler;
+import com.avisa.imatges.ServeiImatges;
 import com.avisa.model.Usuari;
 import com.avisa.service.UsuariService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +36,9 @@ class UsuariControllerTest {
 
     @Mock
     private UsuariService usuariService;
+
+    @Mock
+    private ServeiImatges imatges;
 
     @InjectMocks
     private UsuariController usuariController;
@@ -77,6 +81,32 @@ class UsuariControllerTest {
 
         mockMvc.perform(delete("/api/users/u-1").principal(JwtDeProva.sessio("u-admin", "ADMIN")))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/users/{id} esborra també els fitxers de la foto i el logo")
+    void haDEsborrarLesImatgesDeLUsuari() throws Exception {
+        Usuari u = new Usuari("u-1", "Pep", "pep@test.com", "PROFESSIONAL", null, null, 3, null, false, false,
+                "/api/imatges/0b6f2c1e-1111-4222-8333-944455556666.jpg", "/api/imatges/1b6f2c1e-1111-4222-8333-944455556666.png");
+        when(usuariService.findById("u-1")).thenReturn(Optional.of(u));
+        when(usuariService.delete("u-1")).thenReturn(true);
+
+        mockMvc.perform(delete("/api/users/u-1").principal(JwtDeProva.sessio("u-admin", "ADMIN")))
+                .andExpect(status().isNoContent());
+
+        verify(imatges).esborrarFitxers(u.fotoUrl());
+        verify(imatges).esborrarFitxers(u.logoUrl());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/users/{id} no esborra cap fitxer si l'usuari no s'ha pogut esborrar")
+    void noHaDEsborrarImatgesSiNoEsborraLUsuari() throws Exception {
+        when(usuariService.delete("u-1")).thenReturn(false);
+
+        mockMvc.perform(delete("/api/users/u-1").principal(JwtDeProva.sessio("u-admin", "ADMIN")))
+                .andExpect(status().isBadRequest());
+
+        verify(imatges, never()).esborrarFitxers(any());
     }
 
     @Test

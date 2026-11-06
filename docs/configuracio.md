@@ -107,7 +107,8 @@ es crea en arrencar; si no es pot crear, el backend no arrenca. Els noms dels fi
 ### `AVISA_IMATGES_MAX_BYTES` (opcional)
 
 Mida màxima del fitxer pujat, en bytes. Per defecte `5242880` (5 MB). Es comprova abans de mirar-ne el contingut;
-si es passa, la resposta és 413.
+si es passa, la resposta és 413. També fixa el límit del multipart del servidor (`ImatgesConfig`), que si no
+seria l'1 MB per defecte de Spring Boot i tallaria fotos vàlides.
 
 ### `AVISA_IMATGES_MAX_PIXELS` (opcional)
 
@@ -130,3 +131,29 @@ Els dos límits han de ser positius o el backend no arrenca.
 
 Lectors: TwelveMonkeys `imageio-jpeg` (JPEG CMYK i amb perfil ICC) i `imageio-webp` (només lectura: WebP s'accepta
 d'entrada però mai se serveix); `metadata-extractor` només per llegir l'orientació.
+
+### Endpoints
+
+| Mètode i ruta | Qui | Resposta |
+|---|---|---|
+| `POST /api/users/{id}/foto` | Només el mateix usuari (qualsevol rol) | 200 `{"url", "urlPetita"}` |
+| `POST /api/users/{id}/logo` | Només el mateix usuari, i ha de ser `PROFESSIONAL` | 200 `{"url", "urlPetita"}` |
+| `DELETE /api/users/{id}/foto` i `/logo` | El mateix usuari o un administrador (moderació) | 204 |
+| `GET /api/imatges/{nom}` | Tothom, sense sessió | La imatge |
+
+- La pujada és `multipart/form-data` amb el fitxer al camp **`fitxer`**. El nom i el `Content-Type` que envia el
+  navegador no es fan servir per a res.
+- L'administrador pot esborrar la imatge de qualsevol usuari, però no en pot pujar cap en nom d'un altre (403).
+- Errors: 400 si no és una imatge acceptada, 413 si és massa gran, 403 sense permís, 404 si l'usuari no existeix.
+- **En pujar-ne una de nova o esborrar-la, els dos fitxers de l'anterior s'esborren del disc.** Quan l'administrador
+  esborra un usuari, també s'esborren els de la seua foto i el seu logo.
+- La base només guarda la URL gran (`foto_url`, `logo_url`). La petita és la mateixa amb `-petita` abans de
+  l'extensió: `/api/imatges/<uuid>.jpg` → `/api/imatges/<uuid>-petita.jpg`.
+- `GET /api/imatges/{nom}` és públic perquè un `<img src>` no envia el token. Els noms són UUID aleatoris: no es
+  poden endevinar ni llistar. Com que un nom no canvia mai de contingut, es respon amb
+  `Cache-Control: max-age=31536000, public, immutable`, i amb `X-Content-Type-Options: nosniff` i
+  `Content-Security-Policy: default-src 'none'; sandbox` per si algun dia s'hi colara un contingut que no és imatge.
+
+**Limitació coneguda:** si el procés s'atura just després de desar els fitxers i abans d'actualitzar la base, aquells
+fitxers queden orfes al disc. No es veuen enlloc i no fan cap mal, però ocupen espai. Si mai cal, es poden netejar
+comparant la carpeta amb `foto_url`/`logo_url`.

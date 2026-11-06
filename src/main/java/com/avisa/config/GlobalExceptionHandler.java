@@ -66,6 +66,12 @@ public class GlobalExceptionHandler {
         return error(ex.massaGran() ? HttpStatus.PAYLOAD_TOO_LARGE : HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    /** El fitxer passa del límit del multipart (el mateix AVISA_IMATGES_MAX_BYTES) abans d'arribar al controlador. */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSize(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, "El fitxer és massa gran.");
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalStateException(IllegalStateException ex) {
         return error(HttpStatus.CONFLICT, ex.getMessage());
