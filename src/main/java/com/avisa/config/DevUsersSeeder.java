@@ -9,7 +9,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
- * Crea els tres usuaris de prova en els perfils de desenvolupament i demostració.
+ * Crea els usuaris de prova cli i pro en els perfils de desenvolupament i demostració.
+ * L'administrador el crea AdminSeeder, amb la contrasenya de AVISA_ADMIN_PASSWORD.
  * Mai sobreescriu: si l'usuari ja existeix, no el toca.
  */
 @Component
@@ -33,7 +34,6 @@ public class DevUsersSeeder implements ApplicationRunner {
 
 	@Override
 	public void run(ApplicationArguments args) {
-		crearSiNoExisteix("Administrador General", "admin@admin.es", "adminadmin", "ADMIN", "960000000", true);
 		crearSiNoExisteix("cli", "cli", "clicli", "CLIENT", "600111222", false);
 		crearSiNoExisteix("pro", "pro", "propro", "PROFESSIONAL", "600333444", true);
 	}

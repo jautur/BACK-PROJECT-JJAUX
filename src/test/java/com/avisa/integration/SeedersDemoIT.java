@@ -21,6 +21,9 @@ class SeedersDemoIT extends PostgresIntegrationTest {
 	private JdbcTemplate jdbc;
 
 	@Autowired
+	private com.avisa.config.AdminSeeder adminSeeder;
+
+	@Autowired
 	private DevUsersSeeder devSeeder;
 
 	@Autowired
@@ -32,6 +35,7 @@ class SeedersDemoIT extends PostgresIntegrationTest {
 	@BeforeEach
 	void baseDeDemo() {
 		jdbc.execute("TRUNCATE usuaris, blacklist_telefons CASCADE");
+		adminSeeder.run(new DefaultApplicationArguments());
 		devSeeder.run(new DefaultApplicationArguments());
 		demoSeeder.run(new DefaultApplicationArguments());
 	}

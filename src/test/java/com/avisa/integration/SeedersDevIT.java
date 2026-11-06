@@ -14,7 +14,9 @@ import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+// Sense AVISA_ADMIN_PASSWORD: en dev l'admin es crea amb la contrasenya de proves
 @ActiveProfiles("dev")
+@org.springframework.test.context.TestPropertySource(properties = "avisa.admin.password=")
 class SeedersDevIT extends PostgresIntegrationTest {
 
 	@Autowired
@@ -24,11 +26,15 @@ class SeedersDevIT extends PostgresIntegrationTest {
 	private DevUsersSeeder seeder;
 
 	@Autowired
+	private com.avisa.config.AdminSeeder adminSeeder;
+
+	@Autowired
 	private AuthService authService;
 
 	@BeforeEach
 	void baseAmbElsUsuarisDeProva() {
 		jdbc.execute("TRUNCATE usuaris, blacklist_telefons CASCADE");
+		adminSeeder.run(new DefaultApplicationArguments());
 		seeder.run(new DefaultApplicationArguments());
 	}
 
