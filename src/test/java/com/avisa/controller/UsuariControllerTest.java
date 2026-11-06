@@ -71,40 +71,6 @@ class UsuariControllerTest {
     }
 
     @Test
-    @DisplayName("PUT /api/users/{id}/foto assigna foto per admin")
-    void haDAssignarFotoAdmin() throws Exception {
-        Usuari uAmbFoto = new Usuari("u-pro", "Pro", "pro@test.com", "professional", null, null, 3, null, true, false, "https://foto.jpg");
-        when(usuariService.assignarFoto("u-pro", "https://foto.jpg")).thenReturn(uAmbFoto);
-
-        mockMvc.perform(put("/api/users/u-pro/foto")
-                .principal(JwtDeProva.sessio("u-admin", "ADMIN"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("foto", "https://foto.jpg"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.foto").value("https://foto.jpg"));
-    }
-
-    @Test
-    @DisplayName("PUT /api/users/{id}/foto denega si no és admin, encara que la capçalera diga el contrari")
-    void noHaDAssignarFotoNoAdmin() throws Exception {
-        mockMvc.perform(put("/api/users/u-pro/foto")
-                .principal(JwtDeProva.sessio("u-client", "CLIENT"))
-                .header("X-User-Rol", "admin")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("foto", "https://foto.jpg"))))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @DisplayName("PUT /api/users/{id}/foto demana sessió")
-    void noHaDAssignarFotoSenseSessio() throws Exception {
-        mockMvc.perform(put("/api/users/u-pro/foto")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("foto", "https://foto.jpg"))))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
     @DisplayName("DELETE /api/users/{id} elimina usuari amb 204 si ho fa un admin")
     void haDEliminarUsuari() throws Exception {
         when(usuariService.delete("u-1")).thenReturn(true);

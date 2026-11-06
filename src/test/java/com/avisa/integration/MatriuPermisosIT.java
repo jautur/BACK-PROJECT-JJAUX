@@ -92,7 +92,6 @@ class MatriuPermisosIT extends MercatIntegrationTest {
 		fila("PUT", "/api/users/{client}", "{\"nom\":\"Editat\",\"telefon\":\"600000009\",\"bio\":\"b\"}", N, 200, F, 200, F, F),
 		fila("POST", "/api/users/{professional}/sollicitar-verificacio", "{}", N, F, 200, 200, F, F),
 		nomesAdmin("PUT", "/api/users/{professional}/verificar", "{}", 200),
-		nomesAdmin("PUT", "/api/users/{professional}/foto", "{\"foto\":\"https://foto.jpg\"}", 200),
 		nomesAdmin("DELETE", "/api/users/{usuariLliure}", null, 204),
 
 		// ---------- Tasques: GET /api/tasks dona totes a l'admin i les pròpies a la resta

@@ -145,27 +145,6 @@ public class UsuariController {
 	}
 
 	/**
-	 * Assignar fotografia de fons a un professional (només administrador).
-	 * Endpoint: PUT /api/users/{id}/foto
-	 */
-	@PutMapping("/{id}/foto")
-	@Operation(summary = "Assignar fotografia al professional", description = "L'administrador assigna una imatge de fons per a la targeta del professional recomanat")
-	public ResponseEntity<?> assignarFoto(
-		@PathVariable String id,
-		@RequestBody java.util.Map<String, String> body,
-		Principal principal
-	) {
-		Sollicitant.exigirAdmin(principal);
-		String foto = body != null ? body.get("foto") : null;
-		try {
-			Usuari u = usuariService.assignarFoto(id, foto);
-			return ResponseEntity.ok(u);
-		} catch (IllegalArgumentException iae) {
-			return ResponseEntity.badRequest().body(java.util.Map.of("message", iae.getMessage()));
-		}
-	}
-
-	/**
 	 * Donar de baixa un usuari de la plataforma (només administrador).
 	 * Endpoint: DELETE /api/users/{id}
 	 * @param id Identificador de l'usuari

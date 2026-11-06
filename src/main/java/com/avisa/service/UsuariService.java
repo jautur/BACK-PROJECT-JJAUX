@@ -66,15 +66,6 @@ public class UsuariService {
 		return catalog.verificarProfessional(id, estat, requesterRol);
 	}
 
-	/**
-	 * Assigna o elimina la fotografia de fons d'un professional.
-	 * @param id Identificador de l'usuari
-	 * @param foto URL de la imatge de fons
-	 * @return Usuari actualitzat
-	 */
-	public Usuari assignarFoto(String id, String foto) {
-		return catalog.assignarFoto(id, foto);
-	}
 
 	/**
 	 * Elimina un compte d'usuari de la plataforma.

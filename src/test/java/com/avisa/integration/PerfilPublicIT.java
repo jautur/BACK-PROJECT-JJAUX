@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -147,21 +146,27 @@ class PerfilPublicIT extends MercatIntegrationTest {
 	@Test
 	@DisplayName("Les capçaleres X-User-* no donen cap permís")
 	void capcaleresNoDonenPermis() throws Exception {
-		String foto = "{\"foto\":\"https://foto.jpg\"}";
-
-		mvc.perform(put("/api/users/" + professional + "/foto").header("X-User-Rol", "admin")
-			.contentType(MediaType.APPLICATION_JSON).content(foto)).andExpect(status().isUnauthorized());
-		mvc.perform(putCom(client, "/api/users/" + professional + "/foto", foto).header("X-User-Rol", "admin"))
-			.andExpect(status().isForbidden());
 		mvc.perform(putCom(client, "/api/users/" + professional + "/verificar", "{}").header("X-User-Rol", "admin"))
 			.andExpect(status().isForbidden());
 		mvc.perform(putCom(client, "/api/users/" + professional, "{\"nom\":\"Robat\"}")
 			.header("X-User-Rol", "admin").header("X-User-Id", professional.toString()))
 			.andExpect(status().isForbidden());
 
-		assertThat(jdbc.queryForObject("SELECT foto FROM usuaris WHERE id = ?", String.class, professional)).isNull();
 		assertThat(jdbc.queryForObject("SELECT verificat FROM usuaris WHERE id = ?", Boolean.class, professional)).isFalse();
 		assertThat(jdbc.queryForObject("SELECT nom FROM usuaris WHERE id = ?", String.class, professional)).isNotEqualTo("Robat");
+	}
+
+	@Test
+	@DisplayName("La base només accepta imatges pròpies: cap URL externa a foto_url ni logo_url")
+	void nomesImatgesPropies() {
+		org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+			jdbc.update("UPDATE usuaris SET foto_url = 'https://foto.jpg' WHERE id = ?", professional))
+			.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+		org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+			jdbc.update("UPDATE usuaris SET logo_url = '/api/imatges/../secret.png' WHERE id = ?", professional))
+			.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+		jdbc.update("UPDATE usuaris SET foto_url = '/api/imatges/0b6f2c1e-1111-4222-8333-944455556666.jpg' WHERE id = ?", professional);
+		assertThat(jdbc.queryForObject("SELECT foto_url FROM usuaris WHERE id = ?", String.class, professional)).endsWith(".jpg");
 	}
 
 	@org.springframework.beans.factory.annotation.Autowired

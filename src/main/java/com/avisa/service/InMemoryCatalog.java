@@ -65,9 +65,8 @@ public class InMemoryCatalog {
 			null,
 			rs.getBoolean("verificat"),
 			rs.getBoolean("sollicitud_verificacio"),
-			rs.getString("foto"),
-			rs.getString("foto_perfil"),
-			rs.getString("logo")
+			rs.getString("foto_url"),
+			rs.getString("logo_url")
 		);
 	}
 
@@ -77,7 +76,7 @@ public class InMemoryCatalog {
 	 */
 	public List<Usuari> users() {
 		return jdbcTemplate.query(
-			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris ORDER BY created_at",
+			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto_url, logo_url FROM usuaris ORDER BY created_at",
 			(rs, rowNum) -> mapUsuari(rs)
 		);
 	}
@@ -89,7 +88,7 @@ public class InMemoryCatalog {
 	 */
 	public Optional<Usuari> findUserById(String id) {
 		List<Usuari> res = jdbcTemplate.query(
-			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE id::text = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
+			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto_url, logo_url FROM usuaris WHERE id::text = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
 			(rs, rowNum) -> mapUsuari(rs),
 			id, id, id
 		);
@@ -103,7 +102,7 @@ public class InMemoryCatalog {
 	 */
 	public Optional<Usuari> findUserByEmail(String email) {
 		List<Usuari> res = jdbcTemplate.query(
-			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?)",
+			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto_url, logo_url FROM usuaris WHERE LOWER(email) = LOWER(?)",
 			(rs, rowNum) -> mapUsuari(rs),
 			email
 		);
@@ -176,26 +175,13 @@ public class InMemoryCatalog {
 			}
 		}
 
-		String fotoFinal = (nou.foto() != null) ? (nou.foto().trim().isBlank() ? null : nou.foto().trim()) : actual.foto();
-
 		jdbcTemplate.update(
-			"UPDATE usuaris SET nom = ?, telefon = ?, bio = ?, percentil = ?, foto = ? WHERE id = ?::uuid",
-			nou.nom(), nou.telefon(), nou.bio(), percentilFinal, fotoFinal, actual.id()
+			"UPDATE usuaris SET nom = ?, telefon = ?, bio = ?, percentil = ? WHERE id = ?::uuid",
+			nou.nom(), nou.telefon(), nou.bio(), percentilFinal, actual.id()
 		);
 		return findUserById(actual.id()).orElse(nou);
 	}
 
-	/**
-	 * Assigna o elimina la fotografia d'un professional.
-	 * @param id Identificador de l'usuari
-	 * @param foto URL de la fotografia (o buit per esborrar-la)
-	 * @return Usuari actualitzat
-	 */
-	public Usuari assignarFoto(String id, String foto) {
-		String clean = (foto != null && !foto.trim().isBlank()) ? foto.trim() : null;
-		jdbcTemplate.update("UPDATE usuaris SET foto = ? WHERE id::text = ?", clean, id);
-		return findUserById(id).orElseThrow(() -> new IllegalArgumentException("Usuari no trobat"));
-	}
 
 	/**
 	 * Actualitza la contrasenya d'un usuari directament a la base de dades.

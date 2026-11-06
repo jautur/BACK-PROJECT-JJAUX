@@ -46,16 +46,6 @@ class UsuariServiceTest {
     }
 
     @Test
-    @DisplayName("Assignar fotografia a professional")
-    void haDAssignarFoto() {
-        Usuari uAmbFoto = new Usuari("u-1", "Pep", "pep@test.com", "professional", "666111222", "Bio", 3, null, true, false, "https://foto.jpg");
-        when(catalog.assignarFoto("u-1", "https://foto.jpg")).thenReturn(uAmbFoto);
-
-        Usuari res = usuariService.assignarFoto("u-1", "https://foto.jpg");
-        assertThat(res.foto()).isEqualTo("https://foto.jpg");
-    }
-
-    @Test
     @DisplayName("Eliminar usuari")
     void haDEliminarUsuari() {
         when(catalog.deleteUser("u-1")).thenReturn(true);
