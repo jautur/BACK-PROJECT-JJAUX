@@ -116,10 +116,10 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/auth/demanar-recuperacio retorna 200 amb codi de verificació")
+    @DisplayName("POST /api/auth/demanar-recuperacio retorna 200 sense el codi ni el correu")
     void haDeRetornarRecuperacioOk() throws Exception {
         DemanaRecuperacioRequest req = new DemanaRecuperacioRequest("joan@test.com");
-        RecuperacioResponse resp = new RecuperacioResponse(true, "Codi generat", "joan@test.com", "123456");
+        RecuperacioResponse resp = new RecuperacioResponse(true, "Si el compte existeix, s'ha generat un codi.");
         when(authService.sollicitarRecuperacio(any())).thenReturn(resp);
 
         mockMvc.perform(post("/api/auth/demanar-recuperacio")
@@ -127,7 +127,8 @@ class AuthControllerTest {
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.codiDev").value("123456"));
+                .andExpect(jsonPath("$.codiDev").doesNotExist())
+                .andExpect(jsonPath("$.email").doesNotExist());
     }
 }
 

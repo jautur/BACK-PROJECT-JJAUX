@@ -7,23 +7,35 @@ import com.avisa.dto.RecuperacioResponse;
 import com.avisa.dto.RegisterRequest;
 import com.avisa.dto.RestablirContrasenyaRequest;
 import com.avisa.model.Usuari;
-import java.util.List;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.mock.env.MockEnvironment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AuthServiceTest {
+
+    private static final String CODI = "482915";
 
     @Mock
     private InMemoryCatalog catalog;
@@ -31,8 +43,35 @@ class AuthServiceTest {
     @Mock
     private JwtService jwtService;
 
-    @InjectMocks
+    private final MockEnvironment entorn = new MockEnvironment();
+    private final AtomicReference<Instant> ara = new AtomicReference<>(Instant.parse("2026-11-06T10:00:00Z"));
     private AuthService authService;
+
+    private final Usuari maria = new Usuari("u-10", "Maria", "maria@test.com", "CLIENT", null, null);
+
+    @BeforeEach
+    void setUp() {
+        Clock rellotge = new Clock() {
+            @Override public java.time.ZoneId getZone() { return ZoneOffset.UTC; }
+            @Override public Clock withZone(java.time.ZoneId zone) { return this; }
+            @Override public Instant instant() { return ara.get(); }
+        };
+        authService = new AuthService(catalog, jwtService, entorn, () -> CODI, rellotge);
+        // Maria es pot trobar pel seu ID, pel nom (findUserById) o pel correu
+        when(catalog.findUserById(anyString())).thenReturn(Optional.empty());
+        when(catalog.findUserByEmail(anyString())).thenReturn(Optional.empty());
+        when(catalog.findUserById("u-10")).thenReturn(Optional.of(maria));
+        when(catalog.findUserById("Maria")).thenReturn(Optional.of(maria));
+        when(catalog.findUserByEmail("maria@test.com")).thenReturn(Optional.of(maria));
+    }
+
+    private RecuperacioResponse demanar(String identificador) {
+        return authService.sollicitarRecuperacio(new DemanaRecuperacioRequest(identificador));
+    }
+
+    private RecuperacioResponse restablir(String identificador, String codi) {
+        return authService.restablirContrasenya(new RestablirContrasenyaRequest(identificador, codi, "novaContrasenya123"));
+    }
 
     @Test
     @DisplayName("Login exitós retorna usuari amb token")
@@ -53,9 +92,7 @@ class AuthServiceTest {
     void haDeFallarLoginAmbCredencialsIncorrectes() {
         when(catalog.authenticate("noexisteix@test.com", "wrong")).thenReturn(Optional.empty());
 
-        Optional<Usuari> result = authService.login(new LoginRequest("noexisteix@test.com", "wrong"));
-
-        assertThat(result).isEmpty();
+        assertThat(authService.login(new LoginRequest("noexisteix@test.com", "wrong"))).isEmpty();
     }
 
     @Test
@@ -68,51 +105,113 @@ class AuthServiceTest {
 
         Usuari result = authService.register(req);
 
-        assertThat(result).isNotNull();
         assertThat(result.token()).isEqualTo("jwt-token-nou");
         assertThat(result.nom()).isEqualTo("Carles");
     }
 
+    // ---------------- Recuperació de contrasenya
+
     @Test
-    @DisplayName("Sol·licitar recuperació genera codi OTP per a usuari existent")
-    void haDeGenerarCodiRecuperacio() {
-        Usuari u = new Usuari("u-10", "Maria", "maria@test.com", "client", null, null);
-        when(catalog.findUserById("maria@test.com")).thenReturn(Optional.empty());
-        when(catalog.findUserByEmail("maria@test.com")).thenReturn(Optional.of(u));
+    @DisplayName("La resposta és la mateixa existisca o no el compte, i no porta ni el codi ni el correu")
+    void respostaIgualSensCodiNiCorreu() {
+        RecuperacioResponse existent = demanar("Maria");
+        RecuperacioResponse inexistent = demanar("ningu@test.com");
 
-        RecuperacioResponse resp = authService.sollicitarRecuperacio(new DemanaRecuperacioRequest("maria@test.com"));
-
-        assertThat(resp.success()).isTrue();
-        assertThat(resp.codiDev()).isNotNull();
-        assertThat(resp.codiDev()).hasSize(6);
+        assertThat(existent).isEqualTo(inexistent);
+        assertThat(existent.success()).isTrue();
+        assertThat(existent.toString()).doesNotContain(CODI).doesNotContain("maria@test.com");
     }
 
     @Test
-    @DisplayName("Restablir contrasenya amb èxit amb codi correcte")
-    void haDeRestablirContrasenyaAmbCodiCorrecte() {
-        Usuari u = new Usuari("u-10", "Maria", "maria@test.com", "client", null, null);
-        when(catalog.findUserById("maria@test.com")).thenReturn(Optional.empty());
-        when(catalog.findUserByEmail("maria@test.com")).thenReturn(Optional.of(u));
+    @DisplayName("El codi només s'escriu al log amb el perfil dev")
+    void codiNomesAlLogEnDev(CapturedOutput sortida) {
+        demanar("maria@test.com");
+        assertThat(sortida.getAll()).doesNotContain(CODI);
 
-        RecuperacioResponse demanaResp = authService.sollicitarRecuperacio(new DemanaRecuperacioRequest("maria@test.com"));
-        String codi = demanaResp.codiDev();
+        entorn.setActiveProfiles("dev");
+        demanar("maria@test.com");
+        assertThat(sortida.getAll()).contains(CODI).doesNotContain("maria@test.com");
+    }
 
-        RecuperacioResponse restablirResp = authService.restablirContrasenya(
-            new RestablirContrasenyaRequest("maria@test.com", codi, "novaContrasenya123")
-        );
+    @Test
+    @DisplayName("Amb el codi correcte es canvia la contrasenya")
+    void restablirAmbCodiCorrecte() {
+        demanar("maria@test.com");
 
-        assertThat(restablirResp.success()).isTrue();
+        assertThat(restablir("maria@test.com", CODI).success()).isTrue();
         verify(catalog).changePassword("u-10", "novaContrasenya123");
     }
 
     @Test
-    @DisplayName("Restablir contrasenya falla si el codi és invàlid")
-    void haDeFallarRestablirAmbCodiInvalid() {
-        RecuperacioResponse resp = authService.restablirContrasenya(
-            new RestablirContrasenyaRequest("maria@test.com", "999999", "novaContrasenya123")
-        );
+    @DisplayName("Després de 5 intents fallits el codi queda invalidat, encara que després s'envie el correcte")
+    void cincIntentsFallitsInvaliden() {
+        demanar("maria@test.com");
+        for (int i = 0; i < AuthService.INTENTS_MAXIMS; i++) {
+            assertThat(restablir("maria@test.com", "000000").success()).isFalse();
+        }
 
-        assertThat(resp.success()).isFalse();
+        RecuperacioResponse correcte = restablir("maria@test.com", CODI);
+
+        assertThat(correcte.success()).isFalse();
+        assertThat(correcte.message()).isEqualTo(AuthService.MISSATGE_CODI_NO_VALID);
+        verify(catalog, never()).changePassword(any(), any());
+    }
+
+    @Test
+    @DisplayName("Amb 4 intents fallits el codi correcte encara val")
+    void quatreIntentsFallitsNoInvaliden() {
+        demanar("maria@test.com");
+        for (int i = 0; i < AuthService.INTENTS_MAXIMS - 1; i++) {
+            restablir("maria@test.com", "000000");
+        }
+
+        assertThat(restablir("maria@test.com", CODI).success()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Els intents compten per usuari, s'identifique com s'identifique")
+    void intentsPerUsuari() {
+        demanar("maria@test.com");
+        restablir("maria@test.com", "000001");
+        restablir("Maria", "000002");
+        restablir("u-10", "000003");
+        restablir("MARIA@test.com".toLowerCase(), "000004");
+        restablir("Maria", "000005");
+
+        assertThat(restablir("u-10", CODI).success()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Un codi usat s'esborra: no torna a valer ni pel correu, ni pel nom, ni per l'ID")
+    void unSolUsQualsevolIdentificador() {
+        demanar("maria@test.com");
+        assertThat(restablir("Maria", CODI).success()).isTrue();
+
+        assertThat(restablir("maria@test.com", CODI).success()).isFalse();
+        assertThat(restablir("Maria", CODI).success()).isFalse();
+        assertThat(restablir("u-10", CODI).success()).isFalse();
+        verify(catalog).changePassword("u-10", "novaContrasenya123");
+    }
+
+    @Test
+    @DisplayName("El codi caduca als 15 minuts")
+    void caduca() {
+        demanar("maria@test.com");
+        ara.set(ara.get().plus(AuthService.VALIDESA_CODI).plusSeconds(1));
+
+        assertThat(restablir("maria@test.com", CODI).success()).isFalse();
+        verify(catalog, never()).changePassword(any(), any());
+    }
+
+    @Test
+    @DisplayName("Amb un compte inexistent l'error és el mateix que amb un codi incorrecte")
+    void errorIgualSenseCompte() {
+        demanar("maria@test.com");
+
+        RecuperacioResponse senseCompte = restablir("ningu@test.com", CODI);
+        RecuperacioResponse codiDolent = restablir("maria@test.com", "000000");
+
+        assertThat(senseCompte).isEqualTo(codiDolent);
     }
 
     @Test

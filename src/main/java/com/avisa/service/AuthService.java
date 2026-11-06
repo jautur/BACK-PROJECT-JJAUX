@@ -8,40 +8,80 @@ import com.avisa.dto.RegisterRequest;
 import com.avisa.dto.RestablirContrasenyaRequest;
 import com.avisa.model.Usuari;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
 /**
  * Servei de lògica de negoci per a l'autenticació i gestió de sessions d'usuaris.
  * Coordina la verificació de credencials, registre de nous comptes, emissió de tokens JWT
- * i flux complet de recuperació de contrasenya mitjançant codis temporals d'un sol ús (OTP).
+ * i el restabliment de contrasenya amb codis temporals d'un sol ús.
+ *
+ * Recuperació de contrasenya:
+ * - La resposta mai porta el codi ni el correu, i diu el mateix existisca o no el compte.
+ * - El codi només s'escriu al log, i només amb el perfil dev (no hi ha enviament de correu).
+ * - Caduca als 15 minuts i queda invalidat després de 5 intents fallits.
+ * - Es guarda per usuari: un cop usat s'esborra, s'haja identificat l'usuari per correu, nom o ID.
  */
 @Service
 public class AuthService {
 
+	private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
+	static final Duration VALIDESA_CODI = Duration.ofMinutes(15);
+	static final int INTENTS_MAXIMS = 5;
+
+	static final String MISSATGE_SOL_LICITUD = "Si el compte existeix, s'ha generat un codi de recuperació vàlid durant 15 minuts.";
+	static final String MISSATGE_CODI_NO_VALID = "El codi no és correcte o ja no és vàlid. Sol·licita'n un de nou.";
+
 	private final InMemoryCatalog catalog;
 	private final JwtService jwtService;
+	private final Environment environment;
+	private final Supplier<String> generadorDeCodis;
+	private final Clock rellotge;
 
-	/**
-	 * Magatzem en memòria per als codis temporals de recuperació de contrasenya.
-	 * Clau: correu o identificador en minúscules -> Dades de recuperació.
-	 */
-	private final Map<String, RecoveryEntry> recoveryCodes = new ConcurrentHashMap<>();
+	/** Codis pendents, per identificador d'usuari. */
+	private final Map<String, CodiRecuperacio> codis = new ConcurrentHashMap<>();
 
-	public record RecoveryEntry(
-		String userId,
-		String email,
-		String code,
-		Instant expiry
-	) {}
+	private static final class CodiRecuperacio {
+		private final String codi;
+		private final Instant caducitat;
+		private int intentsFallits;
 
-	public AuthService(InMemoryCatalog catalog, JwtService jwtService) {
+		CodiRecuperacio(String codi, Instant caducitat) {
+			this.codi = codi;
+			this.caducitat = caducitat;
+		}
+	}
+
+	@Autowired
+	public AuthService(InMemoryCatalog catalog, JwtService jwtService, Environment environment) {
+		this(catalog, jwtService, environment, AuthService::codiAleatori, Clock.systemUTC());
+	}
+
+	/** Per als tests: permet fixar el codi i el rellotge. */
+	AuthService(InMemoryCatalog catalog, JwtService jwtService, Environment environment, Supplier<String> generadorDeCodis, Clock rellotge) {
 		this.catalog = catalog;
 		this.jwtService = jwtService;
+		this.environment = environment;
+		this.generadorDeCodis = generadorDeCodis;
+		this.rellotge = rellotge;
+	}
+
+	private static final SecureRandom ALEATORI = new SecureRandom();
+
+	private static String codiAleatori() {
+		return String.format("%06d", ALEATORI.nextInt(1_000_000));
 	}
 
 	/**
@@ -80,111 +120,90 @@ public class AuthService {
 	/**
 	 * Canvia la contrasenya d'un usuari identificat.
 	 * @param userId Identificador de l'usuari
-	 * @param newPassword Nova contrasenya en text pla (serà xifrada pel catàleg)
+	 * @param newPassword Nova contrasenya en text pla (el catàleg en guarda el hash)
 	 */
 	public void changePassword(String userId, String newPassword) {
 		catalog.changePassword(userId, newPassword);
 	}
 
+	/** L'usuari que correspon a un correu, un nom o un ID. */
+	private Optional<Usuari> usuariPer(String identificador) {
+		if (identificador == null || identificador.isBlank()) {
+			return Optional.empty();
+		}
+		String id = identificador.trim();
+		Optional<Usuari> usuari = catalog.findUserById(id);
+		return usuari.isPresent() ? usuari : catalog.findUserByEmail(id);
+	}
+
 	/**
-	 * Sol·licita un codi temporal de recuperació de contrasenya (OTP de 6 dígits)
-	 * per a l'usuari indicat pel seu email o nom d'usuari.
-	 * En producció s'enviaria per correu SMTP; en desenvolupament es mostra a la consola
-	 * i es retorna al camp codiDev per facilitar les proves.
+	 * Sol·licita un codi temporal de recuperació (6 dígits) per a l'usuari indicat pel seu correu, nom o ID.
+	 * La resposta és la mateixa existisca o no el compte.
 	 * @param req Dades amb el correu o identificador d'usuari
 	 * @return Resposta amb l'estat i el missatge informatiu
 	 */
 	public RecuperacioResponse sollicitarRecuperacio(DemanaRecuperacioRequest req) {
-		String query = req.email() != null ? req.email().trim() : "";
-		if (query.isBlank()) {
-			return new RecuperacioResponse(false, "Cal indicar un correu o nom d'usuari vàlid.", query, null);
+		String identificador = req.email() != null ? req.email().trim() : "";
+		if (identificador.isBlank()) {
+			return new RecuperacioResponse(false, "Cal indicar un correu o nom d'usuari vàlid.");
 		}
-
-		Optional<Usuari> userOpt = catalog.findUserById(query);
-		if (userOpt.isEmpty()) {
-			userOpt = catalog.findUserByEmail(query);
-		}
-
-		// Per bones pràctiques de seguretat (OWASP), no revelem si l'usuari existeix públicament
-		if (userOpt.isEmpty()) {
-			return new RecuperacioResponse(true, "Si el compte existeix, s'ha enviat el codi de restabliment al correu associat.", query, null);
-		}
-
-		Usuari user = userOpt.get();
-		String code = String.format("%06d", new SecureRandom().nextInt(1_000_000));
-		Instant expiry = Instant.now().plus(Duration.ofMinutes(15));
-
-		RecoveryEntry entry = new RecoveryEntry(user.id(), user.email(), code, expiry);
-		recoveryCodes.put(user.id().toLowerCase(), entry);
-		if (user.email() != null) {
-			recoveryCodes.put(user.email().toLowerCase(), entry);
-		}
-		if (user.nom() != null) {
-			recoveryCodes.put(user.nom().toLowerCase(), entry);
-		}
-
-		System.out.println("\n============================================================");
-		System.out.println("🔐 [RECUPERACIÓ DE CONTRASENYA - AVISA]");
-		System.out.println("👤 Usuari: " + user.nom() + " (" + user.email() + ")");
-		System.out.println("🔑 CODI TEMPORAL (OTP): " + code);
-		System.out.println("⏳ Vàlid durant: 15 minuts");
-		System.out.println("============================================================\n");
-
-		return new RecuperacioResponse(
-			true,
-			"S'ha generat el codi de recuperació de 6 dígits amb èxit (vàlid durant 15 minuts).",
-			user.email() != null ? user.email() : user.id(),
-			code
-		);
+		usuariPer(identificador).ifPresent(usuari -> {
+			String codi = generadorDeCodis.get();
+			codis.put(usuari.id(), new CodiRecuperacio(codi, rellotge.instant().plus(VALIDESA_CODI)));
+			// No hi ha enviament de correu: en desenvolupament el codi es llig al log, i fora de dev no s'escriu enlloc
+			if (environment.acceptsProfiles(Profiles.of("dev"))) {
+				log.info("[dev] Codi de recuperació de l'usuari {}: {} (vàlid {} minuts)", usuari.id(), codi, VALIDESA_CODI.toMinutes());
+			}
+		});
+		return new RecuperacioResponse(true, MISSATGE_SOL_LICITUD);
 	}
 
 	/**
-	 * Valida el codi temporal d'un sol ús i aplica la nova contrasenya triada per l'usuari.
+	 * Valida el codi temporal d'un sol ús i aplica la nova contrasenya.
+	 * Tots els errors del codi donen el mateix missatge, existisca o no el compte.
 	 * @param req Dades de la petició amb correu/usuari, codi i nova contrasenya
 	 * @return Resposta amb l'estat de l'operació
 	 */
 	public RecuperacioResponse restablirContrasenya(RestablirContrasenyaRequest req) {
-		String identifier = req.email() != null ? req.email().trim().toLowerCase() : "";
-		String codi = req.codi() != null ? req.codi().trim() : "";
+		String codiRebut = req.codi() != null ? req.codi().trim() : "";
 		String nova = req.novaContrasenya() != null ? req.novaContrasenya().trim() : "";
 
-		if (identifier.isBlank() || codi.isBlank()) {
-			return new RecuperacioResponse(false, "El correu/usuari i el codi de 6 dígits són obligatoris.", identifier, null);
+		if (req.email() == null || req.email().isBlank() || codiRebut.isBlank()) {
+			return new RecuperacioResponse(false, "El correu/usuari i el codi de 6 dígits són obligatoris.");
 		}
 		if (nova.length() < 6) {
-			return new RecuperacioResponse(false, "La nova contrasenya ha de tenir com a mínim 6 caràcters.", identifier, null);
+			return new RecuperacioResponse(false, "La nova contrasenya ha de tenir com a mínim 6 caràcters.");
 		}
 
-		RecoveryEntry entry = recoveryCodes.get(identifier);
-		if (entry == null) {
-			Optional<Usuari> u = catalog.findUserById(identifier);
-			if (u.isPresent()) {
-				entry = recoveryCodes.get(u.get().id().toLowerCase());
+		Optional<Usuari> usuari = usuariPer(req.email());
+		if (usuari.isEmpty()) {
+			return new RecuperacioResponse(false, MISSATGE_CODI_NO_VALID);
+		}
+		String usuariId = usuari.get().id();
+
+		boolean valid;
+		synchronized (codis) {
+			CodiRecuperacio pendent = codis.get(usuariId);
+			if (pendent == null) {
+				return new RecuperacioResponse(false, MISSATGE_CODI_NO_VALID);
+			}
+			if (rellotge.instant().isAfter(pendent.caducitat)) {
+				codis.remove(usuariId);
+				return new RecuperacioResponse(false, MISSATGE_CODI_NO_VALID);
+			}
+			valid = pendent.codi.equals(codiRebut);
+			if (valid) {
+				// Un sol ús: s'esborra abans de canviar la contrasenya
+				codis.remove(usuariId);
+			} else if (++pendent.intentsFallits >= INTENTS_MAXIMS) {
+				codis.remove(usuariId);
 			}
 		}
-
-		if (entry == null || !entry.code().equals(codi)) {
-			return new RecuperacioResponse(false, "El codi de verificació és incorrecte o no s'ha trobat.", identifier, null);
+		if (!valid) {
+			return new RecuperacioResponse(false, MISSATGE_CODI_NO_VALID);
 		}
 
-		if (Instant.now().isAfter(entry.expiry())) {
-			recoveryCodes.remove(identifier);
-			return new RecuperacioResponse(false, "El codi de verificació ha caducat (temps límit 15 minuts). Sol·licita'n un de nou.", identifier, null);
-		}
-
-		// Actualitzem la contrasenya a la base de dades PostgreSQL
-		catalog.changePassword(entry.userId(), nova);
-
-		// Eliminem el codi d'un sol ús
-		recoveryCodes.remove(identifier);
-		if (entry.email() != null) {
-			recoveryCodes.remove(entry.email().toLowerCase());
-		}
-		recoveryCodes.remove(entry.userId().toLowerCase());
-
-		System.out.println("✅ [RECUPERACIÓ-AVISA] Contrasenya canviada amb èxit per a l'usuari ID: " + entry.userId());
-
-		return new RecuperacioResponse(true, "Contrasenya actualitzada correctament! Ja pots iniciar sessió amb la teva nova contrasenya.", identifier, null);
+		catalog.changePassword(usuariId, nova);
+		return new RecuperacioResponse(true, "Contrasenya actualitzada correctament! Ja pots iniciar sessió amb la teva nova contrasenya.");
 	}
 }
-
