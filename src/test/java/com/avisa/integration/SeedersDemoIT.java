@@ -14,7 +14,7 @@ import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
-@ActiveProfiles("demo")
+@ActiveProfiles({"dev", "demo"})
 class SeedersDemoIT extends PostgresIntegrationTest {
 
 	@Autowired

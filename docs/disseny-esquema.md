@@ -68,9 +68,11 @@ Una solicitud rechazada devuelve la tarea a `EN_CURS`, y puede solicitarse de nu
 
 | Perfil | Datos |
 |---|---|
-| Sin perfil | Ninguno |
+| Sin perfil o `demo` solo | Solo el administrador, con `AVISA_ADMIN_PASSWORD` |
 | `dev` | `pro/propro`, `cli/clicli`, `admin@admin.es/adminadmin` |
-| `demo` | Los tres anteriores, más las empresas y clientes de demo |
+| `dev,demo` | Los tres anteriores, más las empresas y clientes de demo |
+
+El perfil `demo` solo cuenta como producción (véase `docs/configuracio.md`).
 
 Los seeders nunca sobrescriben: si el usuario ya existe, no lo tocan.
 

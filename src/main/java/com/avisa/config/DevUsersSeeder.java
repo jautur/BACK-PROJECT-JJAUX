@@ -9,12 +9,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
- * Crea els usuaris de prova cli i pro en els perfils de desenvolupament i demostració.
+ * Crea els usuaris de prova cli i pro, només en el perfil de desenvolupament: les seues contrasenyes són de proves.
  * L'administrador el crea AdminSeeder, amb la contrasenya de AVISA_ADMIN_PASSWORD.
  * Mai sobreescriu: si l'usuari ja existeix, no el toca.
  */
 @Component
-@Profile({"dev", "demo"})
+@Profile("dev")
 @Order(1)
 public class DevUsersSeeder implements ApplicationRunner {
 

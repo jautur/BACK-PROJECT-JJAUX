@@ -10,11 +10,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
- * Crea les empreses i els clients de demostració, només en el perfil demo.
+ * Crea les empreses i els clients de demostració, amb la contrasenya de proves 123456.
+ * Per això només s'activa en desenvolupament i a petició: perfils dev i demo alhora (SPRING_PROFILES_ACTIVE=dev,demo).
+ * El perfil demo tot sol compta com a producció i no crea res.
  * Mai sobreescriu: si l'usuari ja existeix, no el toca.
  */
 @Component
-@Profile("demo")
+@Profile("dev & demo")
 @Order(2)
 public class DemoDataSeeder implements ApplicationRunner {
 

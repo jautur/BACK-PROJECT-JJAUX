@@ -35,7 +35,7 @@ més. La integració contínua no necessita cap secret.
 
 Contrasenya del compte d'administrador `admin@admin.es`, que crea `AdminSeeder` en arrencar (en tots els perfils).
 
-- **Fora del perfil `dev`** (també `demo` i sense perfil) és obligatòria: si falta, el backend no arrenca. Mínim 10 caràcters.
+- **Fora del perfil `dev`** (també amb `demo` tot sol i sense perfil) és obligatòria: si falta, el backend no arrenca. Mínim 10 caràcters.
 - **En `dev`**, si no està definida, l'admin es crea amb la contrasenya de proves de sempre i, si ja existeix, no es toca.
 - **Si està definida, mana ella:** si l'admin ja existeix amb una altra contrasenya, se li canvia per aquesta en arrencar.
   Canviar-la des de la pantalla no dura: al següent arrencada torna a la de la variable.
@@ -65,5 +65,33 @@ Es guarden amb BCrypt. La migració `V2__contrasenyes_bcrypt.sql` converteix les
 (fa servir l'extensió `pgcrypto` de PostgreSQL) i afegeix la restricció `usuaris_password_bcrypt`: a partir
 d'aquí la base rebutja qualsevol contrasenya sense hash, també si la insereix un script.
 
-Els usuaris de prova (`admin@admin.es` / `cli` / `pro`) es creen amb hash des dels seeders `dev`/`demo` i des de
+Els usuaris de prova (`admin@admin.es` / `cli` / `pro`) es creen amb hash des dels seeders de `dev` i des de
 `FRONT-PROJECT-JJAUX/scripts/buidar_db.sql` i `assegurar_admin.js`.
+
+## Perfils i dades inicials
+
+| Perfil | Què crea |
+|---|---|
+| Sense perfil, `demo` o qualsevol altre | Només l'administrador, amb `AVISA_ADMIN_PASSWORD` (obligatòria) |
+| `dev` | L'administrador (amb la contrasenya de proves si falta la variable) i els usuaris de prova `cli` i `pro` |
+| `dev,demo` | El mateix que `dev`, més les 10 empreses i els 10 clients de demostració (contrasenya `123456`) |
+
+El perfil `demo` tot sol compta com a producció: no crea cap usuari amb contrasenya de proves (ho comprova `PerfilDemoIT`).
+Per tindre les dades de demostració: `SPRING_PROFILES_ACTIVE=dev,demo ./desplegar.sh`.
+
+## Límit d'intents de login
+
+5 intents fallits en 15 minuts bloquegen aquell compte (l'identificador escrit, en minúscules) durant 15 minuts:
+el login respon 429 amb `Retry-After`, encara que la contrasenya siga bona. Els comptes inexistents es bloquegen igual,
+perquè la resposta no delate quins existeixen. No es limita per IP: darrere del proxy `serve.js` totes les peticions
+arriben des de `127.0.0.1`, i es bloquejaria tothom alhora.
+
+**Limitacions conegudes, per revisar quan despleguem:**
+
+- **El comptador és en memòria.** Es perd en reiniciar el backend: un reinici desbloqueja tots els comptes.
+- **Només val per a una instància.** Amb dues o més instàncies darrere d'un balancejador, cadascuna porta el seu
+  comptador i els intents es multipliquen pel nombre d'instàncies. Caldria un magatzem compartit (la base o Redis).
+- **Un tercer pot bloquejar un compte aliè.** Qui conega l'identificador d'algú pot fallar 5 vegades a propòsit i
+  deixar-lo 15 minuts sense poder entrar, i repetir-ho. Per mitigar-ho caldria limitar també per IP real (cal que el
+  proxy passe `X-Forwarded-For` i que el backend només se'n fie si ve del proxy), o demanar un CAPTCHA després de
+  diverses fallades en lloc de bloquejar del tot.
