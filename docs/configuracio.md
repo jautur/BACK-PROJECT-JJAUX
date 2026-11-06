@@ -47,6 +47,11 @@ i s'aturen si falta fora de `dev`:
 mkdir -p ~/.avisa && openssl rand -base64 24 > ~/.avisa/admin_password && chmod 600 ~/.avisa/admin_password
 ```
 
+## `SPRING_DATASOURCE_PASSWORD`
+
+Contrasenya de PostgreSQL. Només el perfil `dev` en té una per defecte (la de la base local); fora de `dev` cal definir-la
+(els scripts `casa_*` ja ho fan). Cap credencial té valor per defecte a `application.properties`: ho comprova `ConfiguracioTest`.
+
 ## `AVISA_CORS_ORIGENS` (opcional)
 
 Orígens que poden cridar l'API directament des d'un navegador, separats per comes (es permeten patrons com
