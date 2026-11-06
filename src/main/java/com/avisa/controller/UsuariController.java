@@ -8,7 +8,6 @@ import jakarta.validation.Valid;
 import java.security.Principal;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,7 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(originPatterns = "*")
 @Tag(name = "Usuaris", description = "Gestió de comptes, perfils, bio i comissió de percentils")
 public class UsuariController {
 

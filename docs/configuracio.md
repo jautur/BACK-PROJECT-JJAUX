@@ -47,6 +47,13 @@ i s'aturen si falta fora de `dev`:
 mkdir -p ~/.avisa && openssl rand -base64 24 > ~/.avisa/admin_password && chmod 600 ~/.avisa/admin_password
 ```
 
+## `AVISA_CORS_ORIGENS` (opcional)
+
+Orígens que poden cridar l'API directament des d'un navegador, separats per comes (es permeten patrons com
+`http://192.168.*.*:*`). Mai `*`: el backend no arrenca si hi és. Per defecte: localhost, 127.0.0.1 i la xarxa local,
+que és com el front crida el port 8080 des d'un mòbil. El front servit per `serve.js` va pel mateix origen i no en depén.
+No s'envien credencials CORS: la sessió viatja a la capçalera `Authorization`.
+
 ## Contrasenyes
 
 Es guarden amb BCrypt. La migració `V2__contrasenyes_bcrypt.sql` converteix les que encara eren text pla
