@@ -1,6 +1,7 @@
 package com.avisa.config;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -20,16 +21,28 @@ import java.time.temporal.ChronoUnit;
 /**
  * Servei de generació i descodificació de tokens JWT per a OAuth2 Resource Server.
  * Empra NimbusJwtEncoder i NimbusJwtDecoder amb signatura HMAC-SHA256.
+ *
+ * El secret ve de la variable d'entorn AVISA_JWT_SECRET (propietat avisa.jwt.secret) i mai del codi:
+ * qui el coneix pot signar tokens de qualsevol usuari, també d'administrador.
+ * Si falta o és massa curt, l'aplicació no arrenca.
  */
 @Configuration
 public class JwtService {
 
-    // Clau secreta de 256 bits per a signatura simètrica HMAC-SHA256
-    private static final String SECRET_STRING = "avisa_super_secure_jwt_secret_key_2026_valencia_jjaux_256bits!";
+    /** HS256 necessita una clau d'almenys 256 bits. */
+    static final int LONGITUD_MINIMA = 32;
+
     private final SecretKey secretKey;
 
-    public JwtService() {
-        this.secretKey = new SecretKeySpec(SECRET_STRING.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+    public JwtService(@Value("${avisa.jwt.secret:}") String secret) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("Falta el secret dels tokens: defineix la variable d'entorn AVISA_JWT_SECRET (vegeu docs/configuracio.md).");
+        }
+        byte[] bytes = secret.trim().getBytes(StandardCharsets.UTF_8);
+        if (bytes.length < LONGITUD_MINIMA) {
+            throw new IllegalStateException("AVISA_JWT_SECRET és massa curt: ha de tenir com a mínim " + LONGITUD_MINIMA + " caràcters.");
+        }
+        this.secretKey = new SecretKeySpec(bytes, "HmacSHA256");
     }
 
     /**
@@ -71,4 +84,3 @@ public class JwtService {
         return jwtEncoder().encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
 }
-
