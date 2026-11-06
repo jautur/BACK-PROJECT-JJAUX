@@ -49,6 +49,7 @@ public class AuthService {
 	private final Environment environment;
 	private final Supplier<String> generadorDeCodis;
 	private final Clock rellotge;
+	private final LimitIntentsLogin limitLogin;
 
 	/** Codis pendents, per identificador d'usuari. */
 	private final Map<String, CodiRecuperacio> codis = new ConcurrentHashMap<>();
@@ -65,17 +66,18 @@ public class AuthService {
 	}
 
 	@Autowired
-	public AuthService(InMemoryCatalog catalog, JwtService jwtService, Environment environment) {
-		this(catalog, jwtService, environment, AuthService::codiAleatori, Clock.systemUTC());
+	public AuthService(InMemoryCatalog catalog, JwtService jwtService, Environment environment, LimitIntentsLogin limitLogin) {
+		this(catalog, jwtService, environment, limitLogin, AuthService::codiAleatori, Clock.systemUTC());
 	}
 
 	/** Per als tests: permet fixar el codi i el rellotge. */
-	AuthService(InMemoryCatalog catalog, JwtService jwtService, Environment environment, Supplier<String> generadorDeCodis, Clock rellotge) {
+	AuthService(InMemoryCatalog catalog, JwtService jwtService, Environment environment, LimitIntentsLogin limitLogin, Supplier<String> generadorDeCodis, Clock rellotge) {
 		this.catalog = catalog;
 		this.jwtService = jwtService;
 		this.environment = environment;
 		this.generadorDeCodis = generadorDeCodis;
 		this.rellotge = rellotge;
+		this.limitLogin = limitLogin;
 	}
 
 	private static final SecureRandom ALEATORI = new SecureRandom();
@@ -97,13 +99,20 @@ public class AuthService {
 	 * Autentica les credencials d'un usuari i genera el token JWT Bearer associat.
 	 * @param request Credencials d'accés (email i contrasenya)
 	 * @return Usuari amb el token generat si les credencials són vàlides, o Optional.empty()
+	 * @throws MassaIntentsException si el compte té massa intents fallits recents, encara que ara la contrasenya siga bona
 	 */
 	public Optional<Usuari> login(LoginRequest request) {
-		return catalog.authenticate(request.email(), request.password())
-			.map(u -> {
-				String token = jwtService.generateToken(u.id(), u.email(), u.rol());
-				return u.withToken(token);
-			});
+		long minuts = limitLogin.minutsBloquejat(request.email());
+		if (minuts > 0) {
+			throw new MassaIntentsException(minuts);
+		}
+		Optional<Usuari> usuari = catalog.authenticate(request.email(), request.password());
+		if (usuari.isEmpty()) {
+			limitLogin.fallada(request.email());
+			return Optional.empty();
+		}
+		limitLogin.exit(request.email());
+		return usuari.map(u -> u.withToken(jwtService.generateToken(u.id(), u.email(), u.rol())));
 	}
 
 	/**

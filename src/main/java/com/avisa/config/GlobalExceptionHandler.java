@@ -55,6 +55,12 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
+    @ExceptionHandler(com.avisa.service.MassaIntentsException.class)
+    public ResponseEntity<Map<String, Object>> handleMassaIntents(com.avisa.service.MassaIntentsException ex) {
+        ResponseEntity<Map<String, Object>> resposta = error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+        return ResponseEntity.status(resposta.getStatusCode()).header("Retry-After", String.valueOf(ex.minuts() * 60)).body(resposta.getBody());
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalStateException(IllegalStateException ex) {
         return error(HttpStatus.CONFLICT, ex.getMessage());

@@ -56,7 +56,7 @@ class AuthServiceTest {
             @Override public Clock withZone(java.time.ZoneId zone) { return this; }
             @Override public Instant instant() { return ara.get(); }
         };
-        authService = new AuthService(catalog, jwtService, entorn, () -> CODI, rellotge);
+        authService = new AuthService(catalog, jwtService, entorn, new LimitIntentsLogin(rellotge), () -> CODI, rellotge);
         // Maria es pot trobar pel seu ID, pel nom (findUserById) o pel correu
         when(catalog.findUserById(anyString())).thenReturn(Optional.empty());
         when(catalog.findUserByEmail(anyString())).thenReturn(Optional.empty());
