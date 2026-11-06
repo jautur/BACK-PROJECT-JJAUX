@@ -134,14 +134,14 @@ class PerfilPublicIT extends MercatIntegrationTest {
 
 		mvc.perform(senseSessio).andExpect(status().isUnauthorized());
 		mvc.perform(postCom(altreClient, "/api/auth/canviar-contrasenya", cos)).andExpect(status().isForbidden());
-		assertThat(contrasenya(client)).isEqualTo("secreta");
+		assertThat(contrasenyaEs(client, ContrasenyaDeProva.CLAR)).isTrue();
 
 		mvc.perform(postCom(client, "/api/auth/canviar-contrasenya", cos)).andExpect(status().isOk());
-		assertThat(contrasenya(client)).isEqualTo("novaClau1");
+		assertThat(contrasenyaEs(client, "novaClau1")).isTrue();
 
 		mvc.perform(postCom(admin, "/api/auth/canviar-contrasenya", "{\"userId\":\"" + client + "\",\"newPassword\":\"altraClau2\"}"))
 			.andExpect(status().isOk());
-		assertThat(contrasenya(client)).isEqualTo("altraClau2");
+		assertThat(contrasenyaEs(client, "altraClau2")).isTrue();
 	}
 
 	@Test
@@ -164,7 +164,10 @@ class PerfilPublicIT extends MercatIntegrationTest {
 		assertThat(jdbc.queryForObject("SELECT nom FROM usuaris WHERE id = ?", String.class, professional)).isNotEqualTo("Robat");
 	}
 
-	private String contrasenya(UUID usuari) {
-		return jdbc.queryForObject("SELECT password FROM usuaris WHERE id = ?", String.class, usuari);
+	@org.springframework.beans.factory.annotation.Autowired
+	private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+	private boolean contrasenyaEs(UUID usuari, String clar) {
+		return passwordEncoder.matches(clar, jdbc.queryForObject("SELECT password FROM usuaris WHERE id = ?", String.class, usuari));
 	}
 }

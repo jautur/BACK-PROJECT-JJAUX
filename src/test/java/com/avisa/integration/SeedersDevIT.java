@@ -51,12 +51,12 @@ class SeedersDevIT extends PostgresIntegrationTest {
 	@Test
 	@DisplayName("Tornar a executar el seeder no sobreescriu els canvis de l'usuari")
 	void noSobreescriu() {
-		jdbc.update("UPDATE usuaris SET password = 'nova', bio = 'la meua bio', nom = 'Nom editat', percentil = 50 WHERE email = 'pro'");
+		jdbc.update("UPDATE usuaris SET password = ?, bio = 'la meua bio', nom = 'Nom editat', percentil = 50 WHERE email = 'pro'", ContrasenyaDeProva.HASH);
 
 		seeder.run(new DefaultApplicationArguments());
 
 		assertThat(jdbc.queryForObject("SELECT password || '|' || bio || '|' || nom || '|' || percentil FROM usuaris WHERE email = 'pro'", String.class))
-			.isEqualTo("nova|la meua bio|Nom editat|50");
+			.isEqualTo(ContrasenyaDeProva.HASH + "|la meua bio|Nom editat|50");
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM usuaris", Integer.class)).isEqualTo(3);
 	}
 }

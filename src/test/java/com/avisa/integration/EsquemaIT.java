@@ -38,10 +38,10 @@ class EsquemaIT extends PostgresIntegrationTest {
 	@Test
 	@DisplayName("Rebutja un rol fora del disseny i un correu repetit sense distingir majúscules")
 	void validaUsuaris() {
-		assertRebutjat("INSERT INTO usuaris (nom, email, password, rol) VALUES ('x', 'x@x.es', 'x', 'superhacker')");
+		assertRebutjat("INSERT INTO usuaris (nom, email, password, rol) VALUES ('x', 'x@x.es', '$2a$10$n5f0jmVZUnF5mzfnxuBFUOaUGBZ.MDhQug1rbtTUoeCyj/3rTUE8K', 'superhacker')");
 
-		jdbc.update("INSERT INTO usuaris (nom, email, password, rol) VALUES ('a', 'Mateix@x.es', 'x', 'CLIENT')");
-		assertRebutjat("INSERT INTO usuaris (nom, email, password, rol) VALUES ('b', 'mateix@x.es', 'x', 'CLIENT')");
+		jdbc.update("INSERT INTO usuaris (nom, email, password, rol) VALUES ('a', 'Mateix@x.es', '$2a$10$n5f0jmVZUnF5mzfnxuBFUOaUGBZ.MDhQug1rbtTUoeCyj/3rTUE8K', 'CLIENT')");
+		assertRebutjat("INSERT INTO usuaris (nom, email, password, rol) VALUES ('b', 'mateix@x.es', '$2a$10$n5f0jmVZUnF5mzfnxuBFUOaUGBZ.MDhQug1rbtTUoeCyj/3rTUE8K', 'CLIENT')");
 	}
 
 	@Test
@@ -159,7 +159,7 @@ class EsquemaIT extends PostgresIntegrationTest {
 
 	private UUID usuari(String rol) {
 		UUID id = UUID.randomUUID();
-		jdbc.update("INSERT INTO usuaris (id, nom, email, password, rol) VALUES (?, ?, ?, 'x', ?)",
+		jdbc.update("INSERT INTO usuaris (id, nom, email, password, rol) VALUES (?, ?, ?, '$2a$10$n5f0jmVZUnF5mzfnxuBFUOaUGBZ.MDhQug1rbtTUoeCyj/3rTUE8K', ?)",
 			id, "Usuari " + id, id + "@test.es", rol);
 		return id;
 	}

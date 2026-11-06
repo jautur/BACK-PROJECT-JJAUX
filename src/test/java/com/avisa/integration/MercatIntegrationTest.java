@@ -51,8 +51,8 @@ abstract class MercatIntegrationTest extends PostgresIntegrationTest {
 
 	protected UUID usuari(String rol) {
 		UUID id = UUID.randomUUID();
-		jdbc.update("INSERT INTO usuaris (id, nom, email, password, rol) VALUES (?, ?, ?, 'secreta', ?)",
-			id, "Usuari " + id, id + "@test.es", rol);
+		jdbc.update("INSERT INTO usuaris (id, nom, email, password, rol) VALUES (?, ?, ?, ?, ?)",
+			id, "Usuari " + id, id + "@test.es", ContrasenyaDeProva.HASH, rol);
 		return id;
 	}
 

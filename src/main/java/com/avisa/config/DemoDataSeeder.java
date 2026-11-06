@@ -6,6 +6,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,9 +19,17 @@ import org.springframework.stereotype.Component;
 public class DemoDataSeeder implements ApplicationRunner {
 
 	private final JdbcTemplate jdbcTemplate;
+	private final PasswordEncoder passwordEncoder;
 
-	public DemoDataSeeder(JdbcTemplate jdbcTemplate) {
+	public DemoDataSeeder(JdbcTemplate jdbcTemplate, PasswordEncoder passwordEncoder) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.passwordEncoder = passwordEncoder;
+	}
+
+	/** Només es calcula el hash si l'usuari no existeix: BCrypt és lent a propòsit. */
+	private boolean existeix(String email) {
+		Integer total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM usuaris WHERE LOWER(email) = LOWER(?)", Integer.class, email);
+		return total != null && total > 0;
 	}
 
 	@Override
@@ -199,9 +208,12 @@ public class DemoDataSeeder implements ApplicationRunner {
 	}
 
 	private void crearSiNoExisteix(String nom, String email, String password, String rol, String telefon, String bio, int percentil, boolean verificat, boolean sollicitudVerificacio, String foto, String fotoPerfil, String logo) {
+		if (existeix(email)) {
+			return;
+		}
 		jdbcTemplate.update(
 			"INSERT INTO usuaris (nom, email, password, rol, telefon, bio, percentil, verificat, sollicitud_verificacio, foto, foto_perfil, logo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
-			nom, email, password, rol.toUpperCase(Locale.ROOT), telefon, bio, percentil, verificat, sollicitudVerificacio, foto, fotoPerfil, logo
+			nom, email, passwordEncoder.encode(password), rol.toUpperCase(Locale.ROOT), telefon, bio, percentil, verificat, sollicitudVerificacio, foto, fotoPerfil, logo
 		);
 	}
 }

@@ -30,3 +30,12 @@ Per arrencar el jar a mà: `AVISA_JWT_SECRET="$(cat ~/.avisa/jwt_secret)" java -
 
 Els tests en fan servir un de propi, definit a `src/test/resources/application.properties`, que no val per a res
 més. La integració contínua no necessita cap secret.
+
+## Contrasenyes
+
+Es guarden amb BCrypt. La migració `V2__contrasenyes_bcrypt.sql` converteix les que encara eren text pla
+(fa servir l'extensió `pgcrypto` de PostgreSQL) i afegeix la restricció `usuaris_password_bcrypt`: a partir
+d'aquí la base rebutja qualsevol contrasenya sense hash, també si la insereix un script.
+
+Els usuaris de prova (`admin@admin.es` / `cli` / `pro`) es creen amb hash des dels seeders `dev`/`demo` i des de
+`FRONT-PROJECT-JJAUX/scripts/buidar_db.sql` i `assegurar_admin.js`.

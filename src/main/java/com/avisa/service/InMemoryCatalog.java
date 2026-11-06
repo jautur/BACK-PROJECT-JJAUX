@@ -25,6 +25,7 @@ import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,9 +39,14 @@ public class InMemoryCatalog {
 	private static final String TELEFON_BLOQUEJAT = "Aquest número de telèfon no es pot utilitzar a la plataforma.";
 
 	private final JdbcTemplate jdbcTemplate;
+	private final PasswordEncoder passwordEncoder;
 
-	public InMemoryCatalog(JdbcTemplate jdbcTemplate) {
+	/** Hash d'una contrasenya qualsevol: fa que un correu inexistent tarde el mateix que un d'existent. */
+	private static final String HASH_DE_PERDRE_TEMPS = "$2a$10$n5f0jmVZUnF5mzfnxuBFUOaUGBZ.MDhQug1rbtTUoeCyj/3rTUE8K";
+
+	public InMemoryCatalog(JdbcTemplate jdbcTemplate, PasswordEncoder passwordEncoder) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.passwordEncoder = passwordEncoder;
 	}
 
 	// ==========================================
@@ -105,18 +111,21 @@ public class InMemoryCatalog {
 	}
 
 	/**
-	 * Autentica un usuari validant el seu correu i contrasenya a PostgreSQL.
+	 * Autentica un usuari comprovant la contrasenya contra el seu hash BCrypt.
 	 * @param email Correu electrònic d'accés
 	 * @param password Contrasenya
 	 * @return Optional amb l'usuari autenticat
 	 */
 	public Optional<Usuari> authenticate(String email, String password) {
-		List<Usuari> res = jdbcTemplate.query(
-			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto, foto_perfil, logo FROM usuaris WHERE LOWER(email) = LOWER(?) AND (password = ? OR ? IS NULL)",
-			(rs, rowNum) -> mapUsuari(rs),
-			email, password, password
-		);
-		return res.stream().findFirst();
+		if (email == null || password == null || password.isEmpty()) {
+			return Optional.empty();
+		}
+		List<String> hash = jdbcTemplate.queryForList("SELECT password FROM usuaris WHERE LOWER(email) = LOWER(?)", String.class, email);
+		if (hash.isEmpty()) {
+			passwordEncoder.matches(password, HASH_DE_PERDRE_TEMPS);
+			return Optional.empty();
+		}
+		return passwordEncoder.matches(password, hash.get(0)) ? findUserByEmail(email) : Optional.empty();
 	}
 
 	/**
@@ -195,7 +204,7 @@ public class InMemoryCatalog {
 	 * @param newPassword Nova contrasenya
 	 */
 	public void changePassword(String id, String newPassword) {
-		int rows = jdbcTemplate.update("UPDATE usuaris SET password = ? WHERE id::text = ?", newPassword, id);
+		int rows = jdbcTemplate.update("UPDATE usuaris SET password = ? WHERE id::text = ?", passwordEncoder.encode(newPassword), id);
 		if (rows == 0) {
 			throw new IllegalArgumentException("Usuari no trobat");
 		}
@@ -279,7 +288,7 @@ public class InMemoryCatalog {
 		try {
 			jdbcTemplate.update(
 				"INSERT INTO usuaris (id, nom, email, password, rol, telefon) VALUES (?::uuid, ?, ?, ?, ?, ?)",
-				id, request.nom(), request.email(), request.password(), rol, request.telefon()
+				id, request.nom(), request.email(), passwordEncoder.encode(request.password()), rol, request.telefon()
 			);
 		} catch (DuplicateKeyException e) {
 			throw new IllegalArgumentException("El correu electrònic '" + request.email() + "' ja està en ús.");

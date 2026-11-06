@@ -209,8 +209,8 @@ class UsuarisIT extends PostgresIntegrationTest {
 
 	private UUID usuari(String rol, String email, String telefon) {
 		UUID id = UUID.randomUUID();
-		jdbc.update("INSERT INTO usuaris (id, nom, email, password, rol, telefon) VALUES (?, ?, ?, 'secreta', ?, ?)",
-			id, "Usuari " + email, email, rol, telefon);
+		jdbc.update("INSERT INTO usuaris (id, nom, email, password, rol, telefon) VALUES (?, ?, ?, ?, ?, ?)",
+			id, "Usuari " + email, email, ContrasenyaDeProva.HASH, rol, telefon);
 		return id;
 	}
 
