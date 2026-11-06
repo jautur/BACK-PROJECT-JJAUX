@@ -3,7 +3,10 @@ package com.avisa.config;
 import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -51,8 +54,12 @@ public class SecurityConfig {
 
     private final JwtDecoder jwtDecoder;
 
-    public SecurityConfig(JwtDecoder jwtDecoder) {
+    /** La documentació de l'API (Swagger) només és pública amb el perfil dev. */
+    private final boolean swaggerPublic;
+
+    public SecurityConfig(JwtDecoder jwtDecoder, Environment environment) {
         this.jwtDecoder = jwtDecoder;
+        this.swaggerPublic = environment.acceptsProfiles(Profiles.of("dev"));
     }
 
     @Bean
@@ -63,7 +70,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Sense això, un error com un 400 d'una ruta pública arribaria al visitant com a 401
                 .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD).permitAll()
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").access((autenticacio, context) -> new AuthorizationDecision(swaggerPublic))
                 .requestMatchers(HttpMethod.POST, AUTH_PUBLICA).permitAll()
                 .requestMatchers(HttpMethod.GET, MERCAT_PUBLIC).permitAll()
                 .anyRequest().authenticated()
