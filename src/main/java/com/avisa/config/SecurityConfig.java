@@ -27,12 +27,17 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 public class SecurityConfig {
 
     /** Entrar, registrar-se i recuperar l'accés es fa, per definició, sense sessió. */
-    private static final String[] AUTH_PUBLICA = {
+    private static final String[] AUTH_PUBLICA_POST = {
         "/api/auth/login",
         "/api/auth/register",
         "/api/auth/logout",
         "/api/auth/demanar-recuperacio",
-        "/api/auth/restablir-contrasenya"
+        "/api/auth/restablir-contrasenya",
+        "/api/auth/reenviar-verificacio"
+    };
+
+    private static final String[] AUTH_PUBLICA_GET = {
+        "/api/auth/verificar-email"
     };
 
     /** El mercat: el que es mostra a qui encara no ha iniciat sessió. */
@@ -76,7 +81,8 @@ public class SecurityConfig {
                 // Sense això, un error com un 400 d'una ruta pública arribaria al visitant com a 401
                 .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD).permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").access((autenticacio, context) -> new AuthorizationDecision(swaggerPublic))
-                .requestMatchers(HttpMethod.POST, AUTH_PUBLICA).permitAll()
+                .requestMatchers(HttpMethod.POST, AUTH_PUBLICA_POST).permitAll()
+                .requestMatchers(HttpMethod.GET, AUTH_PUBLICA_GET).permitAll()
                 .requestMatchers(HttpMethod.GET, MERCAT_PUBLIC).permitAll()
                 .requestMatchers(HttpMethod.GET, IMATGES_PUBLIQUES).permitAll()
                 .anyRequest().authenticated()

@@ -55,6 +55,12 @@
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 
+		<!-- Enviament de correus electrònics (SMTP) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+
 		<!-- Migraciones de PostgreSQL con Flyway -->
 		<dependency>
 			<groupId>org.flywaydb</groupId>

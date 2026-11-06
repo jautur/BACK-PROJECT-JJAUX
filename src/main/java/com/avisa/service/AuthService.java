@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
@@ -50,6 +51,7 @@ public class AuthService {
 	private final Supplier<String> generadorDeCodis;
 	private final Clock rellotge;
 	private final LimitIntentsLogin limitLogin;
+	private final EmailService emailService;
 
 	/** Codis pendents, per identificador d'usuari. */
 	private final Map<String, CodiRecuperacio> codis = new ConcurrentHashMap<>();
@@ -66,18 +68,19 @@ public class AuthService {
 	}
 
 	@Autowired
-	public AuthService(InMemoryCatalog catalog, JwtService jwtService, Environment environment, LimitIntentsLogin limitLogin) {
-		this(catalog, jwtService, environment, limitLogin, AuthService::codiAleatori, Clock.systemUTC());
+	public AuthService(InMemoryCatalog catalog, JwtService jwtService, Environment environment, LimitIntentsLogin limitLogin, EmailService emailService) {
+		this(catalog, jwtService, environment, limitLogin, emailService, AuthService::codiAleatori, Clock.systemUTC());
 	}
 
 	/** Per als tests: permet fixar el codi i el rellotge. */
-	AuthService(InMemoryCatalog catalog, JwtService jwtService, Environment environment, LimitIntentsLogin limitLogin, Supplier<String> generadorDeCodis, Clock rellotge) {
+	AuthService(InMemoryCatalog catalog, JwtService jwtService, Environment environment, LimitIntentsLogin limitLogin, EmailService emailService, Supplier<String> generadorDeCodis, Clock rellotge) {
 		this.catalog = catalog;
 		this.jwtService = jwtService;
 		this.environment = environment;
 		this.generadorDeCodis = generadorDeCodis;
 		this.rellotge = rellotge;
 		this.limitLogin = limitLogin;
+		this.emailService = emailService;
 	}
 
 	private static final SecureRandom ALEATORI = new SecureRandom();
@@ -116,14 +119,70 @@ public class AuthService {
 	}
 
 	/**
-	 * Registra un nou compte d'usuari a la plataforma i genera el token JWT inicial.
+	 * Registra un nou compte d'usuari a la plataforma, genera el token de verificació d'email
+	 * i envia el correu combinat de benvinguda i verificació.
 	 * @param request Dades de registre de l'usuari
 	 * @return L'usuari donat d'alta amb el seu token JWT
 	 */
 	public Usuari register(RegisterRequest request) {
 		Usuari created = catalog.addUser(request);
+		
+		// Generar token segur de verificació (UUID v4) amb caducitat de 24 hores
+		String emailToken = UUID.randomUUID().toString();
+		Instant caducitat = Instant.now(rellotge).plus(Duration.ofHours(24));
+		catalog.guardarTokenVerificacioEmail(created.id(), emailToken, caducitat);
+
+		// Disparar l'enviament de correu
+		try {
+			emailService.enviarEmailVerificacio(created.nom(), created.email(), emailToken);
+		} catch (Exception e) {
+			log.error("No s'ha pogut enviar el correu de verificació inicial a {}: {}", created.email(), e.getMessage());
+		}
+
 		String token = jwtService.generateToken(created.id(), created.email(), created.rol());
 		return created.withToken(token);
+	}
+
+	/**
+	 * Verifica el compte d'un usuari utilitzant el token de verificació rebut per correu.
+	 * @param token Token únic rebut a l'enllaç de l'email
+	 * @return Usuari verificat si el token és vàlid i no ha caducat, o Optional.empty()
+	 */
+	public Optional<Usuari> verificarEmail(String token) {
+		if (token == null || token.isBlank()) {
+			return Optional.empty();
+		}
+		Optional<Usuari> usuariOpt = catalog.trobarUsuariPerTokenVerificacio(token, Instant.now(rellotge));
+		if (usuariOpt.isEmpty()) {
+			return Optional.empty();
+		}
+		Usuari usuari = usuariOpt.get();
+		catalog.marcarEmailComVerificat(usuari.id());
+		return Optional.of(usuari.withEmailVerificat(true));
+	}
+
+	/**
+	 * Reenvia l'email de verificació a un usuari registrat que encara no ha activat el seu compte.
+	 * @param email Correu de l'usuari
+	 * @return true si s'ha pogut processar i enviar, false si l'usuari no existeix o ja està verificat
+	 */
+	public boolean reenviarEmailVerificacio(String email) {
+		if (email == null || email.isBlank()) {
+			return false;
+		}
+		Optional<Usuari> usuariOpt = catalog.findUserByEmail(email.trim());
+		if (usuariOpt.isEmpty()) {
+			return false;
+		}
+		Usuari usuari = usuariOpt.get();
+		if (Boolean.TRUE.equals(usuari.emailVerificat())) {
+			return false;
+		}
+		String emailToken = UUID.randomUUID().toString();
+		Instant caducitat = Instant.now(rellotge).plus(Duration.ofHours(24));
+		catalog.guardarTokenVerificacioEmail(usuari.id(), emailToken, caducitat);
+
+		return emailService.enviarEmailVerificacio(usuari.nom(), usuari.email(), emailToken);
 	}
 
 	/**
@@ -133,6 +192,13 @@ public class AuthService {
 	 */
 	public void changePassword(String userId, String newPassword) {
 		catalog.changePassword(userId, newPassword);
+		catalog.findUserById(userId).ifPresent(u -> {
+			try {
+				emailService.enviarEmailConfirmacioCanviContrasenya(u.nom(), u.email());
+			} catch (Exception e) {
+				log.warn("No s'ha pogut enviar el correu de confirmació de canvi de contrasenya a {}: {}", u.email(), e.getMessage());
+			}
+		});
 	}
 
 	/** L'usuari que correspon a un correu, un nom o un ID. */
@@ -159,7 +225,12 @@ public class AuthService {
 		usuariPer(identificador).ifPresent(usuari -> {
 			String codi = generadorDeCodis.get();
 			codis.put(usuari.id(), new CodiRecuperacio(codi, rellotge.instant().plus(VALIDESA_CODI)));
-			// No hi ha enviament de correu: en desenvolupament el codi es llig al log, i fora de dev no s'escriu enlloc
+			// Enviament de correu de restabliment de contrasenya
+			try {
+				emailService.enviarEmailRestablimentContrasenya(usuari.nom(), usuari.email(), codi);
+			} catch (Exception e) {
+				log.error("No s'ha pogut enviar el correu de recuperació a {}: {}", usuari.email(), e.getMessage());
+			}
 			if (environment.acceptsProfiles(Profiles.of("dev"))) {
 				log.info("[dev] Codi de recuperació de l'usuari {}: {} (vàlid {} minuts)", usuari.id(), codi, VALIDESA_CODI.toMinutes());
 			}
@@ -213,6 +284,13 @@ public class AuthService {
 		}
 
 		catalog.changePassword(usuariId, nova);
+		usuari.ifPresent(u -> {
+			try {
+				emailService.enviarEmailConfirmacioCanviContrasenya(u.nom(), u.email());
+			} catch (Exception e) {
+				log.warn("No s'ha pogut enviar el correu de confirmació de canvi de contrasenya a {}: {}", u.email(), e.getMessage());
+			}
+		});
 		return new RecuperacioResponse(true, "Contrasenya actualitzada correctament! Ja pots iniciar sessió amb la teva nova contrasenya.");
 	}
 }

@@ -54,6 +54,12 @@ public class InMemoryCatalog {
 	// ==========================================
 
 	private Usuari mapUsuari(java.sql.ResultSet rs) throws java.sql.SQLException {
+		boolean emailVerificat = true;
+		try {
+			emailVerificat = rs.getBoolean("email_verificat");
+		} catch (java.sql.SQLException ignored) {
+			// Columna opcional si no està en algun mock antic
+		}
 		return new Usuari(
 			rs.getString("id"),
 			rs.getString("nom"),
@@ -66,7 +72,8 @@ public class InMemoryCatalog {
 			rs.getBoolean("verificat"),
 			rs.getBoolean("sollicitud_verificacio"),
 			rs.getString("foto_url"),
-			rs.getString("logo_url")
+			rs.getString("logo_url"),
+			emailVerificat
 		);
 	}
 
@@ -76,7 +83,7 @@ public class InMemoryCatalog {
 	 */
 	public List<Usuari> users() {
 		return jdbcTemplate.query(
-			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto_url, logo_url FROM usuaris ORDER BY created_at",
+			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto_url, logo_url, COALESCE(email_verificat, FALSE) AS email_verificat FROM usuaris ORDER BY created_at",
 			(rs, rowNum) -> mapUsuari(rs)
 		);
 	}
@@ -88,7 +95,7 @@ public class InMemoryCatalog {
 	 */
 	public Optional<Usuari> findUserById(String id) {
 		List<Usuari> res = jdbcTemplate.query(
-			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto_url, logo_url FROM usuaris WHERE id::text = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
+			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto_url, logo_url, COALESCE(email_verificat, FALSE) AS email_verificat FROM usuaris WHERE id::text = ? OR LOWER(nom) = LOWER(?) OR LOWER(email) = LOWER(?)",
 			(rs, rowNum) -> mapUsuari(rs),
 			id, id, id
 		);
@@ -102,7 +109,7 @@ public class InMemoryCatalog {
 	 */
 	public Optional<Usuari> findUserByEmail(String email) {
 		List<Usuari> res = jdbcTemplate.query(
-			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto_url, logo_url FROM usuaris WHERE LOWER(email) = LOWER(?)",
+			"SELECT id::text AS id, nom, email, rol, telefon, bio, COALESCE(percentil, 3) AS percentil, COALESCE(verificat, FALSE) AS verificat, COALESCE(sollicitud_verificacio, FALSE) AS sollicitud_verificacio, foto_url, logo_url, COALESCE(email_verificat, FALSE) AS email_verificat FROM usuaris WHERE LOWER(email) = LOWER(?)",
 			(rs, rowNum) -> mapUsuari(rs),
 			email
 		);
@@ -273,13 +280,51 @@ public class InMemoryCatalog {
 		String rol = request.rol().toUpperCase(Locale.ROOT);
 		try {
 			jdbcTemplate.update(
-				"INSERT INTO usuaris (id, nom, email, password, rol, telefon) VALUES (?::uuid, ?, ?, ?, ?, ?)",
+				"INSERT INTO usuaris (id, nom, email, password, rol, telefon, email_verificat) VALUES (?::uuid, ?, ?, ?, ?, ?, FALSE)",
 				id, request.nom(), request.email(), passwordEncoder.encode(request.password()), rol, request.telefon()
 			);
 		} catch (DuplicateKeyException e) {
 			throw new IllegalArgumentException("El correu electrònic '" + request.email() + "' ja està en ús.");
 		}
-		return new Usuari(id, request.nom(), request.email(), rol, request.telefon(), null, 3);
+		return new Usuari(id, request.nom(), request.email(), rol, request.telefon(), null, 3, null, false, false, null, null, false);
+	}
+
+	/**
+	 * Desa un nou token de verificació d'email per a un usuari, eliminant-ne els anteriors.
+	 */
+	public void guardarTokenVerificacioEmail(String usuariId, String token, java.time.Instant caducitat) {
+		jdbcTemplate.update("DELETE FROM tokens_verificacio_email WHERE usuari_id = ?::uuid", usuariId);
+		jdbcTemplate.update(
+			"INSERT INTO tokens_verificacio_email (usuari_id, token, caducitat) VALUES (?::uuid, ?, ?)",
+			usuariId, token, java.sql.Timestamp.from(caducitat)
+		);
+	}
+
+	/**
+	 * Cerca l'usuari associat a un token de verificació d'email que no hagi caducat.
+	 */
+	public Optional<Usuari> trobarUsuariPerTokenVerificacio(String token, java.time.Instant ara) {
+		if (token == null || token.isBlank()) {
+			return Optional.empty();
+		}
+		List<String> usuariIds = jdbcTemplate.query(
+			"SELECT usuari_id::text FROM tokens_verificacio_email WHERE token = ? AND caducitat > ?",
+			(rs, rowNum) -> rs.getString("usuari_id"),
+			token.trim(), java.sql.Timestamp.from(ara)
+		);
+		if (usuariIds.isEmpty()) {
+			return Optional.empty();
+		}
+		return findUserById(usuariIds.get(0));
+	}
+
+	/**
+	 * Marca l'email d'un usuari com a verificat i elimina els seus tokens de verificació pendents.
+	 */
+	public void marcarEmailComVerificat(String usuariId) {
+		jdbcTemplate.update("UPDATE usuaris SET email_verificat = TRUE WHERE id = ?::uuid", usuariId);
+		jdbcTemplate.update("DELETE FROM tokens_verificacio_email WHERE usuari_id = ?::uuid", usuariId);
+		addAvis(usuariId, "El teu compte de correu electrònic ha estat verificat correctament. Benvingut/da a AVISA!");
 	}
 
 	// ==========================================

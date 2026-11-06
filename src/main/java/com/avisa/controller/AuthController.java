@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -130,5 +131,45 @@ public class AuthController {
 			return ResponseEntity.badRequest().body(resp);
 		}
 		return ResponseEntity.ok(resp);
+	}
+
+	/**
+	 * Verifica el compte d'un usuari mitjançant el token rebut per correu electrònic.
+	 * Endpoint: GET /api/auth/verificar-email?token=...
+	 */
+	@GetMapping("/verificar-email")
+	@Operation(summary = "Verificar compte per correu electrònic", description = "Valida el token de verificació enviat per email i activa el compte")
+	public ResponseEntity<java.util.Map<String, Object>> verificarEmail(@RequestParam("token") String token) {
+		return authService.verificarEmail(token)
+			.map(u -> ResponseEntity.ok(java.util.Map.<String, Object>of(
+				"success", true,
+				"message", "El teu compte ha estat verificat correctament.",
+				"user", u
+			)))
+			.orElseGet(() -> ResponseEntity.badRequest().body(java.util.Map.<String, Object>of(
+				"success", false,
+				"message", "El token de verificació no és vàlid o ha caducat."
+			)));
+	}
+
+	/**
+	 * Reenvia el correu de verificació d'email a l'adreça indicada si el compte encara no està verificat.
+	 * Endpoint: POST /api/auth/reenviar-verificacio
+	 */
+	@PostMapping("/reenviar-verificacio")
+	@Operation(summary = "Reenviar correu de verificació", description = "Genera un nou token i torna a enviar l'email de verificació")
+	public ResponseEntity<java.util.Map<String, Object>> reenviarVerificacio(@RequestBody java.util.Map<String, String> body) {
+		String email = body.get("email");
+		boolean enviat = authService.reenviarEmailVerificacio(email);
+		if (enviat) {
+			return ResponseEntity.ok(java.util.Map.of(
+				"success", true,
+				"message", "S'ha enviat un nou correu de verificació a la teva adreça."
+			));
+		}
+		return ResponseEntity.badRequest().body(java.util.Map.of(
+			"success", false,
+			"message", "No s'ha pogut reenviar el correu. Comprova que l'adreça sigui correcta i que el compte no estigui ja verificat."
+		));
 	}
 }

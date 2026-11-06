@@ -19,6 +19,7 @@ import jakarta.validation.constraints.Min;
  * @param sollicitudVerificacio Indica si hi ha una sol·licitud de verificació pendent
  * @param fotoUrl Foto de perfil pròpia (/api/imatges/...), o null
  * @param logoUrl Logotip propi (/api/imatges/...), o null
+ * @param emailVerificat Indica si l'usuari ha verificat la seva adreça d'email
  */
 public record Usuari(
 	String id,
@@ -38,36 +39,45 @@ public record Usuari(
 	Boolean verificat,
 	Boolean sollicitudVerificacio,
 	String fotoUrl,
-	String logoUrl
+	String logoUrl,
+	Boolean emailVerificat
 ) {
+	public Usuari(String id, String nom, String email, String rol, String telefon, String bio, Integer percentil, String token, Boolean verificat, Boolean sollicitudVerificacio, String fotoUrl, String logoUrl) {
+		this(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, fotoUrl, logoUrl, true);
+	}
+
 	public Usuari(String id, String nom, String email, String rol, String telefon, String bio, Integer percentil, String token, Boolean verificat, Boolean sollicitudVerificacio) {
-		this(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, null, null);
+		this(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, null, null, true);
 	}
 
 	public Usuari(String id, String nom, String email, String rol, String telefon, String bio, Integer percentil, String token) {
-		this(id, nom, email, rol, telefon, bio, percentil, token, false, false, null, null);
+		this(id, nom, email, rol, telefon, bio, percentil, token, false, false, null, null, true);
 	}
 
 	public Usuari(String id, String nom, String email, String rol, String telefon, String bio, Integer percentil) {
-		this(id, nom, email, rol, telefon, bio, percentil, null, false, false, null, null);
+		this(id, nom, email, rol, telefon, bio, percentil, null, false, false, null, null, true);
 	}
 
 	public Usuari(String id, String nom, String email, String rol, String telefon, String bio) {
-		this(id, nom, email, rol, telefon, bio, 3, null, false, false, null, null);
+		this(id, nom, email, rol, telefon, bio, 3, null, false, false, null, null, true);
 	}
 
 	public Usuari withToken(String token) {
-		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, fotoUrl, logoUrl);
+		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, fotoUrl, logoUrl, emailVerificat);
+	}
+
+	public Usuari withEmailVerificat(Boolean emailVerificat) {
+		return new Usuari(id, nom, email, rol, telefon, bio, percentil, token, verificat, sollicitudVerificacio, fotoUrl, logoUrl, emailVerificat);
 	}
 
 	/** El que pot veure qualsevol: sense contacte, comissió ni estat intern de verificació. */
 	public Usuari perfilPublic() {
-		return new Usuari(id, nom, null, rol, null, bio, null, null, verificat, null, fotoUrl, logoUrl);
+		return new Usuari(id, nom, null, rol, null, bio, null, null, verificat, null, fotoUrl, logoUrl, emailVerificat);
 	}
 
 	/** El perfil públic més el contacte: per a l'altra part d'una tasca acceptada. */
 	public Usuari perfilPublicAmbContacte() {
-		return new Usuari(id, nom, email, rol, telefon, bio, null, null, verificat, null, fotoUrl, logoUrl);
+		return new Usuari(id, nom, email, rol, telefon, bio, null, null, verificat, null, fotoUrl, logoUrl, emailVerificat);
 	}
 
 }

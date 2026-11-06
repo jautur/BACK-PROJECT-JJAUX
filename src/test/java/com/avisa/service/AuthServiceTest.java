@@ -43,6 +43,9 @@ class AuthServiceTest {
     @Mock
     private JwtService jwtService;
 
+    @Mock
+    private EmailService emailService;
+
     private final MockEnvironment entorn = new MockEnvironment();
     private final AtomicReference<Instant> ara = new AtomicReference<>(Instant.parse("2026-11-06T10:00:00Z"));
     private AuthService authService;
@@ -56,7 +59,7 @@ class AuthServiceTest {
             @Override public Clock withZone(java.time.ZoneId zone) { return this; }
             @Override public Instant instant() { return ara.get(); }
         };
-        authService = new AuthService(catalog, jwtService, entorn, new LimitIntentsLogin(rellotge), () -> CODI, rellotge);
+        authService = new AuthService(catalog, jwtService, entorn, new LimitIntentsLogin(rellotge), emailService, () -> CODI, rellotge);
         // Maria es pot trobar pel seu ID, pel nom (findUserById) o pel correu
         when(catalog.findUserById(anyString())).thenReturn(Optional.empty());
         when(catalog.findUserByEmail(anyString())).thenReturn(Optional.empty());
@@ -219,5 +222,43 @@ class AuthServiceTest {
     void haDeCanviarContrasenyaDirecta() {
         authService.changePassword("u-1", "passNova");
         verify(catalog).changePassword("u-1", "passNova");
+    }
+
+    @Test
+    @DisplayName("Registra usuari, guarda el token de verificació d'email i envia correu")
+    void registreEnviaCorreuVerificacio() {
+        RegisterRequest req = new RegisterRequest("Pere", "pere@test.com", "secret123", "CLIENT", null);
+        Usuari pere = new Usuari("u-20", "Pere", "pere@test.com", "CLIENT", null, null);
+        when(catalog.addUser(req)).thenReturn(pere);
+        when(jwtService.generateToken("u-20", "pere@test.com", "CLIENT")).thenReturn("jwt-pere");
+
+        Usuari registrat = authService.register(req);
+
+        assertThat(registrat.token()).isEqualTo("jwt-pere");
+        verify(catalog).guardarTokenVerificacioEmail(anyString(), anyString(), any());
+        verify(emailService).enviarEmailVerificacio(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Verifica el compte si el token és correcte")
+    void verificarEmailAmbExit() {
+        when(catalog.trobarUsuariPerTokenVerificacio(anyString(), any())).thenReturn(Optional.of(maria));
+
+        Optional<Usuari> res = authService.verificarEmail("token-valid");
+
+        assertThat(res).isPresent();
+        assertThat(res.get().emailVerificat()).isTrue();
+        verify(catalog).marcarEmailComVerificat("u-10");
+    }
+
+    @Test
+    @DisplayName("Falla la verificació si el token no existeix o ha caducat")
+    void verificarEmailTokenInvalid() {
+        when(catalog.trobarUsuariPerTokenVerificacio(anyString(), any())).thenReturn(Optional.empty());
+
+        Optional<Usuari> res = authService.verificarEmail("token-inexistent");
+
+        assertThat(res).isEmpty();
+        verify(catalog, never()).marcarEmailComVerificat(anyString());
     }
 }
