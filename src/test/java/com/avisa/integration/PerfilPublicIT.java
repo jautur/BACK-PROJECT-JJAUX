@@ -42,9 +42,10 @@ class PerfilPublicIT extends MercatIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("Sense sessió, el perfil només porta els camps públics")
+	@DisplayName("Sense sessió, el directori dona el perfil amb només els camps públics; /api/users demana sessió")
 	void perfilSenseSessio() throws Exception {
-		ResultActions resposta = mvc.perform(get("/api/users/" + professional));
+		mvc.perform(get("/api/users/" + professional)).andExpect(status().isUnauthorized());
+		ResultActions resposta = mvc.perform(get("/api/professionals/" + professional));
 
 		noExposaDadesPrivades(resposta);
 		resposta.andExpect(jsonPath("$.id").value(professional.toString()))
@@ -57,13 +58,12 @@ class PerfilPublicIT extends MercatIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("El llistat no porta contacte ni per a un visitant ni per a un altre usuari")
-	void llistatSenseContacte() throws Exception {
-		noExposaDadesPrivades(mvc.perform(get("/api/users")));
-
-		ResultActions ambSessio = mvc.perform(getCom(client, "/api/users")).andExpect(status().isOk());
-		ambSessio.andExpect(content().string(containsString(correu(client))))
-			.andExpect(content().string(not(containsString(correu(professional)))));
+	@DisplayName("El llistat complet només és per a l'admin")
+	void llistatNomesAdmin() throws Exception {
+		mvc.perform(get("/api/users")).andExpect(status().isUnauthorized());
+		mvc.perform(getCom(client, "/api/users")).andExpect(status().isForbidden());
+		mvc.perform(getCom(admin, "/api/users")).andExpect(status().isOk()).andExpect(content().string(containsString(correu(professional))));
+		noExposaDadesPrivades(mvc.perform(get("/api/professionals")));
 	}
 
 	@Test
@@ -111,7 +111,7 @@ class PerfilPublicIT extends MercatIntegrationTest {
 	@Test
 	@DisplayName("Un correu no permet trobar un perfil, llevat d'un administrador")
 	void cercaPerCorreu() throws Exception {
-		mvc.perform(get("/api/users/" + correu(client))).andExpect(status().isNotFound());
+		mvc.perform(get("/api/users/" + correu(client))).andExpect(status().isUnauthorized());
 		mvc.perform(getCom(altreClient, "/api/users/" + correu(client))).andExpect(status().isNotFound());
 		mvc.perform(getCom(admin, "/api/users/" + correu(client))).andExpect(status().isOk());
 	}

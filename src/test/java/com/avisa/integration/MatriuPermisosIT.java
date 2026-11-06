@@ -85,9 +85,9 @@ class MatriuPermisosIT extends MercatIntegrationTest {
 		publica("POST", "/api/auth/demanar-recuperacio", "{\"email\":\"{correuClient}\"}", 200),
 		publica("POST", "/api/auth/restablir-contrasenya", "{\"email\":\"{correuClient}\",\"codi\":\"no-val\",\"novaContrasenya\":\"novaClau1\"}", 400),
 
-		// ---------- Usuaris. Les dues lectures generals són PENDENTS DE DECISIÓ: les usen les pantalles de convidat
-		publica("/api/users"),
-		publica("/api/users/{client}"),
+		// ---------- Usuaris: amb sessió, i el llistat complet només per a l'admin. El directori públic és /api/professionals
+		nomesAdmin("GET", "/api/users", null, 200),
+		fila("GET", "/api/users/{client}", N, 200, 200, 200, 200, 200),
 		nomesAdmin("GET", "/api/users/rol/{rolProfessional}", null, 200),
 		fila("PUT", "/api/users/{client}", "{\"nom\":\"Editat\",\"telefon\":\"600000009\",\"bio\":\"b\"}", N, 200, F, 200, F, F),
 		fila("POST", "/api/users/{professional}/sollicitar-verificacio", "{}", N, F, 200, 200, F, F),
@@ -95,8 +95,8 @@ class MatriuPermisosIT extends MercatIntegrationTest {
 		nomesAdmin("PUT", "/api/users/{professional}/foto", "{\"foto\":\"https://foto.jpg\"}", 200),
 		nomesAdmin("DELETE", "/api/users/{usuariLliure}", null, 204),
 
-		// ---------- Tasques. GET /api/tasks és PENDENT DE DECISIÓ: el perfil públic en calcula les valoracions
-		publica("/api/tasks"),
+		// ---------- Tasques: GET /api/tasks dona totes a l'admin i les pròpies a la resta
+		fila("GET", "/api/tasks", N, 200, 200, 200, 200, 200),
 		fila("GET", "/api/tasks/{tasca}", N, 200, 200, 200, F, F),
 		fila("GET", "/api/tasks/{sollicitud}", N, 200, 200, 200, F, F),
 		fila("GET", "/api/tasks/{incidencia}", N, 200, 200, 200, 200, 200),
@@ -161,6 +161,11 @@ class MatriuPermisosIT extends MercatIntegrationTest {
 		nomesAdmin("GET", "/api/blacklist", null, 200),
 		nomesAdmin("POST", "/api/blacklist", "{\"telefon\":\"699999999\",\"motiu\":\"Frau\"}", 201),
 		nomesAdmin("DELETE", "/api/blacklist/{bloquejat}", null, 204),
+
+		// ---------- Directori públic de professionals
+		publica("/api/professionals"),
+		publica("/api/professionals/{professional}"),
+		publica("GET", "/api/professionals/{client}", null, 404),
 
 		// ---------- Tauler
 		publica("/api/dashboard"),
@@ -354,6 +359,26 @@ class MatriuPermisosIT extends MercatIntegrationTest {
 		mvc.perform(getCom(professional, ruta)).andExpect(jsonPath("$.length()").value(1))
 			.andExpect(jsonPath("$[0].id").value(valors.get("pressupost")));
 		mvc.perform(getCom(actors.get(Actor.ALTRE_CLIENT), ruta)).andExpect(jsonPath("$.length()").value(0));
+	}
+
+	@Test
+	@DisplayName("GET /api/tasks: cadascú rep només les seues tasques i l'admin totes")
+	void tasquesPropies() throws Exception {
+		mvc.perform(getCom(client, "/api/tasks")).andExpect(jsonPath("$.length()").value(3));
+		mvc.perform(getCom(professional, "/api/tasks")).andExpect(jsonPath("$.length()").value(3));
+		mvc.perform(getCom(admin, "/api/tasks")).andExpect(jsonPath("$.length()").value(3));
+		mvc.perform(getCom(actors.get(Actor.ALTRE_CLIENT), "/api/tasks")).andExpect(jsonPath("$.length()").value(0));
+	}
+
+	@Test
+	@DisplayName("El directori públic només porta professionals i cap dada privada")
+	void directoriPublic() throws Exception {
+		mvc.perform(get("/api/professionals"))
+			.andExpect(jsonPath("$.length()").value(2))
+			.andExpect(jsonPath("$[*].rol", org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is("PROFESSIONAL"))))
+			.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("@test.es"))))
+			.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("600000001"))));
+		mvc.perform(get("/api/professionals/" + professional + "@test.es")).andExpect(status().isNotFound());
 	}
 
 	@Test

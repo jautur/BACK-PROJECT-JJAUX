@@ -36,20 +36,20 @@ public class UsuariController {
 	}
 
 	/**
-	 * Llistar els usuaris registrats. Només l'administrador rep totes les dades.
+	 * Llistar tots els usuaris registrats (només administrador).
+	 * El directori públic de professionals és a /api/professionals.
 	 * Endpoint: GET /api/users
-	 * @return Llista d'usuaris amb els camps que pot veure qui pregunta
+	 * @return Llista completa d'usuaris
 	 */
 	@GetMapping
-	@Operation(summary = "Llistar usuaris", description = "Retorna els comptes registrats amb els camps que pot veure qui pregunta")
+	@Operation(summary = "Llistar usuaris", description = "Retorna tots els comptes registrats; només administrador")
 	public List<Usuari> list(Principal principal) {
-		return usuariService.list().stream()
-			.map(u -> veuTotesLesDades(u, principal) ? u : u.perfilPublic())
-			.toList();
+		Sollicitant.exigirAdmin(principal);
+		return usuariService.list();
 	}
 
 	/**
-	 * Obtenir un perfil pel seu ID o nom.
+	 * Obtenir un perfil pel seu ID o nom (amb sessió).
 	 * Endpoint: GET /api/users/{id}
 	 * Un correu només obri el perfil a un administrador: si no, serviria per a saber qui està registrat.
 	 * @param id Identificador o nom de l'usuari
@@ -58,6 +58,7 @@ public class UsuariController {
 	@GetMapping("/{id}")
 	@Operation(summary = "Obtenir perfil d'usuari", description = "Retorna el perfil amb els camps que pot veure qui pregunta")
 	public ResponseEntity<Usuari> getById(@PathVariable String id, Principal principal) {
+		Sollicitant.id(principal);
 		if (id.contains("@") && !Sollicitant.esAdmin(principal)) {
 			return ResponseEntity.notFound().build();
 		}

@@ -24,7 +24,7 @@ class TasquesIT extends MercatIntegrationTest {
 		assertThat(jdbc.queryForObject("SELECT client_id::text FROM tasques WHERE id = ?::uuid AND publicacio_id = ?::uuid AND preu_acordat = '30€'", String.class, tasca, oferta))
 			.isEqualTo(client.toString());
 		assertThat(avisosDe(professional)).isEqualTo(1);
-		mvc.perform(get("/api/tasks")).andExpect(jsonPath("$.length()").value(0));
+		mvc.perform(getCom(client, "/api/tasks")).andExpect(jsonPath("$.length()").value(0));
 		mvc.perform(getCom(professional, "/api/interessos/professional/" + professional))
 			.andExpect(jsonPath("$[0].id").value(tasca))
 			.andExpect(jsonPath("$[0].tascaId").doesNotExist());
@@ -60,7 +60,7 @@ class TasquesIT extends MercatIntegrationTest {
 
 		assertThat(estatTasca(tasca)).isEqualTo("EN_CURS");
 		assertThat(avisosDe(client)).isEqualTo(1);
-		mvc.perform(get("/api/tasks")).andExpect(jsonPath("$[0].id").value(tasca));
+		mvc.perform(getCom(client, "/api/tasks")).andExpect(jsonPath("$[0].id").value(tasca));
 		mvc.perform(postCom(professional, "/api/interessos/" + tasca + "/acceptar", "{}")).andExpect(status().isConflict());
 	}
 

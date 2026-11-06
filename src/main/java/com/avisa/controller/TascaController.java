@@ -36,13 +36,20 @@ public class TascaController {
 	}
 
 	/**
-	 * Llistar totes les tasques de la plataforma.
+	 * Llistar tasques: totes per a un administrador, les pròpies per a la resta.
 	 * Endpoint: GET /api/tasks
-	 * @return Llista de tasques
+	 * @return Llista de tasques que pot veure qui pregunta
 	 */
 	@GetMapping
-	public List<Tasca> list() {
-		return tascaService.list();
+	public List<Tasca> list(Principal principal) {
+		String actor = Sollicitant.id(principal);
+		if (Sollicitant.esAdmin(principal)) {
+			return tascaService.list();
+		}
+		// Les tasques són privades: cadascú veu les seues, com a client o com a professional
+		return tascaService.list().stream()
+			.filter(t -> actor.equalsIgnoreCase(t.clientId()) || actor.equalsIgnoreCase(t.professionalId()))
+			.toList();
 	}
 
 	/**

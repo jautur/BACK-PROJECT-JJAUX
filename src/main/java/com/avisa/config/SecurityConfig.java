@@ -44,17 +44,9 @@ public class SecurityConfig {
         "/api/tasks/disponibles",
         "/api/resenyes",
         "/api/resenyes/treballador/*",
-        "/api/resenyes/client/*"
-    };
-
-    /**
-     * PENDENT DE DECISIÓ: les pantalles de convidat (inici, mercat i perfil públic) encara les criden.
-     * El telèfon i el correu ja no hi surten, però /api/tasks encara exposa les tasques de tothom.
-     */
-    private static final String[] PENDENT_DE_DECISIO = {
-        "/api/users",
-        "/api/users/*",
-        "/api/tasks"
+        "/api/resenyes/client/*",
+        "/api/professionals",
+        "/api/professionals/*"
     };
 
     private final JwtDecoder jwtDecoder;
@@ -74,7 +66,6 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                 .requestMatchers(HttpMethod.POST, AUTH_PUBLICA).permitAll()
                 .requestMatchers(HttpMethod.GET, MERCAT_PUBLIC).permitAll()
-                .requestMatchers(HttpMethod.GET, PENDENT_DE_DECISIO).permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder)));

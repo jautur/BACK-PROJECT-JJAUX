@@ -50,9 +50,12 @@ class TascaControllerTest {
         Tasca t = new Tasca("T-1", "Pintura", "Desc", "Pintura", "u-1", "Client", "u-2", "Pro", null, null, null, "100€", LocalDateTime.now(), null, null, null, null);
         when(tascaService.list()).thenReturn(List.of(t));
 
-        mockMvc.perform(get("/api/tasks"))
+        mockMvc.perform(get("/api/tasks")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/tasks").principal(JwtDeProva.sessio("u-1", "CLIENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].titol").value("Pintura"));
+        mockMvc.perform(get("/api/tasks").principal(JwtDeProva.sessio("u-9", "CLIENT")))
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test

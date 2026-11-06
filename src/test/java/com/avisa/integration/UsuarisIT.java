@@ -201,7 +201,7 @@ class UsuarisIT extends PostgresIntegrationTest {
 		try {
 			mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
 				.content("{\"email\":\"cli@test.es\",\"password\":\"secreta\"}")).andExpect(status().isInternalServerError());
-			mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/users")).andExpect(status().isInternalServerError());
+			mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/users").header(HttpHeaders.AUTHORIZATION, bearer(UUID.randomUUID(), "ADMIN"))).andExpect(status().isInternalServerError());
 		} finally {
 			jdbc.execute("ALTER TABLE usuaris_amagada RENAME TO usuaris");
 		}

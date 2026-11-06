@@ -47,16 +47,16 @@ class UsuariControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/users retorna llista d'usuaris sense contacte si no hi ha sessió")
+    @DisplayName("GET /api/users és només per a l'admin")
     void haDeLlistarUsuaris() throws Exception {
         Usuari u = new Usuari("u-1", "Pep", "pep@test.com", "client", "666111222", "Bio");
         when(usuariService.list()).thenReturn(List.of(u));
 
-        mockMvc.perform(get("/api/users"))
+        mockMvc.perform(get("/api/users")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/users").principal(JwtDeProva.sessio("u-1", "CLIENT"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/users").principal(JwtDeProva.sessio("u-admin", "ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].nom").value("Pep"))
-                .andExpect(jsonPath("$[0].email").doesNotExist())
-                .andExpect(jsonPath("$[0].telefon").doesNotExist());
+                .andExpect(jsonPath("$[0].email").value("pep@test.com"));
     }
 
     @Test
@@ -65,7 +65,7 @@ class UsuariControllerTest {
         Usuari u = new Usuari("u-1", "Pep", "pep@test.com", "client", "666111222", "Bio");
         when(usuariService.findById("u-1")).thenReturn(Optional.of(u));
 
-        mockMvc.perform(get("/api/users/u-1"))
+        mockMvc.perform(get("/api/users/u-1").principal(JwtDeProva.sessio("u-1", "CLIENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("u-1"));
     }

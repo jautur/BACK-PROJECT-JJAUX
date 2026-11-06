@@ -107,7 +107,7 @@ class TancarIncidenciaIT extends MercatIntegrationTest {
 
 		mvc.perform(getCom(client, "/api/tasks/" + tasca))
 			.andExpect(jsonPath("$.tipus").value("tasca")).andExpect(jsonPath("$.publicacioId").value(incidencia));
-		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/users"))
+		mvc.perform(getCom(admin, "/api/users"))
 			.andExpect(jsonPath("$[?(@.id=='" + client + "')].rol").value("CLIENT"));
 	}
 
