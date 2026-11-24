@@ -74,6 +74,22 @@ class ContrasenyesIT extends MercatIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("En canviar la contrasenya, el token anterior deixa de valer però un de nou sí")
+	void canviInvalidaElTokenAnterior() throws Exception {
+		String antic = bearer(client);
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/tasks").header("Authorization", antic))
+			.andExpect(status().isOk());
+
+		Thread.sleep(1100); // el token porta l'hora en segons: el canvi ha de ser d'un segon posterior
+		mvc.perform(postCom(admin, "/api/auth/canviar-contrasenya", "{\"userId\":\"" + client + "\",\"newPassword\":\"clauNova9\"}"))
+			.andExpect(status().isOk());
+
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/tasks").header("Authorization", antic))
+			.andExpect(status().isUnauthorized());
+		mvc.perform(getCom(client, "/api/tasks")).andExpect(status().isOk());
+	}
+
+	@Test
 	@DisplayName("Canviar la contrasenya en guarda el hash, i l'anterior deixa de valer")
 	void canviDeContrasenya() throws Exception {
 		mvc.perform(postCom(client, "/api/auth/canviar-contrasenya", "{\"userId\":\"" + client + "\",\"newPassword\":\"clauNova2\"}"))

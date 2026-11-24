@@ -20,6 +20,15 @@ class JwtServiceTest {
 	}
 
 	@Test
+	@DisplayName("Un token dura una setmana")
+	void duraUnaSetmana() {
+		JwtService servei = new JwtService(SECRET);
+		var jwt = servei.jwtDecoder().decode(servei.generateToken("u-1", "a@test.es", "CLIENT"));
+
+		assertThat(java.time.Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt())).isEqualTo(java.time.Duration.ofDays(7));
+	}
+
+	@Test
 	@DisplayName("Un token només val amb el mateix secret amb què s'ha signat")
 	void tokenSignatAmbUnAltreSecret() {
 		JwtService actual = new JwtService(SECRET);

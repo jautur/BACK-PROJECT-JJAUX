@@ -32,6 +32,9 @@ public class JwtService {
     /** HS256 necessita una clau d'almenys 256 bits. */
     static final int LONGITUD_MINIMA = 32;
 
+    /** Quant dura un token: una setmana, però deixa de valer si l'usuari canvia la contrasenya. */
+    public static final java.time.Duration DURADA_TOKEN = java.time.Duration.ofDays(7);
+
     private final SecretKey secretKey;
 
     public JwtService(@Value("${avisa.jwt.secret:}") String secret) {
@@ -63,7 +66,7 @@ public class JwtService {
     }
 
     /**
-     * Genera un token JWT signat amb validesa de 24 hores per a un usuari autenticat.
+     * Genera un token JWT signat amb validesa d'una setmana (es revoca en canviar la contrasenya, vegeu ValidadorSessio) per a un usuari autenticat.
      * @param userId Identificador de l'usuari
      * @param email Correu de l'usuari
      * @param rol Rol de l'usuari ('client', 'professional', 'admin')
@@ -74,7 +77,7 @@ public class JwtService {
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer("AVISA-JJAUX")
                 .issuedAt(now)
-                .expiresAt(now.plus(24, ChronoUnit.HOURS))
+                .expiresAt(now.plus(DURADA_TOKEN))
                 .subject(userId)
                 .claim("email", email)
                 .claim("rol", rol != null ? rol.toUpperCase() : "CLIENT")

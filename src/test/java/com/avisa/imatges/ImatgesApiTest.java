@@ -90,7 +90,7 @@ class ImatgesApiTest {
 				Files.delete(p);
 			}
 		}
-		jdbc.execute("CREATE TABLE IF NOT EXISTS usuaris (id UUID PRIMARY KEY, rol VARCHAR(20), foto_url VARCHAR(200), logo_url VARCHAR(200))");
+		jdbc.execute("CREATE TABLE IF NOT EXISTS usuaris (id UUID PRIMARY KEY, rol VARCHAR(20), foto_url VARCHAR(200), logo_url VARCHAR(200), sessions_valides_des_de TIMESTAMP WITH TIME ZONE)");
 		jdbc.execute("DELETE FROM usuaris");
 		client = usuari("CLIENT");
 		altreClient = usuari("CLIENT");

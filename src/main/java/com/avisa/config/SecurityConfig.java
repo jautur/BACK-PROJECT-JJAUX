@@ -12,7 +12,10 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
 
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 /**
  * Configuració de seguretat per al backend d'AVISA.
@@ -62,7 +65,11 @@ public class SecurityConfig {
     /** La documentació de l'API (Swagger) només és pública amb el perfil dev. */
     private final boolean swaggerPublic;
 
-    public SecurityConfig(JwtDecoder jwtDecoder, Environment environment) {
+    public SecurityConfig(JwtDecoder jwtDecoder, Environment environment, ValidadorSessio validadorSessio) {
+        if (jwtDecoder instanceof NimbusJwtDecoder nimbus) {
+            // Firma i caducitat, més el rebuig dels tokens anteriors a l'últim canvi de contrasenya
+            nimbus.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefault(), validadorSessio));
+        }
         this.jwtDecoder = jwtDecoder;
         this.swaggerPublic = environment.acceptsProfiles(Profiles.of("dev"));
     }
