@@ -74,6 +74,18 @@
 		</dependency>
 
 		<!-- Imatges: lectura de WebP i JPEG (CMYK, perfils ICC) i lectura de l'orientació EXIF -->
+		<!-- Web Push (VAPID + cifrat del missatge) per a les notificacions al navegador -->
+		<dependency>
+			<groupId>nl.martijndwars</groupId>
+			<artifactId>web-push</artifactId>
+			<version>5.1.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk18on</artifactId>
+			<version>1.78.1</version>
+		</dependency>
+
 		<dependency>
 			<groupId>com.twelvemonkeys.imageio</groupId>
 			<artifactId>imageio-jpeg</artifactId>

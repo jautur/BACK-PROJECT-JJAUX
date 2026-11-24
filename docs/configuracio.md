@@ -157,3 +157,20 @@ d'entrada però mai se serveix); `metadata-extractor` només per llegir l'orient
 **Limitació coneguda:** si el procés s'atura just després de desar els fitxers i abans d'actualitzar la base, aquells
 fitxers queden orfes al disc. No es veuen enlloc i no fan cap mal, però ocupen espai. Si mai cal, es poden netejar
 comparant la carpeta amb `foto_url`/`logo_url`.
+
+## Notificacions push (`AVISA_VAPID_PUBLIC`, `AVISA_VAPID_PRIVATE`)
+
+Cada avís intern (nou pressupost, oferta acceptada, tasca finalitzada...) s'envia també com a notificació push
+als navegadors on l'usuari l'haja activat. Cal un parell de claus VAPID:
+
+```bash
+npx web-push generate-vapid-keys
+export AVISA_VAPID_PUBLIC=...   # clau pública (base64url)
+export AVISA_VAPID_PRIVATE=...  # clau privada: no es puja mai al repositori
+export AVISA_VAPID_SUBJECT=mailto:contacte@el-teu-domini.cat   # opcional
+```
+
+- Sense les claus, el push queda desactivat (`GET /api/push/clau-publica` dóna 404) i res més canvia.
+- Només s'accepten subscripcions `https` dels serveis de push coneguts (Chrome/Edge, Firefox, Windows, Safari). Es poden canviar amb `avisa.push.hosts-permesos` (llista separada per comes; un valor que comença per punt vol dir "qualsevol subdomini").
+- Un usuari té com a màxim 10 dispositius; una subscripció que el servei de push dona per morta (404/410) s'esborra sola.
+- L'enviament és en segon pla: un error de push no afecta mai la creació de l'avís.

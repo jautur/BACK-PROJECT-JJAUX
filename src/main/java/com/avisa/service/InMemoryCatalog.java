@@ -44,6 +44,14 @@ public class InMemoryCatalog {
 	/** Hash d'una contrasenya qualsevol: fa que un correu inexistent tarde el mateix que un d'existent. */
 	private static final String HASH_DE_PERDRE_TEMPS = "$2a$10$n5f0jmVZUnF5mzfnxuBFUOaUGBZ.MDhQug1rbtTUoeCyj/3rTUE8K";
 
+	/** Opcional: qui escolta els avisos nous (push). Sense ell, crear un avís funciona igual. */
+	private org.springframework.context.ApplicationEventPublisher publicador;
+
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	void setPublicador(org.springframework.context.ApplicationEventPublisher publicador) {
+		this.publicador = publicador;
+	}
+
 	public InMemoryCatalog(JdbcTemplate jdbcTemplate, PasswordEncoder passwordEncoder) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.passwordEncoder = passwordEncoder;
@@ -951,6 +959,13 @@ public class InMemoryCatalog {
 			"INSERT INTO avisos (id, destinatari_id, missatge, enllac) VALUES (?::uuid, ?::uuid, ?, ?)",
 			id, destinatari.id(), missatge, targetEnllac
 		);
+		if (publicador != null) {
+			try {
+				publicador.publishEvent(new AvisCreat(destinatari.id(), missatge, targetEnllac));
+			} catch (RuntimeException e) {
+				// Un oient que falla no ha de desfer ni trencar l'avís, que ja és a la base
+			}
+		}
 		return new Avis(id, destinatari.id(), missatge, false, data, targetEnllac);
 	}
 
