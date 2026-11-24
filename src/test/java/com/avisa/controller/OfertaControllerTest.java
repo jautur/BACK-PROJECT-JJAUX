@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,6 +41,20 @@ class OfertaControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(ofertaController).build();
+    }
+
+    @Test
+    @DisplayName("GET /api/offers?size= retorna una pàgina amb el total a la capçalera")
+    void haDePaginarOfertes() throws Exception {
+        Oferta o = new Oferta("O-1", "standalone", "Pro Manel", "Fontaneria", "45€/h", "Reparacions", "Activa");
+        when(ofertaService.list(10, 0)).thenReturn(List.of(o));
+        when(ofertaService.count()).thenReturn(1L);
+
+        mockMvc.perform(get("/api/offers").param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "1"))
+                .andExpect(jsonPath("$[0].id").value("O-1"));
+        mockMvc.perform(get("/api/offers").param("size", "500")).andExpect(status().isBadRequest());
     }
 
     @Test

@@ -37,6 +37,26 @@ class PublicacionsIT extends MercatIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("Els llistats es paginen a la base: pàgina, total i sense saltar-se ni repetir elements")
+	void llistatsPaginats() throws Exception {
+		java.util.Set<String> ids = new java.util.HashSet<>();
+		for (int i = 0; i < 3; i++) {
+			ids.add(crearIncidencia(client));
+		}
+
+		java.util.Set<String> vistos = new java.util.HashSet<>();
+		for (int pagina = 0; pagina < 2; pagina++) {
+			String cos = mvc.perform(get("/api/incidencies").param("size", "2").param("page", String.valueOf(pagina)))
+				.andExpect(status().isOk()).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("X-Total-Count", "3"))
+				.andReturn().getResponse().getContentAsString();
+			new com.fasterxml.jackson.databind.ObjectMapper().readTree(cos).forEach(n -> vistos.add(n.get("id").asText()));
+		}
+
+		assertThat(vistos).isEqualTo(ids);
+		mvc.perform(get("/api/incidencies").param("size", "2").param("page", "5")).andExpect(jsonPath("$.length()").value(0));
+	}
+
+	@Test
 	@DisplayName("Un error de la base dona 500 i no fingeix que s'ha guardat")
 	void errorDeBaseNoFingeixExit() throws Exception {
 		jdbc.execute("ALTER TABLE publicacions RENAME TO publicacions_amagada");

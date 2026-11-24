@@ -27,6 +27,16 @@ public class TascaService {
 		return catalog.tasks();
 	}
 
+	/** Una pàgina de tasques (vegeu {@link #list()}). */
+	public List<Tasca> list(int limit, int offset) {
+		return catalog.tasks(limit, offset);
+	}
+
+	/** Total de tasques que retorna {@link #list()}. */
+	public long count() {
+		return catalog.comptarTasks();
+	}
+
 	/**
 	 * Troba una tasca pel seu identificador pur.
 	 * @param id Identificador de la tasca

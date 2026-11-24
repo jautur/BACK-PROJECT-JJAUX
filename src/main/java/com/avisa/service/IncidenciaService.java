@@ -27,6 +27,16 @@ public class IncidenciaService {
 		return catalog.incidencies();
 	}
 
+	/** Una pàgina d'incidències (vegeu {@link #list()}). */
+	public List<Incidencia> list(int limit, int offset) {
+		return catalog.incidencies(limit, offset);
+	}
+
+	/** Total d'incidències que retorna {@link #list()}. */
+	public long count() {
+		return catalog.comptarIncidencies();
+	}
+
 	/**
 	 * Troba una incidència pel seu identificador.
 	 * @param id Identificador de la incidència

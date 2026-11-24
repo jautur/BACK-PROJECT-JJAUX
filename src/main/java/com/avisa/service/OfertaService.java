@@ -28,6 +28,16 @@ public class OfertaService {
 		return catalog.offers();
 	}
 
+	/** Una pàgina d'ofertes (vegeu {@link #list()}). */
+	public List<Oferta> list(int limit, int offset) {
+		return catalog.offers(limit, offset);
+	}
+
+	/** Total d'ofertes que retorna {@link #list()}. */
+	public long count() {
+		return catalog.comptarOfertes();
+	}
+
 	/**
 	 * Troba una oferta pel seu identificador.
 	 * @param id Identificador de l'oferta

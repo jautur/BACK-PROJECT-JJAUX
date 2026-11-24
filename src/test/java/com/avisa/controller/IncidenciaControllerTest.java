@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -51,6 +52,29 @@ class IncidenciaControllerTest {
         mockMvc.perform(get("/api/incidencies"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].titol").value("Avaria llum"));
+    }
+
+    @Test
+    @DisplayName("GET /api/incidencies?size=&page= retorna només aquella pàgina amb el total a la capçalera")
+    void haDePaginarIncidencies() throws Exception {
+        Incidencia inc = new Incidencia("I-3", "Client A", "Avaria llum", "Curtecircuit", "Electricitat", "60€", "Oberta");
+        when(incidenciaService.list(2, 4)).thenReturn(List.of(inc));
+        when(incidenciaService.count()).thenReturn(7L);
+
+        mockMvc.perform(get("/api/incidencies").param("size", "2").param("page", "2"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "7"))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("I-3"));
+    }
+
+    @Test
+    @DisplayName("La paginació rebutja mides i pàgines no vàlides amb 400")
+    void haDeRebutjarPaginacioNoValida() throws Exception {
+        mockMvc.perform(get("/api/incidencies").param("size", "0")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/incidencies").param("size", "101")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/incidencies").param("size", "10").param("page", "-1")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/incidencies").param("page", "1")).andExpect(status().isBadRequest());
     }
 
     @Test

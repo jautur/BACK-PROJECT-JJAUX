@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -33,11 +34,12 @@ public class OfertaController {
 	/**
 	 * Llistar totes les ofertes registrades a la plataforma.
 	 * Endpoint: GET /api/offers
-	 * @return Llista completa d'ofertes
+	 * Paginació opcional: ?size=20&page=0 (total a la capçalera X-Total-Count); sense size, la llista completa.
+	 * @return Llista d'ofertes
 	 */
 	@GetMapping
-	public List<Oferta> list() {
-		return ofertaService.list();
+	public ResponseEntity<List<Oferta>> list(@RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
+		return Paginacio.resposta(page, size, ofertaService::list, ofertaService::list, ofertaService::count);
 	}
 
 	/**

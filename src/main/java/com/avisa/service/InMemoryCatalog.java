@@ -190,7 +190,7 @@ public class InMemoryCatalog {
 	 * @param newPassword Nova contrasenya
 	 */
 	public void changePassword(String id, String newPassword) {
-		int rows = jdbcTemplate.update("UPDATE usuaris SET password = ? WHERE id::text = ?", passwordEncoder.encode(newPassword), id);
+		int rows = jdbcTemplate.update("UPDATE usuaris SET password = ?, sessions_valides_des_de = now() WHERE id::text = ?", passwordEncoder.encode(newPassword), id);
 		if (rows == 0) {
 			throw new IllegalArgumentException("Usuari no trobat");
 		}
@@ -404,6 +404,18 @@ public class InMemoryCatalog {
 		return jdbcTemplate.query(SELECT_PUBLICACIO + "WHERE p.tipus = 'INCIDENCIA' AND p.estat = 'OBERTA' ORDER BY p.created_at DESC", incidenciaRowMapper);
 	}
 
+	/** Una pàgina d'incidències obertes (límit i desplaçament), amb el mateix ordre que {@link #incidencies()}. */
+	public List<Incidencia> incidencies(int limit, int offset) {
+		return jdbcTemplate.query(SELECT_PUBLICACIO + "WHERE p.tipus = 'INCIDENCIA' AND p.estat = 'OBERTA' ORDER BY p.created_at DESC, p.id LIMIT ? OFFSET ?",
+				incidenciaRowMapper, limit, offset);
+	}
+
+	/** Nombre d'incidències obertes. */
+	public long comptarIncidencies() {
+		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM publicacions p WHERE p.tipus = 'INCIDENCIA' AND p.estat = 'OBERTA'", Long.class);
+		return total == null ? 0 : total;
+	}
+
 	/**
 	 * Cerca una incidència pel seu identificador.
 	 * @param id Identificador de la incidència
@@ -566,6 +578,17 @@ public class InMemoryCatalog {
 	 */
 	public List<Tasca> tasks() {
 		return jdbcTemplate.query(SELECT_TASCA + "WHERE " + TASCA_ACORDADA + "ORDER BY t.created_at DESC", tascaRowMapper);
+	}
+
+	/** Una pàgina del treball acordat (límit i desplaçament), amb el mateix ordre que {@link #tasks()}. */
+	public List<Tasca> tasks(int limit, int offset) {
+		return jdbcTemplate.query(SELECT_TASCA + "WHERE " + TASCA_ACORDADA + "ORDER BY t.created_at DESC, t.id LIMIT ? OFFSET ?", tascaRowMapper, limit, offset);
+	}
+
+	/** Nombre de tasques acordades, en curs o acabades. */
+	public long comptarTasks() {
+		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM tasques t WHERE " + TASCA_ACORDADA, Long.class);
+		return total == null ? 0 : total;
 	}
 
 	/**
@@ -733,6 +756,18 @@ public class InMemoryCatalog {
 	 */
 	public List<Oferta> offers() {
 		return jdbcTemplate.query(SELECT_PUBLICACIO + "WHERE p.tipus = 'OFERTA' AND p.estat = 'ACTIVA' ORDER BY p.created_at DESC", ofertaRowMapper);
+	}
+
+	/** Una pàgina d'ofertes actives (límit i desplaçament), amb el mateix ordre que {@link #offers()}. */
+	public List<Oferta> offers(int limit, int offset) {
+		return jdbcTemplate.query(SELECT_PUBLICACIO + "WHERE p.tipus = 'OFERTA' AND p.estat = 'ACTIVA' ORDER BY p.created_at DESC, p.id LIMIT ? OFFSET ?",
+				ofertaRowMapper, limit, offset);
+	}
+
+	/** Nombre d'ofertes actives. */
+	public long comptarOfertes() {
+		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM publicacions p WHERE p.tipus = 'OFERTA' AND p.estat = 'ACTIVA'", Long.class);
+		return total == null ? 0 : total;
 	}
 
 	/**

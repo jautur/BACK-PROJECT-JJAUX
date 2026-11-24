@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -35,19 +36,20 @@ public class TascaController {
 
 	/**
 	 * Llistar tasques: totes per a un administrador, les pròpies per a la resta.
-	 * Endpoint: GET /api/tasks
+	 * Endpoint: GET /api/tasks (paginació opcional: ?size=20&page=0, total a X-Total-Count)
 	 * @return Llista de tasques que pot veure qui pregunta
 	 */
 	@GetMapping
-	public List<Tasca> list(Principal principal) {
+	public ResponseEntity<List<Tasca>> list(Principal principal, @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
 		String actor = Sollicitant.id(principal);
 		if (Sollicitant.esAdmin(principal)) {
-			return tascaService.list();
+			return Paginacio.resposta(page, size, tascaService::list, tascaService::list, tascaService::count);
 		}
 		// Les tasques són privades: cadascú veu les seues, com a client o com a professional
-		return tascaService.list().stream()
+		List<Tasca> meves = tascaService.list().stream()
 			.filter(t -> actor.equalsIgnoreCase(t.clientId()) || actor.equalsIgnoreCase(t.professionalId()))
 			.toList();
+		return Paginacio.resposta(page, size, () -> meves, (limit, offset) -> Paginacio.tallar(meves, limit, offset), meves::size);
 	}
 
 	/**
@@ -139,8 +141,10 @@ public class TascaController {
 	 * @return Llista de tasques i incidències amb estat 'Oberta'
 	 */
 	@GetMapping("/disponibles")
-	public List<Tasca> listAvailable() {
-		return tascaService.listAvailable();
+	public ResponseEntity<List<Tasca>> listAvailable(@RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
+		// Barreja incidències i tasques: es pagina sobre el resultat ja combinat
+		List<Tasca> disponibles = tascaService.listAvailable();
+		return Paginacio.resposta(page, size, () -> disponibles, (limit, offset) -> Paginacio.tallar(disponibles, limit, offset), disponibles::size);
 	}
 
 	/**
