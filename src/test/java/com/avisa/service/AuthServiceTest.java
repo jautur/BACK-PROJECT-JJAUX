@@ -143,6 +143,35 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("Demanar codis nous no reinicia els intents: passat el límit no se'n genera cap més")
+    void limitDeSolLicitudsDeCodi() {
+        for (int i = 0; i < AuthService.SOL_LICITUDS_MAXIMES; i++) {
+            demanar("maria@test.com");
+            for (int j = 0; j < AuthService.INTENTS_MAXIMS; j++) {
+                restablir("maria@test.com", "000000");
+            }
+        }
+
+        RecuperacioResponse resposta = demanar("maria@test.com");
+        assertThat(resposta.success()).isTrue(); // mateixa resposta: no delata el límit
+        assertThat(restablir("maria@test.com", CODI).success()).isFalse();
+        verify(catalog, never()).changePassword(any(), any());
+    }
+
+    @Test
+    @DisplayName("Passada la finestra de 15 minuts es poden tornar a demanar codis")
+    void limitDeSolLicitudsCaduca() {
+        for (int i = 0; i < AuthService.SOL_LICITUDS_MAXIMES + 1; i++) {
+            demanar("maria@test.com");
+        }
+        ara.set(ara.get().plus(AuthService.VALIDESA_CODI).plusSeconds(1));
+
+        demanar("maria@test.com");
+
+        assertThat(restablir("maria@test.com", CODI).success()).isTrue();
+    }
+
+    @Test
     @DisplayName("Després de 5 intents fallits el codi queda invalidat, encara que després s'envie el correcte")
     void cincIntentsFallitsInvaliden() {
         demanar("maria@test.com");

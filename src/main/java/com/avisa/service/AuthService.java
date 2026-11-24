@@ -11,6 +11,8 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,6 +33,9 @@ import org.springframework.stereotype.Service;
  * - La resposta mai porta el codi ni el correu, i diu el mateix existisca o no el compte.
  * - El codi només s'escriu al log, i només amb el perfil dev (no hi ha enviament de correu).
  * - Caduca als 15 minuts i queda invalidat després de 5 intents fallits.
+ * - Només es generen {@value #SOL_LICITUDS_MAXIMES} codis per compte cada 15 minuts: sense aquest límit, qui
+ *   demanara un codi nou cada 5 fallades tindria intents il·limitats sobre el milió de codis possibles.
+ *   Passat el límit la resposta és la mateixa, però no es genera cap codi nou.
  * - Es guarda per usuari: un cop usat s'esborra, s'haja identificat l'usuari per correu, nom o ID.
  */
 @Service
@@ -40,6 +45,7 @@ public class AuthService {
 
 	static final Duration VALIDESA_CODI = Duration.ofMinutes(15);
 	static final int INTENTS_MAXIMS = 5;
+	static final int SOL_LICITUDS_MAXIMES = 3;
 
 	static final String MISSATGE_SOL_LICITUD = "Si el compte existeix, s'ha generat un codi de recuperació vàlid durant 15 minuts.";
 	static final String MISSATGE_CODI_NO_VALID = "El codi no és correcte o ja no és vàlid. Sol·licita'n un de nou.";
@@ -53,6 +59,9 @@ public class AuthService {
 
 	/** Codis pendents, per identificador d'usuari. */
 	private final Map<String, CodiRecuperacio> codis = new ConcurrentHashMap<>();
+
+	/** Moments en què s'ha generat un codi, per usuari, dins de la finestra de {@link #VALIDESA_CODI}. */
+	private final Map<String, Deque<Instant>> generacions = new ConcurrentHashMap<>();
 
 	private static final class CodiRecuperacio {
 		private final String codi;
@@ -156,7 +165,7 @@ public class AuthService {
 		if (identificador.isBlank()) {
 			return new RecuperacioResponse(false, "Cal indicar un correu o nom d'usuari vàlid.");
 		}
-		usuariPer(identificador).ifPresent(usuari -> {
+		usuariPer(identificador).filter(usuari -> potGenerarCodi(usuari.id())).ifPresent(usuari -> {
 			String codi = generadorDeCodis.get();
 			codis.put(usuari.id(), new CodiRecuperacio(codi, rellotge.instant().plus(VALIDESA_CODI)));
 			// No hi ha enviament de correu: en desenvolupament el codi es llig al log, i fora de dev no s'escriu enlloc
@@ -165,6 +174,22 @@ public class AuthService {
 			}
 		});
 		return new RecuperacioResponse(true, MISSATGE_SOL_LICITUD);
+	}
+
+	/** Registra una generació de codi i diu si encara cap dins del límit per compte. */
+	private boolean potGenerarCodi(String usuariId) {
+		Instant ara = rellotge.instant();
+		Deque<Instant> moments = generacions.computeIfAbsent(usuariId, k -> new ArrayDeque<>());
+		synchronized (moments) {
+			while (!moments.isEmpty() && !moments.peekFirst().plus(VALIDESA_CODI).isAfter(ara)) {
+				moments.removeFirst();
+			}
+			if (moments.size() >= SOL_LICITUDS_MAXIMES) {
+				return false;
+			}
+			moments.addLast(ara);
+			return true;
+		}
 	}
 
 	/**
