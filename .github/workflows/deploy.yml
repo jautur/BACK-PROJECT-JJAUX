@@ -1,0 +1,39 @@
+name: Deploy Avisa Backend
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-avisa-back
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build JAR y deploy a VM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
+          cache: maven
+
+      - name: Build JAR
+        run: ./mvnw package -DskipTests -q
+
+      - name: Configurar SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Subir JAR a la VM
+        run: scp target/*.jar ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/opt/avisa/avisa.jar
+
+      - name: Reiniciar servicio
+        run: ssh ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} "sudo systemctl restart avisa"
